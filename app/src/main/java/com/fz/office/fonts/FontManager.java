@@ -314,13 +314,48 @@ public final class FontManager {
      */
     public static synchronized ImportResult importBundledFontArchives(Context context) throws Exception {
         final String archivePath = "font-packs/HINDI FONTS.zip";
-        final String marker = "bundled_legacy_pack_v1";
+        final String versionKey = "bundled_legacy_pack_version";
+        final String filesKey = "bundled_legacy_pack_files";
         SharedPreferences prefs = preferences(context);
-        if (prefs.getBoolean(marker, false)) return new ImportResult();
+        int appVersion;
+        try {
+            android.content.pm.PackageInfo info = context.getPackageManager()
+                    .getPackageInfo(context.getPackageName(), 0);
+            appVersion = android.os.Build.VERSION.SDK_INT >= 28
+                    ? (int) info.getLongVersionCode() : info.versionCode;
+        } catch (Exception exception) {
+            throw new IOException("Could not determine the installed app version.", exception);
+        }
+        if (prefs.getInt(versionKey, -1) == appVersion) return new ImportResult();
+
+        File directory = customDirectory(context);
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw new IOException("Could not create the private font folder.");
+        }
+
+        // Remove only files installed by the previous bundled pack. User-imported fonts stay untouched.
+        for (String name : prefs.getStringSet(filesKey, java.util.Collections.<String>emptySet())) {
+            File oldFile = new File(directory, name);
+            if (oldFile.isFile() && oldFile.getParentFile().equals(directory)) oldFile.delete();
+        }
+
+        Set<String> before = new HashSet<>();
+        File[] current = directory.listFiles();
+        if (current != null) for (File file : current) if (file.isFile()) before.add(file.getName());
 
         InputStream raw = context.getAssets().open(archivePath);
         ImportResult result = importFontArchiveStream(context, raw);
-        prefs.edit().putBoolean(marker, true).apply();
+
+        Set<String> installed = new HashSet<>();
+        File[] after = directory.listFiles();
+        if (after != null) {
+            for (File file : after) {
+                if (file.isFile() && isSupportedExtension(file.getName())
+                        && !before.contains(file.getName())) installed.add(file.getName());
+            }
+        }
+        prefs.edit().putStringSet(filesKey, installed)
+                .putInt(versionKey, appVersion).apply();
         return result;
     }
 
