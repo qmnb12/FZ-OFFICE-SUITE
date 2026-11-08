@@ -115,8 +115,8 @@ public class FontCenterActivity extends Activity {
         ));
         TextView legacyInfo = text(
                 "इनके font files proprietary या अलग-अलग license वाले हो सकते हैं, इसलिए project इन्हें bundle नहीं करता। "
-                        + "अपनी legally obtained TTF/OTF file import कर सकते हैं। Legacy font लगाने से पुराने encoded "
-                        + "text का Unicode conversion अपने-आप नहीं होता; verified converter अलग feature है.",
+                        + "अपनी legally obtained TTF/OTF file import कर सकते हैं। Writer में अभी Kruti Dev 010 के लिए "
+                        + "Unicode conversion preview उपलब्ध है; DevLys और अन्य profiles को अलग-अलग verify करना बाकी है.",
                 12, MUTED, false
         );
         legacyInfo.setPadding(0, dp(7), 0, 0);
@@ -130,10 +130,10 @@ public class FontCenterActivity extends Activity {
         converterInfo.setOnClickListener(v -> new AlertDialog.Builder(this)
                 .setTitle("Legacy-to-Unicode conversion")
                 .setMessage(
-                        "Conversion profiles are not included in this build yet. "
-                                + "Kruti Dev 010, other Kruti Dev versions, DevLys, Chanakya and Shusha "
-                                + "need separate verified mappings and sample documents. "
-                                + "The app will not guess a mapping or silently change your original file."
+                        "Writer toolbar में Unicode चुनकर Kruti Dev 010 text को Unicode Hindi में convert करने का preview बना सकते हैं। "
+                                + "कई DevLys 010 files similar map use करती हैं, लेकिन special glyphs अलग हो सकते हैं। "
+                                + "Chanakya, Shusha, Shree Lipi और दूसरे versions के converters अभी शामिल नहीं हैं। "
+                                + "Conversion के बाद output proofread करें; original file Save करने तक नहीं बदलती।"
                 )
                 .setPositiveButton("OK", null)
                 .show());

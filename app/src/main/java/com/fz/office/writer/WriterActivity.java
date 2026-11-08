@@ -48,6 +48,9 @@ public class WriterActivity extends Activity {
     private boolean saving;
     private boolean pageReady;
     private boolean fontsInitialized;
+    private boolean legacyPromptShown;
+    private boolean legacyTextSuspected;
+    private String detectedLegacyFont = "";
     private String pendingHtml = "<p></p>";
     private byte[] pendingSaveBytes;
     private LinkedHashMap<String, byte[]> packageEntries = new LinkedHashMap<>();
@@ -129,6 +132,7 @@ public class WriterActivity extends Activity {
         addTool(tools, "A−", "fontSize", "3");
         addTool(tools, "Font", "font");
         addTool(tools, "अक्षर", "hindiChars");
+        addTool(tools, "Unicode", "legacyConvert");
         addTool(tools, "Green", "foreColor", "#176B5B");
         addTool(tools, "Highlight", "backColor", "#FFF2A8");
         addTool(tools, "Table", "insertTable");
@@ -191,6 +195,9 @@ public class WriterActivity extends Activity {
             } else if ("hindiChars".equals(command)) {
                 showHindiCharacters();
                 return;
+            } else if ("legacyConvert".equals(command)) {
+                showLegacyConverterDialog();
+                return;
             } else if ("fontSize".equals(command) || value != null) {
                 script = "FZWriter.command('" + command + "','" + value + "')";
             } else {
@@ -248,6 +255,8 @@ public class WriterActivity extends Activity {
                             DocxCodec.readDocx(new ByteArrayInputStream(data));
                     packageEntries = loaded.packageEntries;
                     html = loaded.html;
+                    detectedLegacyFont = findLegacyFontName(loaded.fontNames);
+                    legacyTextSuspected = DocxCodec.looksLikeLegacyHindi(html);
                 } else {
                     throw new IOException("This Writer build opens .docx and .txt files only.");
                 }
@@ -258,7 +267,12 @@ public class WriterActivity extends Activity {
                     setDirty(false);
                     statusView.setText(plainText
                             ? "TXT document  ·  Offline editing"
-                            : "DOCX document  ·  Basic formatting and tables");
+                            : (!detectedLegacyFont.isEmpty()
+                                ? "Legacy font detected: " + detectedLegacyFont + "  ·  Convert to Unicode"
+                                : (legacyTextSuspected
+                                    ? "Possible legacy Hindi text  ·  Unicode conversion available"
+                                    : "DOCX document  ·  Basic formatting and tables")));
+                    maybePromptLegacyFont();
                 });
             } catch (Exception exception) {
                 runOnUiThread(() -> {
@@ -287,6 +301,7 @@ public class WriterActivity extends Activity {
             FontManager.FontRecord selected = FontManager.findByFamily(this, family);
             if (!selected.bundled) registerCustomFont(selected);
             applyPendingHtml();
+            maybePromptLegacyFont();
         } catch (Exception exception) {
             fontsInitialized = false;
             statusView.setText("Hindi font setup failed; using device fallback.");
@@ -327,6 +342,54 @@ public class WriterActivity extends Activity {
                         startActivity(new Intent(this, com.fz.office.fonts.FontCenterActivity.class)))
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    private String findLegacyFontName(List<String> fonts) {
+        for (String font : fonts) {
+            String lower = font.toLowerCase(java.util.Locale.ROOT);
+            if (lower.contains("kruti") || lower.contains("devlys")
+                    || lower.contains("dev lys") || lower.contains("krutidev")) {
+                return font;
+            }
+        }
+        return "";
+    }
+
+    private void maybePromptLegacyFont() {
+        if (legacyPromptShown || (!legacyTextSuspected && detectedLegacyFont.isEmpty()) || !pageReady) return;
+        legacyPromptShown = true;
+        String description = detectedLegacyFont.isEmpty()
+                ? "The document text resembles a legacy Hindi keyboard-font encoding."
+                : "This document declares the font \"" + detectedLegacyFont + "\".";
+        new AlertDialog.Builder(this)
+                .setTitle("Possible legacy Hindi text")
+                .setMessage(description + " Unicode fonts cannot reinterpret legacy character codes. "
+                        + "You can try the Kruti Dev 010 to Unicode converter. Review the result before saving; "
+                        + "English text typed in the same legacy font may also be converted.")
+                .setPositiveButton("Convert to Unicode", (dialog, which) -> convertLegacyHindi())
+                .setNeutralButton("Font Center", (dialog, which) ->
+                        startActivity(new Intent(this, com.fz.office.fonts.FontCenterActivity.class)))
+                .setNegativeButton("Later", null)
+                .show();
+    }
+
+    private void showLegacyConverterDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Legacy Hindi to Unicode")
+                .setMessage("Use this for text typed with Kruti Dev 010. Many DevLys 010 documents use a similar keyboard map, "
+                        + "but uncommon glyphs and other versions can differ. Conversion changes the current editor text; "
+                        + "the source file remains unchanged until you save.")
+                .setPositiveButton("Try Kruti Dev 010", (dialog, which) -> convertLegacyHindi())
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void convertLegacyHindi() {
+        runEditorScript("FZWriter.convertLegacy('krutidev010')");
+        statusView.setText("Legacy conversion preview · Review Hindi and English text before saving");
+        Toast.makeText(this,
+                "Conversion preview created. Check the whole document before saving.",
+                Toast.LENGTH_LONG).show();
     }
 
     private void showHindiCharacters() {

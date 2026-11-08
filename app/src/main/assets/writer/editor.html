@@ -31,6 +31,7 @@ body { padding:14px 10px 30px; }
   #page { max-width:760px; min-height:100vh; padding:48px 58px; }
 }
 </style>
+<script src="legacy-converter.js"></script>
 </head>
 <body>
 <main id="page" contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true">
@@ -105,6 +106,27 @@ body { padding:14px 10px 30px; }
     document.execCommand("insertText", false, value || "");
     changed();
   }
+  function convertLegacy(profile) {
+    if (profile !== "krutidev010") return false;
+    if (!window.FZLegacyHindi || !window.FZLegacyHindi.krutiDevToUnicode) return false;
+
+    var walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
+    var nodes = [];
+    while (walker.nextNode()) {
+      var node = walker.currentNode;
+      if (!node.nodeValue || !node.nodeValue.trim()) continue;
+      var parent = node.parentElement;
+      if (parent && parent.closest("script,style,code,pre,[data-no-convert='true']")) continue;
+      nodes.push(node);
+    }
+
+    nodes.forEach(function (node) {
+      node.nodeValue = window.FZLegacyHindi.krutiDevToUnicode(node.nodeValue);
+    });
+    changed();
+    return true;
+  }
+
   function requestSave() {
     if (window.AndroidBridge && window.AndroidBridge.onSaveHtml) {
       var copy = page.cloneNode(true);
@@ -123,6 +145,7 @@ body { padding:14px 10px 30px; }
     registerFonts: registerFonts,
     setFont: setFont,
     insertText: insertText,
+    convertLegacy: convertLegacy,
     requestSave: requestSave
   };
   if (window.AndroidBridge && window.AndroidBridge.onEditorReady) {

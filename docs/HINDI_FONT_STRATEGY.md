@@ -67,3 +67,12 @@ The selected document engine must be tested for Devanagari shaping in editing, r
 ## 6. Acceptance rule
 
 A font is listed as bundled when the binary and license are packaged. It is not labelled fully compatible with every Hindi document until it passes the real-device corpus and round-trip tests.
+
+
+## 7. First legacy conversion preview
+
+Writer now includes a manual Kruti Dev 010 to Unicode preview based on the MIT-licensed BharatType Hindi Text Utilities converter. DOCX font declarations are inspected in document, styles, header/footer and font-table XML parts; names containing Kruti Dev or DevLys can trigger a prompt.
+
+The conversion is a preview operation on the editor's current text. The app does not silently convert at open time. Before saving, users must inspect the entire document, especially English text and uncommon glyphs typed in a legacy font. The current mapping is not a universal converter for every Kruti Dev or DevLys version. Chanakya, Shusha, Shree Lipi and other families still need their own verified mapping profiles.
+
+Original documents remain unchanged until the user chooses Save. Save As is recommended for important legal or official documents.

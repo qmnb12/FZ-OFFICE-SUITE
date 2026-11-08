@@ -13,7 +13,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.zip.ZipEntry;
@@ -38,10 +41,13 @@ public final class DocxCodec {
     public static final class LoadedDocument {
         public final String html;
         public final LinkedHashMap<String, byte[]> packageEntries;
+        public final List<String> fontNames;
 
-        LoadedDocument(String html, LinkedHashMap<String, byte[]> packageEntries) {
+        LoadedDocument(String html, LinkedHashMap<String, byte[]> packageEntries,
+                       List<String> fontNames) {
             this.html = html;
             this.packageEntries = packageEntries;
+            this.fontNames = fontNames;
         }
     }
 
@@ -55,7 +61,7 @@ public final class DocxCodec {
         if (html.trim().isEmpty()) {
             html = "<p></p>";
         }
-        return new LoadedDocument(html, entries);
+        return new LoadedDocument(html, entries, inspectFontNames(entries));
     }
 
     public static LinkedHashMap<String, byte[]> readPackage(InputStream input) throws IOException {
@@ -76,6 +82,85 @@ public final class DocxCodec {
         }
         zip.close();
         return entries;
+    }
+
+
+    /**
+     * Reads font-family declarations from document, styles, headers and footers.
+     * Word may store legacy fonts in styles.xml rather than directly on each run.
+     */
+    private static List<String> inspectFontNames(Map<String, byte[]> entries) throws Exception {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        for (Map.Entry<String, byte[]> item : entries.entrySet()) {
+            String path = item.getKey();
+            if (!path.startsWith("word/") || !path.endsWith(".xml")) continue;
+            if (!(path.equals("word/document.xml") || path.equals("word/styles.xml")
+                    || path.startsWith("word/header") || path.startsWith("word/footer")
+                    || path.equals("word/fontTable.xml"))) {
+                continue;
+            }
+            XmlPullParser parser = Xml.newPullParser();
+            parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true);
+            parser.setInput(new ByteArrayInputStream(item.getValue()), "UTF-8");
+            int event;
+            while ((event = parser.next()) != XmlPullParser.END_DOCUMENT) {
+                if (event != XmlPullParser.START_TAG) continue;
+                if ("rFonts".equals(parser.getName())) {
+                    addFontName(names, attribute(parser, "ascii"));
+                    addFontName(names, attribute(parser, "hAnsi"));
+                    addFontName(names, attribute(parser, "eastAsia"));
+                    addFontName(names, attribute(parser, "cs"));
+                } else if ("font".equals(parser.getName())) {
+                    addFontName(names, attribute(parser, "name"));
+                }
+            }
+        }
+        return new ArrayList<>(names);
+    }
+
+    private static void addFontName(LinkedHashSet<String> names, String value) {
+        if (value == null) return;
+        String font = value.trim();
+        if (font.isEmpty() || font.startsWith("+")) return;
+        if (!names.contains(font)) names.add(font);
+    }
+
+
+    /**
+     * Conservative content-only hint for old Hindi keyboard-font text.
+     * It never converts automatically; it only offers the user a preview action.
+     */
+    public static boolean looksLikeLegacyHindi(String html) {
+        String text = htmlToPlainText(html == null ? "" : html);
+        if (text.trim().isEmpty()) return false;
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            if (ch >= '\u0900' && ch <= '\u097F') return false;
+        }
+
+        String[] words = text.split("\\s+");
+        int considered = 0;
+        int suspicious = 0;
+        for (String original : words) {
+            String word = original.replaceAll("[^A-Za-z;]", "");
+            if (word.length() < 3) continue;
+            considered++;
+            boolean mixedCase = word.matches(".*[a-z][A-Z].*");
+            boolean semicolonLetter = word.matches(".*[A-Za-z];[A-Za-z].*")
+                    || word.matches(".*[A-Za-z];$");
+            boolean shortIMatra = word.matches("(?i)^f[^aeiouyhlr].*");
+            int legacyChars = 0;
+            String common = "kedsglynufz";
+            for (int i = 0; i < word.length(); i++) {
+                if (common.indexOf(Character.toLowerCase(word.charAt(i))) >= 0) legacyChars++;
+            }
+            double ratio = word.isEmpty() ? 0 : (double) legacyChars / word.length();
+            if (mixedCase || semicolonLetter || shortIMatra || (word.length() > 3 && ratio > 0.65)) {
+                suspicious++;
+            }
+        }
+        return considered >= 4 && suspicious >= 2
+                && ((double) suspicious / considered) >= 0.35;
     }
 
     private static byte[] readCurrentEntry(InputStream input, int limit) throws IOException {

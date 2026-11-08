@@ -77,7 +77,7 @@ public class MainActivity extends Activity {
         hero.setBackground(roundRect(Color.rgb(21, 65, 56), dp(20)));
         page.addView(hero, matchWrap());
 
-        TextView heroTag = text("HINDI FONT CENTER  ·  v0.3.0", 10,
+        TextView heroTag = text("LEGACY HINDI FIX  ·  v0.4.0", 10,
                 Color.rgb(190, 224, 211), true);
         hero.addView(heroTag, matchWrap());
 
@@ -151,9 +151,8 @@ public class MainActivity extends Activity {
         TextView noteTitle = text("What works in this build?", 14, COLOR_TEXT, true);
         note.addView(noteTitle, matchWrap());
         TextView noteBody = text(
-                "Writer uses bundled Unicode Devanagari fonts and supports private TTF/OTF imports. "
-                        + "Legacy encodings still need verified converters; font installation alone cannot convert old text. "
-                        + "Sheets, Slides and PDF engines are still pending.",
+                "Writer can detect likely Kruti Dev/DevLys font metadata and offer a Kruti Dev 010 Unicode conversion preview. "
+                        + "Review converted text before saving. Other legacy encodings still need verified converters.",
                 12, COLOR_MUTED, false
         );
         noteBody.setPadding(0, dp(5), 0, 0);

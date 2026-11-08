@@ -35,6 +35,9 @@ jobs:
         with:
           gradle-version: "9.6.1"
 
+      - name: Test legacy Hindi converter
+        run: node tests/legacy-converter.test.js
+
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 

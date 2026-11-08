@@ -2,7 +2,7 @@
 
 **An Android-first, offline-first office suite with Hindi-first document and font support.**
 
-## Current status — v0.3.0
+## Current status — v0.4.0
 
 ### Writer MVP
 

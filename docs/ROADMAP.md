@@ -41,7 +41,10 @@ The first DOCX bridge is a deliberately limited WordprocessingML reader/writer. 
 
 ## Stage 3 — Legacy Hindi text
 
-- [ ] Create separate, documented encoding profiles for Kruti Dev, DevLys, Chanakya, Shusha and other font families.
+- [x] Add a manual Kruti Dev 010 to Unicode preview based on an MIT-licensed mapping implementation.
+- [x] Inspect DOCX font declarations in document/styles/header/footer/font-table parts and flag likely Kruti Dev/DevLys fonts.
+- [ ] Verify Kruti Dev 010 conversion against a large golden fixture corpus and real official documents.
+- [ ] Create separately verified encoding profiles for DevLys, Chanakya, Shusha, Shree Lipi and other font families.
 - [ ] Build test fixtures with known input/output pairs for each font version.
 - [ ] Convert to Unicode in a new copy; never silently overwrite the source.
 - [ ] Preserve paragraph boundaries and document structure where supported.
