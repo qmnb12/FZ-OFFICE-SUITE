@@ -11,6 +11,7 @@ The installed v0.5.x app is a transitional Java/WebView document viewer. It is n
 FZ Office is moving to the native Android application and LibreOffice engine from Collabora Office. The upstream source is pinned as a Git submodule under third_party/collabora. This gives the project a mature document engine instead of extending the limited custom DOCX parser.
 
 - Engine decision and build requirements: docs/ENGINE_STRATEGY.md
+- Native build instructions: docs/NATIVE_BUILD.md
 - Hindi font/custom-font integration: docs/HINDI_FONT_INTEGRATION.md
 - Pinned upstream source: third_party/collabora
 
@@ -32,7 +33,7 @@ FZ Office is moving to the native Android application and LibreOffice engine fro
 - **Linux CI/build host:** required to cross-compile the native engine with Android NDK before packaging the Android app.
 - First native validation target: arm64-v8a, NDK 29.0.14206865, Android compile SDK 37, minimum SDK 26.
 
-The existing lightweight Android workflow builds only the transitional app. A separate native-engine pipeline must pass the acceptance gates in docs/ENGINE_STRATEGY.md before a new Collabora-backed APK is released.
+The existing lightweight Android workflow builds only the transitional app. Use the manual Collabora native build workflow for the real LibreOffice engine; it must pass the acceptance gates in docs/ENGINE_STRATEGY.md before the Collabora-backed APK replaces the prototype.
 
 ## Project principles
 

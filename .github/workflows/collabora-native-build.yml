@@ -1,0 +1,98 @@
+name: Collabora native Android build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: collabora-native-\${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  native-arm64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      NDK_VERSION: 29.0.14206865
+      ANDROID_ABI: arm64-v8a
+      JOBS: 2
+      VERSION_NAME: 0.6.0.0
+      VERSION_CODE: 9
+      GRADLE_BIN: gradle
+
+    steps:
+      - name: Free unused runner storage
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/powershell \
+            /usr/local/lib/android/sdk/system-images \
+            /usr/local/lib/android/sdk/emulator
+          docker system prune -af || true
+          df -h /
+
+      - name: Check out FZ Office and pinned Collabora source
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Linux native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential autoconf automake libtool pkg-config \
+            git curl wget unzip zip python3 python3-pip python3-lxml python3-polib \
+            gperf flex bison nasm ccache \
+            libssl-dev libxml2-dev libzstd-dev zlib1g-dev \
+            libfontconfig1-dev libfreetype6-dev libx11-dev libxext-dev \
+            libxrender-dev libxinerama-dev libxrandr-dev libxfixes-dev \
+            libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libdbus-1-dev libnss3-dev libnspr4-dev libpng-dev libjpeg-dev \
+            libtiff-dev libcups2-dev libkrb5-dev libcurl4-openssl-dev \
+            libexpat1-dev libhunspell-dev libhyphen-dev libpcre2-dev \
+            libicu-dev libgpgme-dev libsecret-1-dev
+          df -h /
+
+      - name: Install Android SDK, NDK and CMake
+        run: |
+          yes | "\${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses
+          "\${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
+            "platform-tools" \
+            "platforms;android-37" \
+            "build-tools;37.0.0" \
+            "ndk;\${NDK_VERSION}" \
+            "cmake;3.22.1"
+          df -h /
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.6.1"
+
+      - name: Verify native source pin and integration scripts
+        run: |
+          git submodule status
+          test -f third_party/collabora/engine/autogen.sh
+          test -f third_party/collabora/android/README.md
+          test "$(git -C third_party/collabora rev-parse HEAD)" = \
+               "$(git ls-tree HEAD third_party/collabora | awk '{print $3}')"
+          bash -n scripts/apply-collabora-patches.sh
+          bash -n scripts/build-collabora-android.sh
+
+      - name: Build FZ Office with native LibreOffice engine
+        run: bash scripts/build-collabora-android.sh
+
+      - name: Upload native FZ Office APK
+        uses: actions/upload-artifact@v5
+        with:
+          name: FZ-Office-Collabora-arm64
+          path: build/collabora/FZ-Office-Collabora-arm64-debug.apk
+          if-no-files-found: error
+          retention-days: 30

@@ -21,19 +21,16 @@ FZ's native patch adds:
 
 to the Fontconfig search directories. The build substitutes the real application id. The directory is inside the app sandbox.
 
-The native integration is split into three upstream patches:
-- 0001 adds the app-private user/fonts directory to Fontconfig.
-- 0002 copies FZ's checksum-verified Devanagari font pack and matching OFL license texts into the native runtime.
-- 0003 adds a Settings-based TTF/OTF import action and validates/stores imported files in user/fonts.
+The Fontconfig path patch is stored at patches/collabora/0001-android-fontconfig-hindi-font-directory.patch. The native build also applies patches 0002 and 0003 to bundle the generated OFL font pack and add the native Font Center screen.
 
-The native Font Center import action is prepared in patches/collabora/0003-hindi-font-center-import.patch. The app already unpacks bundled assets into the same user/fonts directory. The font manager will:
-- Import .ttf and .otf via Android Storage Access Framework.
+The planned Hindi Font Center will:
+- Import .ttf and .otf via Android Storage Access Framework into the same user/fonts directory already scanned by Fontconfig.
 - Validate font signature and loadability before copying.
 - Store files in the app-private user/fonts directory.
 - Show family, style, file name, coverage notes and licence/source metadata where known.
 - Detect duplicate family/style files and avoid silent overwrite.
 - Let users remove fonts they imported.
-- Clear the app-private Fontconfig cache after import and ask users to close/reopen documents so the native engine discovers the new family.
+- Offer a document-engine restart/reload so Fontconfig rescans after changes.
 
 TTC/OTC collections are a later item; initial import accepts individual TTF/OTF files only.
 
@@ -94,3 +91,10 @@ A font is not marked verified merely because it can be imported. It must render 
 ## Font-family matching rule
 
 DOCX stores family names in styles and runs. The font manager must expose matching family names to Fontconfig. If a declared font is missing, the engine substitutes another font and page layout may change. Importing a file with a different internal family name does not automatically satisfy a document's declared font. Family inspection and aliasing are part of the integration.
+
+
+## Native Font Center implementation
+
+The native Collabora client gets a Hindi Font Center entry in its document-browser menu. It lists font files from user/fonts, previews a Devanagari sample using Android Typeface, imports validated TTF/OTF files, and removes user-imported files. On import/removal, the app-private Fontconfig cache is cleared; the user should close and reopen documents so the native engine rescans the directory.
+
+The files are installed under the app data directory, outside Android's shared public storage. Imported files are never uploaded.

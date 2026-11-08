@@ -1,0 +1,406 @@
+diff --git a/android/app/src/main/java/com/fz/office/fonts/FontCenterActivity.java b/android/app/src/main/java/com/fz/office/fonts/FontCenterActivity.java
+new file mode 100644
+new file mode 100644
+--- /dev/null
++++ b/android/app/src/main/java/com/fz/office/fonts/FontCenterActivity.java
+@@ -0,0 +1,354 @@
++package com.fz.office.fonts;
++
++import android.app.AlertDialog;
++import android.content.Intent;
++import android.content.SharedPreferences;
++import android.database.Cursor;
++import android.graphics.Color;
++import android.graphics.Typeface;
++import android.net.Uri;
++import android.os.Bundle;
++import android.provider.OpenableColumns;
++import android.widget.Button;
++import android.widget.LinearLayout;
++import android.widget.ScrollView;
++import android.widget.TextView;
++import android.widget.Toast;
++
++import androidx.appcompat.app.AppCompatActivity;
++
++import java.io.File;
++import java.io.FileOutputStream;
++import java.io.IOException;
++import java.io.InputStream;
++import java.util.Arrays;
++import java.util.Collections;
++import java.util.HashSet;
++import java.util.Locale;
++import java.util.Set;
++
++/** Installs licensed user fonts into LibreOffice's app-private Fontconfig path. */
++public class FontCenterActivity extends AppCompatActivity {
++    private static final int PICK_FONT = 710;
++    private static final long MAX_BYTES = 20L * 1024L * 1024L;
++    private static final String PREFS = "fz_native_hindi_fonts";
++    private static final String IMPORTED = "imported";
++    private static final int DARK = Color.rgb(26, 50, 42);
++    private static final int MUTED = Color.rgb(101, 119, 109);
++    private static final int GREEN = Color.rgb(23, 107, 91);
++    private static final int BG = Color.rgb(244, 247, 245);
++
++    private LinearLayout list;
++    private TextView status;
++
++    @Override
++    protected void onCreate(Bundle state) {
++        super.onCreate(state);
++        ScrollView scroll = new ScrollView(this);
++        scroll.setFillViewport(true);
++        scroll.setBackgroundColor(BG);
++        LinearLayout root = new LinearLayout(this);
++        root.setOrientation(LinearLayout.VERTICAL);
++        root.setPadding(dp(18), dp(22), dp(18), dp(28));
++        scroll.addView(root);
++        setContentView(scroll);
++
++        root.addView(label("FZ OFFICE  /  NATIVE FONT ENGINE", 10, GREEN, true));
++        root.addView(label("Hindi Font Center", 25, DARK, true));
++        TextView intro = label(
++                "Add fonts to LibreOffice's own font directory. The original document text and font declarations remain unchanged.",
++                13, MUTED, false);
++        intro.setPadding(0, dp(5), 0, dp(10));
++        root.addView(intro);
++
++        Button importButton = button("+  Import TTF / OTF", GREEN, Color.WHITE);
++        root.addView(importButton, match());
++        importButton.setOnClickListener(v -> pickFont());
++
++        status = label("", 12, GREEN, true);
++        status.setPadding(0, dp(10), 0, dp(8));
++        root.addView(status);
++
++        TextView sample = label(
++                "श्रीमान शासन सचिव — पंचायत राज विभाग\n"
++                + "क्षत्रिय, प्रार्थना, दृष्टि, विद्यालय, श्रेय, कृपा\n"
++                + "क़लम, ज़रूरी, फ़र्क़, हिंदी और भारत\n"
++                + "०१२३४५६७८९  ₹१२,५००.००",
++                17, DARK, false);
++        sample.setPadding(dp(13), dp(13), dp(13), dp(13));
++        sample.setBackground(round(Color.WHITE, dp(12)));
++        LinearLayout.LayoutParams sp = match();
++        sp.topMargin = dp(8);
++        root.addView(sample, sp);
++
++        TextView header = label("Available engine fonts", 17, DARK, true);
++        LinearLayout.LayoutParams hp = match();
++        hp.topMargin = dp(20);
++        root.addView(header, hp);
++        list = new LinearLayout(this);
++        list.setOrientation(LinearLayout.VERTICAL);
++        root.addView(list, match());
++
++        TextView note = label(
++                "Bundled open-license fonts and your imported fonts are visible to the office engine. "
++                + "Commercial fonts such as DevLys 010 must be imported from a file you are licensed to use. "
++                + "Close and reopen documents after importing to reload Fontconfig.",
++                11, MUTED, false);
++        note.setPadding(0, dp(14), 0, 0);
++        root.addView(note);
++        render();
++    }
++
++    private void render() {
++        list.removeAllViews();
++        File dir = fontDir();
++        if (!dir.exists() && !dir.mkdirs()) {
++            status.setText("Cannot open private font directory.");
++            return;
++        }
++        File[] files = dir.listFiles();
++        if (files == null) files = new File[0];
++        Arrays.sort(files, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
++        Set<String> imported = importedFiles();
++        int count = 0;
++        for (File file : files) {
++            if (!file.isFile() || !isFont(file.getName())) continue;
++            count++;
++            LinearLayout card = new LinearLayout(this);
++            card.setOrientation(LinearLayout.VERTICAL);
++            card.setPadding(dp(13), dp(12), dp(13), dp(12));
++            card.setBackground(round(Color.WHITE, dp(12)));
++            LinearLayout.LayoutParams cp = match();
++            cp.bottomMargin = dp(8);
++            list.addView(card, cp);
++
++            boolean custom = imported.contains(file.getName());
++            card.addView(label(file.getName(), 14, DARK, true));
++            card.addView(label(custom ? "Imported by you" : "Bundled engine font",
++                    10, GREEN, true));
++            try {
++                TextView preview = label("हिन्दी — क्षत्रिय, प्रार्थना, दृष्टि, ज़रूरी",
++                        15, DARK, false);
++                preview.setTypeface(Typeface.createFromFile(file));
++                preview.setPadding(0, dp(6), 0, dp(6));
++                card.addView(preview);
++            } catch (Exception ignored) {
++                card.addView(label("Preview unavailable", 11, MUTED, false));
++            }
++            if (custom) {
++                Button remove = button("Remove imported font", 0xFFF8E9E7, 0xFF9D3D32);
++                card.addView(remove);
++                remove.setOnClickListener(v -> confirmRemove(file));
++            }
++        }
++        status.setText(count + " font file(s) found in native user/fonts.");
++        if (count == 0) {
++            list.addView(label("No fonts found. The native build must unpack the bundled fonts first.",
++                    12, MUTED, false));
++        }
++    }
++
++    private void pickFont() {
++        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
++        intent.addCategory(Intent.CATEGORY_OPENABLE);
++        intent.setType("*/*");
++        intent.putExtra(Intent.EXTRA_MIME_TYPES,
++                new String[] {"font/ttf", "font/otf", "application/x-font-ttf",
++                        "application/x-font-opentype", "application/octet-stream"});
++        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
++        startActivityForResult(intent, PICK_FONT);
++    }
++
++    @Override
++    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
++        super.onActivityResult(requestCode, resultCode, data);
++        if (requestCode != PICK_FONT || resultCode != RESULT_OK
++                || data == null || data.getData() == null) return;
++        String name = displayName(data.getData());
++        try {
++            File file = importFont(data.getData(), name);
++            remember(file.getName(), true);
++            clearFontCache();
++            render();
++            new AlertDialog.Builder(this)
++                    .setTitle("Font imported")
++                    .setMessage(file.getName()
++                            + " is installed in the native font folder. Close and reopen documents to refresh Fontconfig.")
++                    .setPositiveButton("OK", null).show();
++        } catch (Exception e) {
++            new AlertDialog.Builder(this)
++                    .setTitle("Font import failed")
++                    .setMessage(e.getMessage() == null ? "Unsupported font file." : e.getMessage())
++                    .setPositiveButton("OK", null).show();
++        }
++    }
++
++    private File importFont(Uri uri, String name) throws Exception {
++        String ext = extension(name);
++        if (!".ttf".equals(ext) && !".otf".equals(ext))
++            throw new IOException("Only TTF and OTF files are supported.");
++        File dir = fontDir();
++        if (!dir.exists() && !dir.mkdirs()) throw new IOException("Cannot create user/fonts.");
++        String safe = safeName(name);
++        safe = safe.substring(0, safe.length() - ext.length());
++        File target = uniqueFile(dir, safe, ext);
++        File temp = new File(dir, target.getName() + ".part");
++
++        try (InputStream in = getContentResolver().openInputStream(uri);
++             FileOutputStream out = new FileOutputStream(temp)) {
++            if (in == null) throw new IOException("Cannot read font file.");
++            byte[] buf = new byte[8192];
++            byte[] sig = new byte[4];
++            int sigCount = 0;
++            long total = 0;
++            int n;
++            while ((n = in.read(buf)) != -1) {
++                total += n;
++                if (total > MAX_BYTES) throw new IOException("Font exceeds the 20 MB limit.");
++                if (sigCount < 4) {
++                    int part = Math.min(n, 4 - sigCount);
++                    System.arraycopy(buf, 0, sig, sigCount, part);
++                    sigCount += part;
++                }
++                out.write(buf, 0, n);
++            }
++            out.flush();
++            if (!validSignature(sig)) throw new IOException("Invalid TTF/OTF signature.");
++        } catch (Exception e) {
++            temp.delete();
++            throw e;
++        }
++        try {
++            Typeface.createFromFile(temp);
++        } catch (Exception e) {
++            temp.delete();
++            throw new IOException("Android could not validate this font; it may be damaged.");
++        }
++        if (!temp.renameTo(target)) {
++            temp.delete();
++            throw new IOException("Could not install font.");
++        }
++        return target;
++    }
++
++    private void confirmRemove(File file) {
++        new AlertDialog.Builder(this).setTitle("Remove imported font?")
++                .setMessage(file.getName() + " will be deleted from private font storage.")
++                .setNegativeButton("Cancel", null)
++                .setPositiveButton("Remove", (d, w) -> {
++                    if (file.delete()) {
++                        remember(file.getName(), false);
++                        clearFontCache();
++                        render();
++                    }
++                }).show();
++    }
++
++    private File fontDir() {
++        return new File(getApplicationInfo().dataDir, "user/fonts");
++    }
++
++    private void clearFontCache() {
++        deleteTree(new File(getApplicationInfo().dataDir, "fontconfig"));
++    }
++
++    private void deleteTree(File file) {
++        if (!file.exists()) return;
++        if (file.isDirectory()) {
++            File[] children = file.listFiles();
++            if (children != null) for (File child : children) deleteTree(child);
++        }
++        file.delete();
++    }
++
++    private Set<String> importedFiles() {
++        Set<String> set = getSharedPreferences(PREFS, MODE_PRIVATE)
++                .getStringSet(IMPORTED, Collections.<String>emptySet());
++        return new HashSet<>(set);
++    }
++
++    private void remember(String file, boolean add) {
++        Set<String> set = importedFiles();
++        if (add) set.add(file); else set.remove(file);
++        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putStringSet(IMPORTED, set).apply();
++    }
++
++    private String displayName(Uri uri) {
++        try (Cursor c = getContentResolver().query(uri,
++                new String[] {OpenableColumns.DISPLAY_NAME}, null, null, null)) {
++            if (c != null && c.moveToFirst()) {
++                int col = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
++                if (col >= 0 && c.getString(col) != null) return c.getString(col);
++            }
++        } catch (Exception ignored) { }
++        return uri.getLastPathSegment() == null ? "ImportedFont.ttf" : uri.getLastPathSegment();
++    }
++
++    private static File uniqueFile(File dir, String base, String ext) {
++        File f = new File(dir, base + ext);
++        int suffix = 2;
++        while (f.exists()) f = new File(dir, base + "-" + suffix++ + ext);
++        return f;
++    }
++
++    private static boolean validSignature(byte[] b) {
++        if (b == null || b.length < 4) return false;
++        String tag = new String(b, 0, 4, java.nio.charset.StandardCharsets.US_ASCII);
++        return (b[0] == 0 && b[1] == 1 && b[2] == 0 && b[3] == 0)
++                || "OTTO".equals(tag) || "true".equals(tag) || "typ1".equals(tag);
++    }
++
++    private static boolean isFont(String name) {
++        String ext = extension(name);
++        return ".ttf".equals(ext) || ".otf".equals(ext);
++    }
++
++    private static String extension(String name) {
++        if (name == null) return "";
++        int i = name.lastIndexOf('.');
++        return i < 0 ? "" : name.substring(i).toLowerCase(Locale.ROOT);
++    }
++
++    private static String safeName(String name) {
++        String clean = name == null ? "ImportedFont.ttf"
++                : name.replaceAll("[^A-Za-z0-9._-]", "_");
++        return clean.length() > 96 ? clean.substring(clean.length() - 96) : clean;
++    }
++
++    private TextView label(String value, int size, int color, boolean bold) {
++        TextView v = new TextView(this);
++        v.setText(value);
++        v.setTextSize(size);
++        v.setTextColor(color);
++        v.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
++        v.setIncludeFontPadding(true);
++        return v;
++    }
++
++    private Button button(String value, int bg, int fg) {
++        Button b = new Button(this);
++        b.setText(value);
++        b.setTextSize(12);
++        b.setAllCaps(false);
++        b.setTextColor(fg);
++        b.setBackground(round(bg, dp(11)));
++        return b;
++    }
++
++    private android.graphics.drawable.GradientDrawable round(int color, int radius) {
++        android.graphics.drawable.GradientDrawable d = new android.graphics.drawable.GradientDrawable();
++        d.setColor(color);
++        d.setCornerRadius(radius);
++        return d;
++    }
++
++    private LinearLayout.LayoutParams match() {
++        return new LinearLayout.LayoutParams(
++                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
++    }
++
++    private int dp(int value) {
++        return Math.round(value * getResources().getDisplayMetrics().density);
++    }
++}
++
+diff --git a/android/app/src/main/AndroidManifest.xml b/android/app/src/main/AndroidManifest.xml
+--- a/android/app/src/main/AndroidManifest.xml
++++ b/android/app/src/main/AndroidManifest.xml
+@@ -27,6 +27,10 @@
+         <activity
+             android:name="org.libreoffice.androidlib.SlideShowActivity"
+             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+             android:screenOrientation="sensorLandscape"/>
+ 
++        <activity
++            android:name="com.fz.office.fonts.FontCenterActivity"
++            android:exported="false" />
++
+         <!-- Document Browser Activity -->
+         <activity
+             android:name=".ui.LibreOfficeUIActivity"
+diff --git a/android/app/src/main/res/menu/view_menu.xml b/android/app/src/main/res/menu/view_menu.xml
+--- a/android/app/src/main/res/menu/view_menu.xml
++++ b/android/app/src/main/res/menu/view_menu.xml
+@@ -5,6 +5,11 @@
+     <item android:id="@+id/action_open_file"
+         android:title="@string/open"
+         app:showAsAction="always"
+         android:icon="@drawable/ic_folder_black_24dp"/>
+ 
++    <item android:id="@+id/action_hindi_font_center"
++        android:title="Hindi Font Center"
++        app:showAsAction="never" />
++
+ </menu>
+diff --git a/android/app/src/main/java/org/libreoffice/androidapp/ui/LibreOfficeUIActivity.java b/android/app/src/main/java/org/libreoffice/androidapp/ui/LibreOfficeUIActivity.java
+--- a/android/app/src/main/java/org/libreoffice/androidapp/ui/LibreOfficeUIActivity.java
++++ b/android/app/src/main/java/org/libreoffice/androidapp/ui/LibreOfficeUIActivity.java
+@@ -889,6 +889,11 @@
+         if (item.getItemId() == R.id.action_open_file) {
+             openDocument();
+             return true;
+         }
+ 
++        if (item.getItemId() == R.id.action_hindi_font_center) {
++            startActivity(new Intent(this, com.fz.office.fonts.FontCenterActivity.class));
++            return true;
++        }
++
+         return super.onOptionsItemSelected(item);
+     }

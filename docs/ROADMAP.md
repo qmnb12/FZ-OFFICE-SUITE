@@ -8,7 +8,9 @@ Items are complete only after implementation and real-file testing. UI labels al
 - [x] Select Collabora Office Android / LibreOffice native engine as the base.
 - [x] Pin the upstream Collabora source revision as a Git submodule.
 - [x] Design the app-private Hindi font directory patch.
-- [ ] Build the native LibreOffice engine for arm64 in Linux CI.
+- [x] Add a separate manual GitHub Actions native build workflow for arm64.
+- [x] Prepare Fontconfig integration, packaged open-license Devanagari fonts and native Font Center patches.
+- [ ] Run the native LibreOffice engine build successfully on a sufficiently provisioned Linux runner.
 - [ ] Package the Collabora Android app under com.fz.office.
 - [ ] Preserve notices and add FZ Office branding without upstream trademarks.
 - [ ] Verify offline open/render on the user's Android device.

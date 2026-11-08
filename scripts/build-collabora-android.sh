@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Native Collabora/LibreOffice Android build.
-# Requires a Linux build host with adequate SSD/RAM and upstream build dependencies.
+# Native Collabora/LibreOffice Android build. Requires a Linux build host.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -9,17 +8,12 @@ ANDROID_HOME="$(printenv ANDROID_HOME || printenv ANDROID_SDK_ROOT || true)"
 NDK_VERSION="$(printenv NDK_VERSION || echo 29.0.14206865)"
 ANDROID_ABI="$(printenv ANDROID_ABI || echo arm64-v8a)"
 JOBS="$(printenv JOBS || echo 2)"
-VERSION_NAME="$(printenv VERSION_NAME || echo 0.6.0)"
 VERSION_CODE="$(printenv VERSION_CODE || echo 9)"
-GRADLE_CMD="$(printenv GRADLE_CMD || echo gradle)"
-MIN_FREE_GB="$(printenv MIN_FREE_GB || echo 100)"
+VERSION_NAME="$(printenv VERSION_NAME || echo 0.6.0.0)"
+GRADLE_BIN="$(printenv GRADLE_BIN || echo gradle)"
 
 if [[ -z "$ANDROID_HOME" || ! -d "$ANDROID_HOME/ndk/$NDK_VERSION" ]]; then
   echo "Set ANDROID_HOME/ANDROID_SDK_ROOT and install NDK $NDK_VERSION." >&2
-  exit 2
-fi
-if [[ ! -d "$ANDROID_HOME/platforms/android-37" || ! -d "$ANDROID_HOME/platforms/android-36" ]]; then
-  echo "Install Android SDK platforms 36 and 37." >&2
   exit 2
 fi
 if [[ ! -d "$COLLABORA/engine" || ! -f "$COLLABORA/android/README.md" ]]; then
@@ -27,26 +21,24 @@ if [[ ! -d "$COLLABORA/engine" || ! -f "$COLLABORA/android/README.md" ]]; then
   exit 2
 fi
 
-AVAILABLE_GB="$(df -BG --output=avail "$ROOT" | tail -n 1 | tr -cd '0-9')"
-if [[ -z "$AVAILABLE_GB" || "$AVAILABLE_GB" -lt "$MIN_FREE_GB" ]]; then
-  echo "Native LibreOffice build needs at least $MIN_FREE_GB GB free disk; found $AVAILABLE_GB GB." >&2
-  echo "Use a configured Linux larger runner/build host. Standard GitHub-hosted runners expose only 14 GB SSD." >&2
-  exit 10
+PINNED_COMMIT="$(git -C "$ROOT" ls-tree HEAD third_party/collabora | awk '{print $3}')"
+CHECKED_OUT_COMMIT="$(git -C "$COLLABORA" rev-parse HEAD)"
+if [[ -n "$PINNED_COMMIT" && "$CHECKED_OUT_COMMIT" != "$PINNED_COMMIT" ]]; then
+  echo "Collabora submodule revision mismatch." >&2
+  echo "Expected: $PINNED_COMMIT" >&2
+  echo "Checked out: $CHECKED_OUT_COMMIT" >&2
+  exit 2
 fi
 
-# Download and verify the OFL Devanagari pack using FZ's pinned Google Fonts task.
-(
-  cd "$ROOT"
-  "$GRADLE_CMD" --no-daemon :app:downloadHindiFonts
-)
-FZ_OFFICE_HINDI_FONT_DIR="$ROOT/app/build/generated/assets/hindiFonts/writer/fonts"
-if [[ ! -d "$FZ_OFFICE_HINDI_FONT_DIR" ]]; then
-  echo "Verified Hindi font pack was not generated." >&2
-  exit 3
+# Generate the pinned/open-licence Devanagari assets before Collabora's Copy task.
+"$GRADLE_BIN" --no-daemon :app:downloadHindiFonts
+FONT_SOURCE="$ROOT/app/build/generated/assets/hindiFonts/writer/fonts"
+if [[ ! -d "$FONT_SOURCE" ]]; then
+  echo "Hindi font assets were not generated: $FONT_SOURCE" >&2
+  exit 2
 fi
-export FZ_OFFICE_HINDI_FONT_DIR
 
-"$ROOT/scripts/apply-collabora-patches.sh"
+bash "$ROOT/scripts/apply-collabora-patches.sh"
 
 case "$ANDROID_ABI" in
   arm64-v8a) DISTRO="CPAndroidAarch64" ;;
@@ -57,6 +49,8 @@ case "$ANDROID_ABI" in
 esac
 
 NDK_PATH="$ANDROID_HOME/ndk/$NDK_VERSION"
+VERSION_LABEL="${VERSION_NAME}-${VERSION_CODE}"
+
 cat > "$COLLABORA/engine/autogen.input" <<EOF
 --with-android-ndk=$NDK_PATH
 --with-android-sdk=$ANDROID_HOME
@@ -78,7 +72,7 @@ EOF
     --with-app-name="FZ Office" \
     --with-app-package-name="com.fz.office" \
     --with-android-abi="$ANDROID_ABI" \
-    --with-android-package-versioncode="$VERSION_NAME-$VERSION_CODE" \
+    --with-android-package-versioncode="$VERSION_LABEL" \
     --disable-branding
   make -j"$JOBS"
 )
@@ -91,9 +85,9 @@ EOF
 APK="$(find "$COLLABORA/android" -type f -path '*/build/outputs/apk/*/*debug*.apk' -print -quit)"
 if [[ -z "$APK" || ! -f "$APK" ]]; then
   echo "Gradle finished but no debug APK was found." >&2
-  exit 4
+  exit 3
 fi
 
 mkdir -p "$ROOT/build/collabora"
-cp "$APK" "$ROOT/build/collabora/FZ-Office-Collabora-$ANDROID_ABI-debug.apk"
-echo "APK: $ROOT/build/collabora/FZ-Office-Collabora-$ANDROID_ABI-debug.apk"
+cp "$APK" "$ROOT/build/collabora/FZ-Office-Collabora-${ANDROID_ABI}-debug.apk"
+echo "APK: $ROOT/build/collabora/FZ-Office-Collabora-arm64-debug.apk"
