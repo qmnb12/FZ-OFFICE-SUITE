@@ -3,11 +3,13 @@ package com.fz.office;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.OpenableColumns;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -15,12 +17,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-/**
- * First-run dashboard for FZ Office.
- *
- * This is intentionally a lightweight Java-only foundation. Document editing
- * is not advertised as available until a document engine has been integrated.
- */
+import com.fz.office.writer.WriterActivity;
+
 public class MainActivity extends Activity {
 
     private static final int REQUEST_OPEN_DOCUMENT = 101;
@@ -79,18 +77,18 @@ public class MainActivity extends Activity {
         hero.setBackground(roundRect(Color.rgb(21, 65, 56), dp(20)));
         page.addView(hero, matchWrap());
 
-        TextView heroTag = text("FOUNDATION BUILD  ·  v0.1.0", 10,
+        TextView heroTag = text("WRITER MVP  ·  v0.2.0", 10,
                 Color.rgb(190, 224, 211), true);
         hero.addView(heroTag, matchWrap());
 
-        TextView heroTitle = text("Office tools, with Hindi at the centre.", 22,
+        TextView heroTitle = text("Start writing. Save as DOCX or TXT.", 22,
                 Color.WHITE, true);
         heroTitle.setPadding(0, dp(13), 0, dp(7));
         hero.addView(heroTitle, matchWrap());
 
         TextView heroBody = text(
-                "पहले सही font और document compatibility की नींव बनाएँगे। "
-                        + "अभी यह शुरुआती app shell है; editing engine अगली development stage में जुड़ेगा।",
+                "Writer का पहला offline editor जुड़ गया है। DOCX और TXT files खोलें, "
+                        + "text edit करें और वापस save करें। Sheets, Slides और PDF पर काम जारी है।",
                 13, Color.rgb(222, 237, 231), false
         );
         heroBody.setLineSpacing(dp(3), 1.0f);
@@ -101,7 +99,7 @@ public class MainActivity extends Activity {
         firstRow.setOrientation(LinearLayout.HORIZONTAL);
         page.addView(firstRow, matchWrap());
 
-        addModuleCard(firstRow, "W", "Writer", "Documents", "Engine pending", 0);
+        addModuleCard(firstRow, "W", "Writer", "DOCX · TXT", "MVP editor ready", 0);
         addModuleCard(firstRow, "▦", "Sheets", "Spreadsheets", "Engine pending", 1);
 
         LinearLayout secondRow = new LinearLayout(this);
@@ -114,13 +112,23 @@ public class MainActivity extends Activity {
         addModuleCard(secondRow, "PDF", "PDF tools", "View & export", "Not connected", 3);
 
         addSectionTitle(page, "Quick actions", "GET STARTED");
+        LinearLayout newFile = actionCard(
+                "New document",
+                "Create a blank Writer document",
+                "+"
+        );
+        newFile.setOnClickListener(v -> openNewWriter());
+        page.addView(newFile, matchWrap());
+
         LinearLayout openFile = actionCard(
                 "Open a document",
-                "Choose a DOCX, XLSX, PPTX or PDF test file",
+                "Choose a DOCX or TXT file to edit",
                 "↗"
         );
         openFile.setOnClickListener(v -> openDocumentPicker());
-        page.addView(openFile, matchWrap());
+        LinearLayout openParams = matchWrap();
+        openParams.topMargin = dp(10);
+        page.addView(openFile, openParams);
 
         LinearLayout fontCenter = actionCard(
                 "Hindi Font Center",
@@ -143,8 +151,9 @@ public class MainActivity extends Activity {
         TextView noteTitle = text("What works in this build?", 14, COLOR_TEXT, true);
         note.addView(noteTitle, matchWrap());
         TextView noteBody = text(
-                "The dashboard and Android project foundation are ready for testing. "
-                        + "Document opening, editing, font importing and conversion are not implemented yet.",
+                "Writer supports basic DOCX paragraphs, text formatting and tables, plus TXT editing. "
+                        + "Complex Word objects such as images, tracked changes, charts and embedded items "
+                        + "are not fully supported yet. Sheets, Slides and PDF engines are still pending.",
                 12, COLOR_MUTED, false
         );
         noteBody.setPadding(0, dp(5), 0, 0);
@@ -218,11 +227,17 @@ public class MainActivity extends Activity {
 
         card.setClickable(true);
         card.setFocusable(true);
-        card.setOnClickListener(v -> Toast.makeText(
-                this,
-                title + " editor is planned; no document engine is connected yet.",
-                Toast.LENGTH_SHORT
-        ).show());
+        card.setOnClickListener(v -> {
+            if (index == 0) {
+                openNewWriter();
+            } else {
+                Toast.makeText(
+                        this,
+                        title + " is not connected yet.",
+                        Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
     }
 
     private LinearLayout actionCard(String title, String subtitle, String symbol) {
@@ -257,23 +272,21 @@ public class MainActivity extends Activity {
         return card;
     }
 
+    private void openNewWriter() {
+        startActivity(new Intent(this, WriterActivity.class));
+    }
+
     private void openDocumentPicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
         intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {
-                "application/msword",
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "application/vnd.oasis.opendocument.text",
-                "application/vnd.ms-excel",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "application/vnd.oasis.opendocument.spreadsheet",
-                "application/vnd.ms-powerpoint",
-                "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-                "application/vnd.oasis.opendocument.presentation",
-                "application/pdf",
                 "text/plain"
         });
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         try {
             startActivityForResult(intent, REQUEST_OPEN_DOCUMENT);
         } catch (Exception exception) {
@@ -286,21 +299,45 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_OPEN_DOCUMENT && resultCode == RESULT_OK && data != null) {
             Uri selectedFile = data.getData();
-            if (selectedFile != null) {
-                Toast.makeText(
-                        this,
-                        "File selected. The document engine will be connected in a later stage.",
-                        Toast.LENGTH_LONG
-                ).show();
+            if (selectedFile == null) return;
+
+            String name = queryDisplayName(selectedFile).toLowerCase();
+            if (!name.endsWith(".docx") && !name.endsWith(".txt")) {
+                Toast.makeText(this, "This Writer build supports DOCX and TXT files only.",
+                        Toast.LENGTH_LONG).show();
+                return;
             }
+            int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            try {
+                getContentResolver().takePersistableUriPermission(selectedFile, flags);
+            } catch (Exception ignored) { }
+
+            Intent open = new Intent(this, WriterActivity.class);
+            open.putExtra(WriterActivity.EXTRA_DOCUMENT_URI, selectedFile.toString());
+            startActivity(open);
         }
+    }
+
+    private String queryDisplayName(Uri uri) {
+        try (Cursor cursor = getContentResolver().query(uri,
+                new String[] {OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (index >= 0) {
+                    String name = cursor.getString(index);
+                    if (name != null) return name;
+                }
+            }
+        } catch (Exception ignored) { }
+        return uri.getLastPathSegment() == null ? "" : uri.getLastPathSegment();
     }
 
     private void showFontCenterInfo() {
         new AlertDialog.Builder(this)
                 .setTitle("Hindi Font Center")
                 .setMessage(
-                        "This section is a roadmap preview, not a working font installer yet.\n\n"
+                        "This section is still a roadmap preview, not a working font installer.\n\n"
                                 + "Unicode: Noto Sans Devanagari, Noto Serif Devanagari, Mukta, "
                                 + "Hind, Lohit and Shobhika.\n\n"
                                 + "Legacy: Kruti Dev, DevLys, Chanakya and other encoding families.\n\n"

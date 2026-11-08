@@ -1,25 +1,28 @@
 # FZ Office Suite
 
-**An Android-first, open-source office suite with Hindi-first document and font support.**
+**An Android-first, offline-first office suite with Hindi-first document and font support.**
 
 FZ Office aims to make office documents work reliably for Hindi users — including modern Unicode Devanagari and carefully tested legacy Hindi encodings.
 
-## Current status
+## Current status — v0.2.0
 
-This repository now contains the **Android foundation build**:
+The first Writer MVP is now connected:
 
-- A COTG-compatible Android Gradle project.
-- A small Hindi-first dashboard UI.
-- A document picker entry point for future editor integration.
-- A clearly marked Hindi Font Center prototype.
-- GitHub Actions debug-build workflow.
-- Initial architecture and compatibility notes.
+- Create a blank Writer document.
+- Open and edit .docx and .txt files from Android's document picker.
+- Save changes back to the selected document when the storage provider permits it, or use Save As.
+- Basic formatting: bold, italic, underline, headings, alignment, lists, undo/redo and font sizing.
+- Basic Word tables.
+- Offline editing; no account or document server is required.
+- Existing DOCX package parts are retained when saving, but the edited main body is rebuilt from the supported subset.
 
-**Important:** Writer, spreadsheet and presentation editing engines are not connected yet. Selecting a document does not currently edit or render it. This foundation is not a WPS/LibreOffice replacement yet.
+**Compatibility boundary:** this is an early Writer MVP, not full Microsoft Word or LibreOffice compatibility. The current DOCX bridge handles normal paragraphs, common direct run formatting and simple tables. Complex objects such as images, charts, SmartArt, text boxes, equations, macros, tracked changes, comments, advanced numbering, headers/footers and complex section layouts are not fully implemented and may be lost or changed when the document is saved. Always keep a copy of important originals.
+
+TXT is treated as UTF-8. Legacy Hindi font encodings such as Kruti Dev and DevLys are not converted automatically.
+
+Sheets, Slides, PDF tools and the full Hindi Font Center are still under development.
 
 ## Development environment
-
-The project is configured for the current Code On The Go toolchain:
 
 | Component | Version |
 |---|---:|
@@ -30,26 +33,24 @@ The project is configured for the current Code On The Go toolchain:
 | Target SDK | 35 |
 | Minimum SDK | 24 |
 
-The app module is Java-only for the first stage. This avoids adding Kotlin or native-toolchain complexity before it is needed.
+The Android app remains Java-first for Code On The Go. The embedded editor page is a local HTML asset; documents are processed on-device.
 
 ## Open in Code On The Go
 
-1. Clone `https://github.com/qmnb12/FZ-OFFICE-SUITE.git` using COTG's Git support, or download the repository ZIP and extract it.
-2. Open the folder containing `settings.gradle.kts` as the project root.
-3. Let COTG sync the Gradle project.
-4. Run the `app` configuration or execute `:app:assembleDebug`.
-5. Install the debug APK on the phone and check the initial dashboard.
+1. Pull the latest main branch from https://github.com/qmnb12/FZ-OFFICE-SUITE.git.
+2. Open the folder containing settings.gradle.kts as the project root.
+3. Sync Gradle so the Jsoup and core-library desugaring dependencies can download.
+4. Run :app:assembleDebug.
+5. Install the new debug APK.
 
-COTG's on-device build uses its bundled Gradle/AGP versions. This repository intentionally does not add a partial Gradle wrapper (a wrapper script without its matching wrapper JAR would be incomplete).
+The GitHub Actions workflow also builds a debug APK and uploads it as an artifact.
 
 ## Product direction
 
-The intended architecture is:
-
-- **Android application:** our own UI, file handling, settings and Hindi Font Center.
-- **Document engine:** evaluate and integrate a reusable open-source engine rather than writing DOCX/XLSX/PPTX support from scratch.
-- **Hindi typography:** reliable Devanagari shaping, font discovery, font import and missing-font handling.
-- **Legacy conversion:** separate encoding profiles for formats such as Kruti Dev and DevLys; never assume that installing a legacy font converts its text to Unicode.
+- **Android application:** our UI, file handling, settings and Hindi Font Center.
+- **Document engine:** use a reusable open-source engine where it is technically and legally suitable; do not hand-wave format compatibility.
+- **Hindi typography:** reliable Devanagari shaping, font import and missing-font handling.
+- **Legacy conversion:** separate verified encoding profiles for Kruti Dev, DevLys, Chanakya and other families.
 
 See:
 - [Project roadmap](docs/ROADMAP.md)
@@ -59,11 +60,12 @@ See:
 
 1. Offline-first; no compulsory account.
 2. No ads or tracking.
-3. Open-source dependencies with license review.
-4. Never claim a file format or Hindi encoding is supported until it passes real test documents.
-5. Preserve original files; conversion must create a new output unless the user explicitly chooses otherwise.
+3. Review licenses before bundling third-party engines or fonts.
+4. Never claim a format or Hindi encoding is supported until it passes real test documents.
+5. Preserve original files where possible; create a separate copy when overwrite is not permitted.
 6. Keep the Android build manageable from Code On The Go wherever technically possible.
 
-## License
+## Third-party notices
 
-The project license will be selected after the document-engine and font dependencies have been audited. Do not bundle third-party font files or engine binaries until their redistribution terms are confirmed.
+- [jsoup](https://jsoup.org/) is used for safe HTML fragment parsing and is distributed under the MIT License.
+- Core library desugaring is provided by Android's desugaring library.

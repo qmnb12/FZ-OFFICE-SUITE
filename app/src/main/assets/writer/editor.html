@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=3">
+<meta name="color-scheme" content="light">
+<title>FZ Office Writer</title>
+<style>
+:root { color-scheme: light; --ink:#1b342d; --muted:#718078; --paper:#ffffff; --canvas:#eef3f0; --line:#e3eae6; }
+* { box-sizing:border-box; }
+html,body { margin:0; min-height:100%; background:var(--canvas); color:var(--ink); font-family:Arial,"Noto Sans Devanagari",sans-serif; }
+body { padding:14px 10px 30px; }
+#page {
+  width:100%; min-height:calc(100vh - 44px); margin:0 auto; padding:28px 22px 40px;
+  background:var(--paper); border:1px solid var(--line); border-radius:8px;
+  box-shadow:0 2px 10px rgba(23,55,43,.06); outline:none;
+  font-size:16px; line-height:1.7; overflow-wrap:anywhere;
+}
+#page:focus { border-color:#c8d9d0; }
+#page p, #page div { margin:0 0 12px; min-height:1.55em; }
+#page h1 { font-size:1.65em; line-height:1.3; margin:0 0 14px; }
+#page h2 { font-size:1.35em; line-height:1.35; margin:0 0 12px; }
+#page h3 { font-size:1.15em; margin:0 0 10px; }
+#page ul,#page ol { padding-left:25px; margin:0 0 12px; }
+#page table { width:100%; border-collapse:collapse; table-layout:fixed; margin:12px 0; }
+#page td,#page th { border:1px solid #9eafa7; padding:7px; min-width:35px; vertical-align:top; }
+#page blockquote { border-left:3px solid #9ab8a9; margin:12px 0; padding:5px 12px; color:#52655c; }
+#page:empty:before { content:"यहाँ लिखना शुरू करें…"; color:#9aa7a0; pointer-events:none; }
+@media (min-width:700px) {
+  body { padding:24px; }
+  #page { max-width:760px; min-height:100vh; padding:48px 58px; }
+}
+</style>
+</head>
+<body>
+<main id="page" contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true">
+<p></p>
+</main>
+<script>
+(function () {
+  "use strict";
+  var page = document.getElementById("page");
+  function changed() {
+    if (window.AndroidBridge && window.AndroidBridge.onDirty) {
+      window.AndroidBridge.onDirty();
+    }
+  }
+  page.addEventListener("input", changed);
+  page.addEventListener("paste", function () {
+    window.setTimeout(changed, 0);
+  });
+  document.addEventListener("keydown", function (event) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      requestSave();
+    }
+  });
+  document.execCommand("styleWithCSS", false, true);
+
+  function command(name, value) {
+    page.focus();
+    if (name === "formatBlock") {
+      document.execCommand(name, false, value || "p");
+    } else {
+      document.execCommand(name, false, value || null);
+    }
+    changed();
+  }
+  function insertTable() {
+    page.focus();
+    var table = '<table><tbody>' +
+      '<tr><td><p> </p></td><td><p> </p></td></tr>' +
+      '<tr><td><p> </p></td><td><p> </p></td></tr>' +
+      '</tbody></table><p></p>';
+    document.execCommand("insertHTML", false, table);
+    changed();
+  }
+  function setHtml(html) {
+    page.innerHTML = html || "<p></p>";
+    if (!page.innerHTML.trim()) page.innerHTML = "<p></p>";
+  }
+  function requestSave() {
+    if (window.AndroidBridge && window.AndroidBridge.onSaveHtml) {
+      window.AndroidBridge.onSaveHtml(page.innerHTML);
+    }
+  }
+  window.FZWriter = {
+    command: command,
+    insertTable: insertTable,
+    setHtml: setHtml,
+    requestSave: requestSave
+  };
+  if (window.AndroidBridge && window.AndroidBridge.onEditorReady) {
+    window.AndroidBridge.onEditorReady();
+  }
+})();
+</script>
+</body>
+</html>
