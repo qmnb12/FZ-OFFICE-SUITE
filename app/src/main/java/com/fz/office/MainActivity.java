@@ -77,7 +77,7 @@ public class MainActivity extends Activity {
         hero.setBackground(roundRect(Color.rgb(21, 65, 56), dp(20)));
         page.addView(hero, matchWrap());
 
-        TextView heroTag = text("DOCUMENT VIEWER  ·  v0.5.0", 10,
+        TextView heroTag = text("DOCUMENT VIEWER  ·  v0.6.0", 10,
                 Color.rgb(190, 224, 211), true);
         hero.addView(heroTag, matchWrap());
 
@@ -87,7 +87,7 @@ public class MainActivity extends Activity {
         hero.addView(heroTitle, matchWrap());
 
         TextView heroBody = text(
-                "DOCX और TXT documents read-only खुलेंगे। Supported legacy Hindi text display के लिए अपने-आप Unicode में बदलेगा; original file untouched रहेगी।",
+                "DOCX और TXT read-only खुलेंगे। DevLys, Kruti Dev और Mangal जैसे legacy fonts के ZIP packs import करें; matching font से original text बिना conversion render होगा।",
                 13, Color.rgb(222, 237, 231), false
         );
         heroBody.setLineSpacing(dp(3), 1.0f);
@@ -123,7 +123,7 @@ public class MainActivity extends Activity {
 
         LinearLayout fontCenter = actionCard(
                 "Hindi Font Center",
-                "12 bundled Unicode fonts, custom font import and Hindi text tests",
+                "12 bundled Unicode fonts, ZIP font-pack import and legacy family matching",
                 "अ"
         );
         LinearLayout.LayoutParams fontParams = matchWrap();
@@ -142,8 +142,8 @@ public class MainActivity extends Activity {
         TextView noteTitle = text("What works in this build?", 14, COLOR_TEXT, true);
         note.addView(noteTitle, matchWrap());
         TextView noteBody = text(
-                "Writer can detect likely Kruti Dev/DevLys font metadata and offer a Kruti Dev 010 Unicode conversion preview. "
-                        + "Review converted text before saving. Other legacy encodings still need verified converters.",
+                "Viewer-only mode सुरक्षित है। Custom fonts app-private user/fonts folder में store होते हैं; DOCX के declared family से match करके वही font load होता है। "
+                        + "Unknown legacy family पर text convert नहीं किया जाता। Full desktop-layout rendering के लिए native Collabora engine build जारी है.",
                 12, COLOR_MUTED, false
         );
         noteBody.setPadding(0, dp(5), 0, 0);
