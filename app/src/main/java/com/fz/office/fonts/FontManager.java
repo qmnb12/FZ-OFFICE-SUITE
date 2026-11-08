@@ -490,7 +490,7 @@ public final class FontManager {
 
     private static String xmlEscape(String value) {
         return value.replace("&", "&amp;").replace("<", "&lt;")
-                .replace(">", "&gt;").replace("\\"", "&quot;").replace("'", "&apos;");
+                .replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&apos;");
     }
 
     private static FontMetadata readFontMetadata(File file) {
