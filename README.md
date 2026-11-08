@@ -4,7 +4,7 @@
 
 ## Current status
 
-The v0.6.2 lightweight APK remains a transitional, read-only Java/WebView app. DOCX/TXT continue through the Hindi-aware in-app reader; XLS/XLSX, CSV, ODS and PPTX-family files now use pinned, bundled Gander-derived offline preview renderers. This adds spreadsheet and slide viewing, not editing or full Word compatibility. The native Collabora/LibreOffice engine remains the selected final architecture and is not yet a verified FZ Office APK.
+The v0.6.5 lightweight APK remains a transitional, read-only Java/WebView app. DOCX/TXT continue through the Hindi-aware in-app reader; PDF uses Android PdfRenderer with page navigation and bounded zoom; XLS/XLSX, CSV, ODS and PPTX-family files use pinned, bundled Gander-derived offline preview renderers. This adds spreadsheet and slide viewing, not editing or full Word compatibility. The native Collabora/LibreOffice engine remains the selected final architecture and is not yet a verified FZ Office APK.
 
 ### Engine migration selected
 
@@ -16,6 +16,13 @@ FZ Office is moving to the native Android application and LibreOffice engine fro
 - Pinned upstream source: third_party/collabora
 
 **Important:** the native source is pinned. Two small upstream-compatible patches plus an idempotent Python integration script add the Fontconfig user-font directory, the open-license Devanagari bundle, the ZIP font importer and read-only document opening. The native engine has not yet produced a verified FZ Office APK; the current lightweight APK remains transitional.
+
+## FZ app shell features
+
+- Local recent-document library with private URI history, search, Starred shortcuts, share and remove-from-history actions.
+- Built-in offline PDF reader with page navigation, fit-to-width rendering and bounded zoom; PDF text search and markup are not included in this transitional reader.
+- Built-in offline PDF reader with page navigation, fit-to-width rendering and bounded zoom; PDF text search and markup are not included in this transitional reader.
+- History is limited to files explicitly opened by the user; FZ does not scan shared storage or delete the original file when history is cleared.
 
 ## Target features
 

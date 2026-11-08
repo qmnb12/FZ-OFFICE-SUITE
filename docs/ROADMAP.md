@@ -17,6 +17,18 @@ Items are complete only after implementation and real-file testing. UI labels al
 - [ ] Preserve notices and add FZ Office branding without upstream trademarks.
 - [ ] Verify offline open/render on the user's Android device.
 
+## Stage 0.5 — FZ home shell and local library
+
+- [x] Recent documents list backed by app-private metadata.
+- [x] Search recent document names and MIME types.
+- [x] Star/unstar documents and reopen starred items.
+- [x] Share document references through Android Sharesheet.
+- [x] Remove history entries or clear unstarred history without touching source files.
+- [x] Add built-in offline PDF page rendering, page navigation and bounded zoom (read-only).
+- [x] Add built-in offline PDF page rendering, page navigation and bounded zoom (read-only).
+- [ ] Add user-selected SAF folder browsing and indexed library locations.
+- [ ] Add file metadata, pinning, collections and multi-select actions.
+
 ## Stage 1 — Transitional viewer (v0.5.x)
 
 The current custom WebView viewer is retained only until the native engine APK is ready. It is not the final DOCX rendering implementation.

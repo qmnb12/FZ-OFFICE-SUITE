@@ -24,6 +24,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".pdf.PdfViewerActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
@@ -38,6 +42,7 @@
             <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.slideshow" />
             <data android:mimeType="application/vnd.ms-powerpoint.presentation.macroenabled.12" />
             <data android:mimeType="text/csv" />
+            <data android:mimeType="application/pdf" />
             <data android:mimeType="text/plain" />
             </intent-filter>
             <intent-filter>

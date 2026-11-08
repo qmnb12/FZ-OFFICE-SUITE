@@ -9,14 +9,19 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.fz.office.fonts.FontCenterActivity;
+import com.fz.office.library.RecentDocumentsStore;
+import com.fz.office.pdf.PdfViewerActivity;
 import com.fz.office.viewer.OfficeViewerActivity;
 import com.fz.office.writer.WriterActivity;
 
@@ -30,6 +35,12 @@ public class MainActivity extends Activity {
     private static final String MIME_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     private static final String MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
     private static final String MIME_PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    private static final String MIME_PDF = "application/pdf";
+
+    private LinearLayout libraryList;
+    private EditText librarySearch;
+    private boolean showStarredOnly;
+    private String libraryQuery = "";
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -88,9 +99,9 @@ public class MainActivity extends Activity {
         rowTwoParams.topMargin = dp(11);
         page.addView(rowTwo, rowTwoParams);
         addTypeTile(rowTwo, "PPTX", "Slides", 0xffd45c3d);
-        addTypeTile(rowTwo, "TXT", "Text", 0xff687d8d);
+        addTypeTile(rowTwo, "PDF", "PDF Reader", 0xffb94343);
 
-        TextView supported = label("DOCX · XLSX / XLS · CSV · ODS · PPTX · TXT", 11, MUTED, false);
+        TextView supported = label("DOCX · PDF · XLSX / XLS · CSV · ODS · PPTX · TXT", 11, MUTED, false);
         supported.setGravity(Gravity.CENTER);
         supported.setPadding(0, dp(22), 0, dp(18));
         page.addView(supported, match());
@@ -105,10 +116,214 @@ public class MainActivity extends Activity {
         page.addView(fonts, fontsParams);
         fonts.setOnClickListener(v -> startActivity(new Intent(this, FontCenterActivity.class)));
 
+        addLibrarySection(page);
+
         TextView footer = label("Read-only viewer · Original files stay unchanged · No account or ads", 10, MUTED, false);
         footer.setGravity(Gravity.CENTER);
         footer.setPadding(dp(10), dp(27), dp(10), 0);
         page.addView(footer, match());
+    }
+
+
+    private void addLibrarySection(LinearLayout page) {
+        TextView heading = label("Your Library", 20, TEXT, true);
+        heading.setPadding(0, dp(30), 0, dp(5));
+        page.addView(heading, match());
+        TextView hint = label("Recent files stay on this device · Star important documents", 11, MUTED, false);
+        hint.setPadding(0, 0, 0, dp(12));
+        page.addView(hint, match());
+
+        librarySearch = new EditText(this);
+        librarySearch.setSingleLine(true);
+        librarySearch.setTextSize(14);
+        librarySearch.setTextColor(TEXT);
+        librarySearch.setHintTextColor(MUTED);
+        librarySearch.setHint("Search recent documents");
+        librarySearch.setPadding(dp(15), dp(12), dp(15), dp(12));
+        librarySearch.setBackground(round(SURFACE, 14));
+        page.addView(librarySearch, match());
+        librarySearch.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                libraryQuery = s == null ? "" : s.toString().trim().toLowerCase(java.util.Locale.ROOT);
+                renderLibrary();
+            }
+            @Override public void afterTextChanged(Editable s) { }
+        });
+
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams tabsParams = match();
+        tabsParams.topMargin = dp(12);
+        page.addView(tabs, tabsParams);
+        TextView recent = actionButton("Recent", !showStarredOnly);
+        TextView starred = actionButton("★  Starred", showStarredOnly);
+        tabs.addView(recent, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        LinearLayout.LayoutParams starredParams = new LinearLayout.LayoutParams(0, dp(42), 1f);
+        starredParams.leftMargin = dp(9);
+        tabs.addView(starred, starredParams);
+        recent.setOnClickListener(v -> {
+            showStarredOnly = false;
+            updateLibraryTabs(tabs);
+            renderLibrary();
+        });
+        starred.setOnClickListener(v -> {
+            showStarredOnly = true;
+            updateLibraryTabs(tabs);
+            renderLibrary();
+        });
+
+        libraryList = new LinearLayout(this);
+        libraryList.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams listParams = match();
+        listParams.topMargin = dp(10);
+        page.addView(libraryList, listParams);
+        renderLibrary();
+    }
+
+    private void updateLibraryTabs(LinearLayout tabs) {
+        if (tabs.getChildCount() < 2) return;
+        TextView recent = (TextView) tabs.getChildAt(0);
+        TextView starred = (TextView) tabs.getChildAt(1);
+        recent.setBackground(round(showStarredOnly ? SURFACE : ACCENT, 14));
+        recent.setTextColor(showStarredOnly ? TEXT : BG);
+        starred.setBackground(round(showStarredOnly ? ACCENT : SURFACE, 14));
+        starred.setTextColor(showStarredOnly ? BG : TEXT);
+    }
+
+    private void renderLibrary() {
+        if (libraryList == null) return;
+        libraryList.removeAllViews();
+        java.util.List<RecentDocumentsStore.Entry> entries = RecentDocumentsStore.getAll(this);
+        int shown = 0;
+        for (RecentDocumentsStore.Entry entry : entries) {
+            if (showStarredOnly && !entry.starred) continue;
+            String searchable = (entry.name + " " + entry.mimeType).toLowerCase(java.util.Locale.ROOT);
+            if (!libraryQuery.isEmpty() && !searchable.contains(libraryQuery)) continue;
+            addLibraryItem(entry);
+            shown++;
+        }
+        if (shown == 0) {
+            String message = libraryQuery.isEmpty()
+                    ? (showStarredOnly ? "No starred documents yet. Tap ☆ on a file to keep it here."
+                    : "Your opened documents will appear here.")
+                    : "No documents match this search.";
+            TextView empty = label(message, 12, MUTED, false);
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(dp(18), dp(25), dp(18), dp(25));
+            empty.setBackground(round(SURFACE, 15));
+            libraryList.addView(empty, match());
+        }
+        if (!showStarredOnly && !entries.isEmpty()) {
+            TextView clear = label("Clear unstarred history", 11, ACCENT, true);
+            clear.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+            clear.setPadding(dp(8), dp(13), dp(4), dp(7));
+            libraryList.addView(clear, match());
+            clear.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
+                    .setTitle("Clear recent history?")
+                    .setMessage("This removes unstarred items from FZ Office history only. Original files will not be deleted.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Clear", (dialog, which) -> {
+                        RecentDocumentsStore.clearUnstarred(this);
+                        renderLibrary();
+                    }).show());
+        }
+    }
+
+    private void addLibraryItem(RecentDocumentsStore.Entry entry) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(12), dp(11), dp(9), dp(11));
+        card.setBackground(round(SURFACE, 15));
+        LinearLayout.LayoutParams cardParams = match();
+        cardParams.bottomMargin = dp(8);
+        libraryList.addView(card, cardParams);
+
+        String extension = extensionOf(entry.name).toUpperCase(java.util.Locale.ROOT);
+        if (extension.isEmpty()) extension = "FILE";
+        TextView type = label(extension, 10, Color.WHITE, true);
+        type.setGravity(Gravity.CENTER);
+        type.setBackground(round(typeColor(extension), 10));
+        card.addView(type, new LinearLayout.LayoutParams(dp(51), dp(45)));
+
+        LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.setPadding(dp(11), 0, dp(5), 0);
+        card.addView(details, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView name = label(entry.name, 13, TEXT, true);
+        name.setSingleLine(true);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+        details.addView(name, match());
+        TextView opened = label("Opened " + relativeTime(entry.openedAt), 10, MUTED, false);
+        opened.setPadding(0, dp(4), 0, 0);
+        details.addView(opened, match());
+
+        TextView star = label(entry.starred ? "★" : "☆", 21, entry.starred ? ACCENT : MUTED, true);
+        star.setGravity(Gravity.CENTER);
+        card.addView(star, new LinearLayout.LayoutParams(dp(34), dp(40)));
+        star.setOnClickListener(v -> {
+            RecentDocumentsStore.setStarred(this, entry.uri, !entry.starred);
+            renderLibrary();
+        });
+
+        TextView share = label("↗", 19, TEXT, true);
+        share.setGravity(Gravity.CENTER);
+        card.addView(share, new LinearLayout.LayoutParams(dp(34), dp(40)));
+        share.setOnClickListener(v -> shareDocument(entry));
+
+        TextView remove = label("×", 21, MUTED, false);
+        remove.setGravity(Gravity.CENTER);
+        card.addView(remove, new LinearLayout.LayoutParams(dp(30), dp(40)));
+        remove.setOnClickListener(v -> {
+            RecentDocumentsStore.remove(this, entry.uri);
+            renderLibrary();
+        });
+
+        card.setClickable(true);
+        card.setFocusable(true);
+        card.setOnClickListener(v -> launchDocument(Uri.parse(entry.uri), entry.name, entry.mimeType));
+    }
+
+    private void shareDocument(RecentDocumentsStore.Entry entry) {
+        try {
+            Intent share = new Intent(Intent.ACTION_SEND);
+            share.setType(entry.mimeType == null || entry.mimeType.isEmpty() ? "*/*" : entry.mimeType);
+            share.putExtra(Intent.EXTRA_STREAM, Uri.parse(entry.uri));
+            share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(share, "Share document"));
+        } catch (Exception exception) {
+            Toast.makeText(this, "This file cannot be shared right now. Reopen it and try again.",
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private int typeColor(String extension) {
+        if ("DOCX".equals(extension) || "DOC".equals(extension)) return 0xff287bd1;
+        if ("XLSX".equals(extension) || "XLS".equals(extension) || "CSV".equals(extension) || "ODS".equals(extension)) return 0xff17865a;
+        if ("PPTX".equals(extension) || "PPT".equals(extension) || "PPSX".equals(extension)) return 0xffd45c3d;
+        if ("PDF".equals(extension)) return 0xffb94343;
+        return 0xff687d8d;
+    }
+
+    private String extensionOf(String name) {
+        if (name == null) return "";
+        int dot = name.lastIndexOf('.');
+        return dot < 0 ? "" : name.substring(dot + 1);
+    }
+
+    private String relativeTime(long timestamp) {
+        long elapsed = Math.max(0, System.currentTimeMillis() - timestamp);
+        long minutes = elapsed / 60000L;
+        if (minutes < 1) return "just now";
+        if (minutes < 60) return minutes + " min ago";
+        long hours = minutes / 60;
+        if (hours < 24) return hours + " hr ago";
+        long days = hours / 24;
+        if (days == 1) return "yesterday";
+        if (days < 30) return days + " days ago";
+        return new java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
+                .format(new java.util.Date(timestamp));
     }
 
     private void applySafeAreaInsets(View root) {
@@ -167,7 +382,7 @@ public class MainActivity extends Activity {
                 "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
                 "application/vnd.ms-powerpoint.presentation.macroenabled.12",
                 "application/vnd.openxmlformats-officedocument.presentationml.template",
-                "text/plain"
+                MIME_PDF, "text/plain"
         });
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         try { startActivityForResult(intent, REQUEST_OPEN_DOCUMENT); }
@@ -180,8 +395,15 @@ public class MainActivity extends Activity {
         if (uri == null) return false;
         String name = queryDisplayName(uri);
         String mime = incoming.getType();
+        int incomingFlags = incoming.getFlags();
+        if ((incomingFlags & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) != 0) {
+            try {
+                getContentResolver().takePersistableUriPermission(
+                        uri, incomingFlags & Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (Exception ignored) { }
+        }
         if (!isSupportedDocument(name, mime)) {
-            Toast.makeText(this, "Supported: DOCX, XLS/XLSX, CSV, ODS, PPTX and TXT.",
+            Toast.makeText(this, "Supported: DOCX, PDF, XLS/XLSX, CSV, ODS, PPTX and TXT.",
                     Toast.LENGTH_LONG).show();
             return true;
         }
@@ -196,7 +418,7 @@ public class MainActivity extends Activity {
         String name = queryDisplayName(uri);
         String mime = getContentResolver().getType(uri);
         if (!isSupportedDocument(name, mime)) {
-            Toast.makeText(this, "Choose DOCX, XLS/XLSX, CSV, ODS, PPTX or TXT.",
+            Toast.makeText(this, "Choose DOCX, PDF, XLS/XLSX, CSV, ODS, PPTX or TXT.",
                     Toast.LENGTH_LONG).show();
             return;
         }
@@ -206,7 +428,12 @@ public class MainActivity extends Activity {
     }
 
     private boolean isSupportedDocument(String name, String mime) {
-        return isOfficeViewerDocument(name, mime) || isWriterDocument(name, mime);
+        return isPdfDocument(name, mime) || isOfficeViewerDocument(name, mime) || isWriterDocument(name, mime);
+    }
+
+    private boolean isPdfDocument(String name, String mime) {
+        String lower = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+        return lower.endsWith(".pdf") || MIME_PDF.equalsIgnoreCase(mime);
     }
 
     private boolean isOfficeViewerDocument(String name, String mime) {
@@ -236,7 +463,11 @@ public class MainActivity extends Activity {
 
     private void launchDocument(Uri uri, String name, String mime) {
         Intent open;
-        if (isOfficeViewerDocument(name, mime)) {
+        if (isPdfDocument(name, mime)) {
+            open = new Intent(this, PdfViewerActivity.class);
+            open.putExtra(PdfViewerActivity.EXTRA_DOCUMENT_URI, uri.toString());
+            open.putExtra(PdfViewerActivity.EXTRA_DOCUMENT_NAME, name);
+        } else if (isOfficeViewerDocument(name, mime)) {
             open = new Intent(this, OfficeViewerActivity.class);
             open.putExtra(OfficeViewerActivity.EXTRA_DOCUMENT_URI, uri.toString());
             open.putExtra(OfficeViewerActivity.EXTRA_DOCUMENT_NAME, name);
@@ -245,8 +476,13 @@ public class MainActivity extends Activity {
             open.putExtra(WriterActivity.EXTRA_DOCUMENT_URI, uri.toString());
         }
         open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        try { startActivity(open); }
-        catch (Exception e) { Toast.makeText(this, "Could not open this document.", Toast.LENGTH_LONG).show(); }
+        try {
+            startActivity(open);
+            RecentDocumentsStore.record(this, uri, name, mime);
+        } catch (Exception e) {
+            Toast.makeText(this, "Could not open this document. Check that the file is still available.",
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     private String queryDisplayName(Uri uri) {

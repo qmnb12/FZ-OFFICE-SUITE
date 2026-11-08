@@ -53,6 +53,12 @@ jobs:
       - name: Verify Office viewer routing and local asset pinning
         run: node tests/office-viewer-routing.test.js
 
+      - name: Verify local document library
+        run: node tests/file-library.test.js
+
+      - name: Verify offline PDF reader
+        run: node tests/pdf-viewer.test.js
+
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
