@@ -23,14 +23,14 @@ to the Fontconfig search directories. The build substitutes the real application
 
 The Fontconfig path patch is stored at patches/collabora/0001-android-fontconfig-hindi-font-directory.patch. The native build also applies patches 0002 and 0003 to bundle the generated OFL font pack and add the native Font Center screen.
 
-The planned Hindi Font Center will:
+The native Hindi Font Center:
 - Import .ttf and .otf via Android Storage Access Framework into the same user/fonts directory already scanned by Fontconfig.
 - Validate font signature and loadability before copying.
 - Store files in the app-private user/fonts directory.
 - Show family, style, file name, coverage notes and licence/source metadata where known.
 - Detect duplicate family/style files and avoid silent overwrite.
 - Let users remove fonts they imported.
-- Offer a document-engine restart/reload so Fontconfig rescans after changes.
+- Clear the Fontconfig cache and require documents to be closed/reopened so the engine rescans after changes.
 
 TTC/OTC collections are a later item; initial import accepts individual TTF/OTF files only.
 
@@ -54,6 +54,9 @@ Expand from the upstream Google Fonts Devanagari catalogue after checking each f
 
 ## Legacy Hindi fonts
 
+The target behaviour matches desktop Word: install/register the exact declared font and render legacy character codes with that font. Do not Unicode-convert just to display a document. Unicode conversion is a separate, user-invoked operation.
+
+
 Profiles to research and test include:
 - DevLys, each exact version including 010
 - Kruti Dev, each exact version
@@ -63,7 +66,7 @@ Profiles to research and test include:
 - APS-DV / APS family
 - Akruti and other vendor-specific DTP encodings
 
-The first choice is to render the original document using its exact legacy font when the user imports a font they are licensed to use. This preserves stored characters and avoids needless conversion.
+The default and first choice is to render the original document using its exact legacy font when the user imports a font they are licensed to use. This preserves stored characters and avoids conversion. Automatic conversion is disabled in the normal open/view path.
 
 If the required legacy font is unavailable, a converter may be offered only when the document's exact encoding profile is known and a verified test corpus exists. Never infer an encoding from random-looking Latin text alone. Never apply one family's map to another family because the names look similar.
 

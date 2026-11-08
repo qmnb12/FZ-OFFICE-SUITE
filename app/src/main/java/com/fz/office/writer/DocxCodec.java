@@ -63,7 +63,8 @@ public final class DocxCodec {
             throw new IOException("This file is not a supported DOCX document.");
         }
         Map<String, String> imageRelationships = readDocumentImageRelationships(entries);
-        String html = parseDocumentXml(documentXml, imageRelationships);
+        Map<String, String> styleFonts = readStyleFontMap(entries.get("word/styles.xml"));
+        String html = parseDocumentXml(documentXml, imageRelationships, styleFonts);
         if (html.trim().isEmpty()) {
             html = "<p></p>";
         }
@@ -357,7 +358,8 @@ public final class DocxCodec {
         return output.toByteArray();
     }
 
-    private static String parseDocumentXml(byte[] xml, Map<String, String> imageRelationships) throws Exception {
+    private static String parseDocumentXml(byte[] xml, Map<String, String> imageRelationships,
+                                           Map<String, String> styleFonts) throws Exception {
         XmlPullParser parser = Xml.newPullParser();
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true);
         parser.setInput(new ByteArrayInputStream(xml), "UTF-8");
@@ -365,14 +367,15 @@ public final class DocxCodec {
         int event;
         while ((event = parser.next()) != XmlPullParser.END_DOCUMENT) {
             if (event == XmlPullParser.START_TAG && "body".equals(parser.getName())) {
-                parseBody(parser, html, imageRelationships);
+                parseBody(parser, html, imageRelationships, styleFonts);
                 break;
             }
         }
         return html.toString();
     }
 
-    private static void parseBody(XmlPullParser parser, StringBuilder html, Map<String, String> imageRelationships) throws Exception {
+    private static void parseBody(XmlPullParser parser, StringBuilder html,
+                                  Map<String, String> imageRelationships, Map<String, String> styleFonts) throws Exception {
         while (true) {
             int event = parser.next();
             if (event == XmlPullParser.END_DOCUMENT) return;
@@ -380,17 +383,20 @@ public final class DocxCodec {
             if (event != XmlPullParser.START_TAG) continue;
 
             if ("p".equals(parser.getName())) {
-                parseParagraph(parser, html, imageRelationships);
+                parseParagraph(parser, html, imageRelationships, styleFonts);
             } else if ("tbl".equals(parser.getName())) {
-                parseTable(parser, html, imageRelationships);
+                parseTable(parser, html, imageRelationships, styleFonts);
             } else {
                 skipElement(parser);
             }
         }
     }
 
-    private static void parseParagraph(XmlPullParser parser, StringBuilder html, Map<String, String> imageRelationships) throws Exception {
+    private static void parseParagraph(XmlPullParser parser, StringBuilder html,
+                                        Map<String, String> imageRelationships,
+                                        Map<String, String> styleFonts) throws Exception {
         String alignment = "left";
+        String paragraphStyleId = null;
         StringBuilder content = new StringBuilder();
 
         while (true) {
@@ -401,12 +407,16 @@ public final class DocxCodec {
 
             String name = parser.getName();
             if ("pPr".equals(name)) {
-                alignment = readParagraphProperties(parser);
+                ParagraphProperties properties = readParagraphProperties(parser);
+                alignment = properties.alignment;
+                paragraphStyleId = properties.styleId;
             } else if ("r".equals(name)) {
-                content.append(readRun(parser, imageRelationships));
+                content.append(readRun(parser, imageRelationships,
+                        resolveParagraphFont(styleFonts, paragraphStyleId)));
             } else if ("hyperlink".equals(name) || "sdtContent".equals(name)
                     || "smartTag".equals(name)) {
-                parseInlineContainer(parser, name, content, imageRelationships);
+                parseInlineContainer(parser, name, content, imageRelationships,
+                        resolveParagraphFont(styleFonts, paragraphStyleId));
             } else if ("bookmarkStart".equals(name) || "bookmarkEnd".equals(name)
                     || "proofErr".equals(name)) {
                 skipElement(parser);
@@ -426,7 +436,8 @@ public final class DocxCodec {
     }
 
     private static void parseInlineContainer(
-            XmlPullParser parser, String endTag, StringBuilder html, Map<String, String> imageRelationships
+            XmlPullParser parser, String endTag, StringBuilder html,
+            Map<String, String> imageRelationships, String inheritedFont
     ) throws Exception {
         while (true) {
             int event = parser.next();
@@ -435,29 +446,32 @@ public final class DocxCodec {
             if (event != XmlPullParser.START_TAG) continue;
             String name = parser.getName();
             if ("r".equals(name)) {
-                html.append(readRun(parser, imageRelationships));
+                html.append(readRun(parser, imageRelationships, inheritedFont));
             } else if ("hyperlink".equals(name) || "sdtContent".equals(name)
                     || "smartTag".equals(name)) {
-                parseInlineContainer(parser, name, html, imageRelationships);
+                parseInlineContainer(parser, name, html, imageRelationships, inheritedFont);
             } else {
                 skipElement(parser);
             }
         }
     }
 
-    private static String readParagraphProperties(XmlPullParser parser) throws Exception {
-        String alignment = "left";
+    private static ParagraphProperties readParagraphProperties(XmlPullParser parser) throws Exception {
+        ParagraphProperties properties = new ParagraphProperties();
         while (true) {
             int event = parser.next();
-            if (event == XmlPullParser.END_DOCUMENT) return alignment;
-            if (event == XmlPullParser.END_TAG && "pPr".equals(parser.getName())) return alignment;
+            if (event == XmlPullParser.END_DOCUMENT) return properties;
+            if (event == XmlPullParser.END_TAG && "pPr".equals(parser.getName())) return properties;
             if (event != XmlPullParser.START_TAG) continue;
             String name = parser.getName();
             if ("jc".equals(name)) {
                 String value = attribute(parser, "val");
-                if ("center".equals(value)) alignment = "center";
-                else if ("right".equals(value) || "end".equals(value)) alignment = "right";
-                else if ("both".equals(value) || "distribute".equals(value)) alignment = "justify";
+                if ("center".equals(value)) properties.alignment = "center";
+                else if ("right".equals(value) || "end".equals(value)) properties.alignment = "right";
+                else if ("both".equals(value) || "distribute".equals(value)) properties.alignment = "justify";
+                skipElement(parser);
+            } else if ("pStyle".equals(name)) {
+                properties.styleId = attribute(parser, "val");
                 skipElement(parser);
             } else {
                 skipElement(parser);
@@ -465,8 +479,77 @@ public final class DocxCodec {
         }
     }
 
-    private static String readRun(XmlPullParser parser, Map<String, String> imageRelationships) throws Exception {
+    /** Resolves paragraph style fonts and basedOn inheritance from styles.xml. */
+    private static Map<String, String> readStyleFontMap(byte[] stylesXml) throws Exception {
+        Map<String, String> result = new LinkedHashMap<>();
+        if (stylesXml == null) return result;
+        XmlPullParser parser = Xml.newPullParser();
+        parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true);
+        parser.setInput(new ByteArrayInputStream(stylesXml), "UTF-8");
+        String currentStyle = null;
+        boolean inDocDefaults = false;
+        int event;
+        while ((event = parser.next()) != XmlPullParser.END_DOCUMENT) {
+            if (event == XmlPullParser.START_TAG) {
+                String name = parser.getName();
+                if ("docDefaults".equals(name)) {
+                    inDocDefaults = true;
+                } else if ("style".equals(name)) {
+                    currentStyle = attribute(parser, "styleId");
+                } else if ("basedOn".equals(name) && currentStyle != null) {
+                    String parent = attribute(parser, "val");
+                    if (parent != null) result.put("parent:" + currentStyle, parent);
+                    skipElement(parser);
+                } else if ("rFonts".equals(name)) {
+                    String font = chooseFontFamily(
+                            attribute(parser, "ascii"),
+                            attribute(parser, "hAnsi"),
+                            attribute(parser, "eastAsia"),
+                            attribute(parser, "cs"));
+                    if (font != null) {
+                        if (currentStyle != null) result.put("font:" + currentStyle, font);
+                        else if (inDocDefaults) result.put("default", font);
+                    }
+                    skipElement(parser);
+                }
+            } else if (event == XmlPullParser.END_TAG) {
+                if ("style".equals(parser.getName())) currentStyle = null;
+                else if ("docDefaults".equals(parser.getName())) inDocDefaults = false;
+            }
+        }
+        return result;
+    }
+
+    private static String resolveParagraphFont(Map<String, String> styleFonts, String styleId) {
+        if (styleFonts == null) return null;
+        String current = styleId;
+        for (int depth = 0; depth < 24 && current != null && !current.isEmpty(); depth++) {
+            String font = styleFonts.get("font:" + current);
+            if (font != null && !font.isEmpty()) return font;
+            current = styleFonts.get("parent:" + current);
+        }
+        return styleFonts.get("default");
+    }
+
+    private static String chooseFontFamily(String ascii, String hAnsi, String eastAsia, String complex) {
+        // Legacy Hindi text is commonly stored as Latin code points, so ASCII/HAnsi
+        // is the font group that controls the glyph mapping in those runs.
+        String[] candidates = new String[] {ascii, hAnsi, eastAsia, complex};
+        for (String candidate : candidates) {
+            if (candidate != null && !candidate.trim().isEmpty()) return candidate.trim();
+        }
+        return null;
+    }
+
+    private static final class ParagraphProperties {
+        String alignment = "left";
+        String styleId;
+    }
+
+    private static String readRun(XmlPullParser parser, Map<String, String> imageRelationships,
+                                   String inheritedFont) throws Exception {
         RunStyle style = new RunStyle();
+        style.fontFamily = inheritedFont;
         StringBuilder output = new StringBuilder();
         StringBuilder text = new StringBuilder();
         while (true) {
@@ -536,10 +619,11 @@ public final class DocxCodec {
                 } catch (Exception ignored) { }
                 skipElement(parser);
             } else if ("rFonts".equals(name)) {
-                String font = attribute(parser, "eastAsia");
-                if (font == null) font = attribute(parser, "ascii");
-                if (font == null) font = attribute(parser, "hAnsi");
-                if (font == null) font = attribute(parser, "cs");
+                String font = chooseFontFamily(
+                        attribute(parser, "ascii"),
+                        attribute(parser, "hAnsi"),
+                        attribute(parser, "eastAsia"),
+                        attribute(parser, "cs"));
                 if (font != null) style.fontFamily = font;
                 skipElement(parser);
             } else if ("vertAlign".equals(name)) {
@@ -551,14 +635,15 @@ public final class DocxCodec {
         }
     }
 
-    private static void parseTable(XmlPullParser parser, StringBuilder html, Map<String, String> imageRelationships) throws Exception {
+    private static void parseTable(XmlPullParser parser, StringBuilder html,
+                                   Map<String, String> imageRelationships, Map<String, String> styleFonts) throws Exception {
         html.append("<table><tbody>");
         while (true) {
             int event = parser.next();
             if (event == XmlPullParser.END_DOCUMENT) break;
             if (event == XmlPullParser.END_TAG && "tbl".equals(parser.getName())) break;
             if (event == XmlPullParser.START_TAG && "tr".equals(parser.getName())) {
-                parseTableRow(parser, html, imageRelationships);
+                parseTableRow(parser, html, imageRelationships, styleFonts);
             } else if (event == XmlPullParser.START_TAG) {
                 skipElement(parser);
             }
@@ -566,14 +651,15 @@ public final class DocxCodec {
         html.append("</tbody></table>");
     }
 
-    private static void parseTableRow(XmlPullParser parser, StringBuilder html, Map<String, String> imageRelationships) throws Exception {
+    private static void parseTableRow(XmlPullParser parser, StringBuilder html,
+                                      Map<String, String> imageRelationships, Map<String, String> styleFonts) throws Exception {
         html.append("<tr>");
         while (true) {
             int event = parser.next();
             if (event == XmlPullParser.END_DOCUMENT) break;
             if (event == XmlPullParser.END_TAG && "tr".equals(parser.getName())) break;
             if (event == XmlPullParser.START_TAG && "tc".equals(parser.getName())) {
-                parseTableCell(parser, html, imageRelationships);
+                parseTableCell(parser, html, imageRelationships, styleFonts);
             } else if (event == XmlPullParser.START_TAG) {
                 skipElement(parser);
             }
@@ -581,7 +667,8 @@ public final class DocxCodec {
         html.append("</tr>");
     }
 
-    private static void parseTableCell(XmlPullParser parser, StringBuilder html, Map<String, String> imageRelationships) throws Exception {
+    private static void parseTableCell(XmlPullParser parser, StringBuilder html,
+                                       Map<String, String> imageRelationships, Map<String, String> styleFonts) throws Exception {
         html.append("<td>");
         boolean hasContent = false;
         while (true) {
@@ -589,10 +676,10 @@ public final class DocxCodec {
             if (event == XmlPullParser.END_DOCUMENT) break;
             if (event == XmlPullParser.END_TAG && "tc".equals(parser.getName())) break;
             if (event == XmlPullParser.START_TAG && "p".equals(parser.getName())) {
-                parseParagraph(parser, html, imageRelationships);
+                parseParagraph(parser, html, imageRelationships, styleFonts);
                 hasContent = true;
             } else if (event == XmlPullParser.START_TAG && "tbl".equals(parser.getName())) {
-                parseTable(parser, html, imageRelationships);
+                parseTable(parser, html, imageRelationships, styleFonts);
                 hasContent = true;
             } else if (event == XmlPullParser.START_TAG) {
                 skipElement(parser);

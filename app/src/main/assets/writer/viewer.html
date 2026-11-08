@@ -26,96 +26,33 @@ body{padding:12px 8px 28px}
 @media(min-width:700px){body{padding:20px}#page{max-width:900px;min-height:100vh;padding:42px 54px}}
 @media print{html,body{background:#fff;padding:0}#legacyNotice{display:none!important}#page{border:0;box-shadow:none;max-width:none;padding:0}}
 </style>
-<script src="legacy-converter.js"></script>
 </head>
 <body>
 <div id="legacyNotice" role="status"></div>
 <main id="page" aria-label="Document content"></main>
-<script src="legacy-converter.js"></script>
 <script>
 (function(){
 "use strict";
 var page=document.getElementById("page"),notice=document.getElementById("legacyNotice"),baseSize=16,defaultFont="Noto Sans Devanagari";
 function registerFonts(css){if(!css)return;var style=document.getElementById("fz-font-face-rules");if(!style){style=document.createElement("style");style.id="fz-font-face-rules";document.head.appendChild(style)}style.textContent+=css}
 function setDefaultFont(family){if(!family)return;defaultFont=String(family);var safe=defaultFont.replace(/["\\]/g,"");page.style.fontFamily='"'+safe+'","Noto Sans Devanagari",Arial,sans-serif'}
-function readInlineText(node){
-  if(node.nodeType===Node.TEXT_NODE)return node.nodeValue||"";
-  if(node.nodeType!==Node.ELEMENT_NODE)return "";
-  if(node.tagName==="BR")return "\n";
-  if(node.tagName==="IMG")return "";
-  var result="";
-  for(var i=0;i<node.childNodes.length;i++)result+=readInlineText(node.childNodes[i]);
-  return result;
-}
-function legacyFontProfileForSpan(node){
-  if(!node||node.nodeType!==Node.ELEMENT_NODE||node.tagName!=="SPAN")return "";
-  var family=(node.style.fontFamily||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-  if(family==="devlys010"||family==="devlys10")return "devlys010";
-  if(family==="krutidev010"||family==="krutidev10")return "krutidev010";
-  return "";
-}
-function convertLegacyFontRuns(root){
-  if(!window.FZLegacyHindi)return 0;
-  var spans=Array.prototype.slice.call(root.querySelectorAll("span[style]"));
-  var converted=0,processed=[];
-  spans.forEach(function(span){
-    var profile=legacyFontProfileForSpan(span);
-    if(processed.indexOf(span)>=0||!profile)return;
-    // Word can split a matra and its consonant into adjacent runs.
-    var group=[span],next=span.nextSibling;
-    while(next&&next.nodeType===Node.ELEMENT_NODE&&legacyFontProfileForSpan(next)===profile){
-      group.push(next);next=next.nextSibling;
-    }
-    group.forEach(function(item){processed.push(item)});
-    var source=group.map(readInlineText).join("");
-    if(!source.trim())return;
-    var converter=profile==="devlys010"
-      ?window.FZLegacyHindi.devLys010ToUnicodePreservingEnglish
-      :window.FZLegacyHindi.krutiDevToUnicodePreservingEnglish;
-    if(!converter)return;
-    var output=converter(source);
-    var replacement=span.cloneNode(false);
-    replacement.style.removeProperty("font-family");
-    replacement.style.fontFamily='"'+defaultFont.replace(/["\\]/g,"")+'", "Noto Sans Devanagari", sans-serif';
-    replacement.textContent=output;
-    span.parentNode.insertBefore(replacement,span);
-    group.forEach(function(item){if(item.parentNode)item.parentNode.removeChild(item)});
-    converted++;
-  });
-  return converted;
-}
 function showNotice(title,message){notice.textContent="";var strong=document.createElement("strong"),body=document.createElement("span");strong.textContent=title;body.textContent=message;notice.appendChild(strong);notice.appendChild(body);notice.style.display="block"}
 function setDocument(html,profile,fontName,legacyHint,fontAvailable){
   page.innerHTML=html||"<p></p>";
   notice.style.display="none";
   page.style.fontFamily='"'+defaultFont.replace(/["\\]/g,"")+'","Noto Sans Devanagari",Arial,sans-serif';
-
-  // Convert only text runs explicitly tagged with the exact legacy font in DOCX.
-  // English runs, dates, reference numbers, images and the original DOCX bytes
-  // remain untouched. The conversion exists only in this read-only view.
-  var converted=0;
-  if((profile==="devlys010"||profile==="krutidev010")
-      &&window.FZLegacyHindi){
-    converted=convertLegacyFontRuns(page);
-  }
-  if(converted>0){
-    showNotice("Hindi text automatically converted for viewing",
-      "Only explicitly tagged "+(profile==="devlys010"?"DevLys 010":"Kruti Dev 010")
-      +" runs were converted. English runs, images and numeric references are preserved. Original DOCX is unchanged.");
-  }else if(fontName&&fontAvailable){
-    var safeFamily=String(fontName).replace(/["\\]/g,"");
-    page.style.fontFamily='"'+safeFamily+'","Noto Sans Devanagari",Arial,sans-serif';
+  if(fontName&&fontAvailable){
     showNotice("Matching font loaded: "+fontName,
-      "The exact local font is being used. Original DOCX text is unchanged.");
+      "The original DOCX characters are rendered using their declared font. No conversion has been applied; the source file is unchanged.");
   }else if(fontName){
     showNotice("Legacy font missing: "+fontName,
-      "Import the exact TTF/OTF font from Hindi Font Center. No unverified conversion has been applied.");
+      "Import this exact TTF/OTF family in Hindi Font Center. The original text and font declaration are unchanged.");
   }else if(profile==="krutidev010"||profile==="devlys010"){
     showNotice("Legacy font profile detected",
-      "The matching converter is not available in this build. Text remains unchanged.");
+      "Import the exact font family to render this document. Automatic conversion is disabled.");
   }else if(legacyHint){
     showNotice("Possible legacy Hindi encoding",
-      "The document does not declare a verified legacy font family. Text remains unchanged to avoid damaging English or Hindi content.");
+      "No exact font family is declared. Text remains unchanged; automatic conversion is disabled.");
   }
 }
 function zoom(direction){baseSize=Math.max(12,Math.min(30,baseSize+(direction>0?1:-1)));page.style.fontSize=baseSize+"px"}

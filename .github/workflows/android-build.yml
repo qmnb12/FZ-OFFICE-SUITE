@@ -35,8 +35,11 @@ jobs:
         with:
           gradle-version: "9.6.1"
 
-      - name: Test legacy Hindi converter
+      - name: Test legacy Hindi converter library
         run: node tests/legacy-converter.test.js
+
+      - name: Verify normal viewer never auto-converts
+        run: node tests/viewer-font-policy.test.js
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug

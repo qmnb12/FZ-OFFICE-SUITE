@@ -10,19 +10,28 @@ if ! git -C "$COLLABORA" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 2
 fi
 
-shopt -s nullglob
-PATCHES=("$PATCH_DIR"/*.patch)
-if [[ ${#PATCHES[@]} -eq 0 ]]; then
-  echo "No Collabora integration patches were found." >&2
-  exit 2
-fi
+# The patch directory also contains older alternatives. Applying every *.patch
+# stacked incompatible Gradle and LibreOfficeUIActivity changes. Only this
+# ordered, tested subset matches the pinned Collabora source revision.
+PATCHES=(
+  "$PATCH_DIR/0001-android-fontconfig-hindi-font-directory.patch"
+  "$PATCH_DIR/0002-bundle-fz-hindi-fonts.patch"
+  "$PATCH_DIR/0003-native-hindi-font-center-zip-import.patch"
+)
 
 for PATCH in "${PATCHES[@]}"; do
+  if [[ ! -f "$PATCH" ]]; then
+    echo "Required patch is missing: $PATCH" >&2
+    exit 2
+  fi
   if git -C "$COLLABORA" apply --reverse --check "$PATCH" >/dev/null 2>&1; then
     echo "Already applied: $(basename "$PATCH")"
     continue
   fi
-  git -C "$COLLABORA" apply --check "$PATCH"
+  if ! git -C "$COLLABORA" apply --check "$PATCH"; then
+    echo "Patch does not apply to the pinned Collabora source: $(basename "$PATCH")" >&2
+    exit 2
+  fi
   git -C "$COLLABORA" apply "$PATCH"
   echo "Applied: $(basename "$PATCH")"
 done

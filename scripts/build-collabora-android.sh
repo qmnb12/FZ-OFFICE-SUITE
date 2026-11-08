@@ -8,8 +8,8 @@ ANDROID_HOME="$(printenv ANDROID_HOME || printenv ANDROID_SDK_ROOT || true)"
 NDK_VERSION="$(printenv NDK_VERSION || echo 29.0.14206865)"
 ANDROID_ABI="$(printenv ANDROID_ABI || echo arm64-v8a)"
 JOBS="$(printenv JOBS || echo 2)"
-VERSION_CODE="$(printenv VERSION_CODE || echo 9)"
-VERSION_NAME="$(printenv VERSION_NAME || echo 0.6.0.0)"
+VERSION_CODE="$(printenv VERSION_CODE || echo 10)"
+VERSION_NAME="$(printenv VERSION_NAME || echo 0.6.1.0)"
 GRADLE_BIN="$(printenv GRADLE_BIN || echo gradle)"
 
 if [[ -z "$ANDROID_HOME" || ! -d "$ANDROID_HOME/ndk/$NDK_VERSION" ]]; then
@@ -37,6 +37,9 @@ if [[ ! -d "$FONT_SOURCE" ]]; then
   echo "Hindi font assets were not generated: $FONT_SOURCE" >&2
   exit 2
 fi
+
+# The selected Collabora Gradle patch reads this exact font directory.
+export FZ_OFFICE_HINDI_FONT_DIR="$FONT_SOURCE"
 
 bash "$ROOT/scripts/apply-collabora-patches.sh"
 

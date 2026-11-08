@@ -1,40 +1,41 @@
-# Legacy Hindi text inside Word documents
+# Legacy Hindi font rendering and optional conversion
 
-## Why a DOCX can open as English-like gibberish
+## Default behaviour: render with the original font
 
-Some older Hindi Word documents store ordinary Latin keyboard characters in the document XML and rely on a legacy font such as Kruti Dev or DevLys to draw Hindi glyphs. A Unicode Devanagari font cannot reinterpret those stored character codes. The document may therefore open successfully while its visible text looks like random Latin letters.
+Older Hindi DOCX files can store legacy keyboard characters (often Latin code points) and rely on a matching font such as DevLys 010 or Kruti Dev 010 to display Devanagari glyphs.
 
-Changing a font is not the same as converting the stored text.
+**Viewing this kind of file does not require text conversion.** Desktop Word normally renders it using the font declared by the document. FZ Office must do the same:
 
-## Current support in FZ Office
+1. Read the exact font family from run properties and paragraph/character styles.
+2. Find a matching imported TTF/OTF in the app-private font library.
+3. Register that font with the document renderer.
+4. Preserve the stored characters and all font declarations.
+5. If the font is unavailable, show its exact family and offer font import.
 
-- DOCX font declarations are inspected in word/document.xml, word/styles.xml, header/footer parts and word/fontTable.xml.
-- A font name containing Kruti Dev or DevLys can trigger a legacy-font warning.
-- The Writer toolbar has a manual Unicode action for a Kruti Dev 010 conversion preview.
-- The source document is not rewritten until the user chooses Save.
-- The conversion implementation is based on BharatType Hindi Text Utilities, MIT License. The license is packaged in the app.
+The normal Open/View path must never rewrite the document text using a guessed converter.
 
-## Important conversion limits
+## Font versus encoding
 
-The app supports explicit DevLys 010 and Kruti Dev 010 font declarations. Their ordinary keyboard maps are shared; DevLys smart-quote substitutions are handled separately. Other versions such as DevLys 040, Chanakya, Shusha, Shree Lipi and APS-DV are not covered by this profile. Chanakya, Shusha, Shree Lipi, APS-DV and other DTP encodings are not converted by this profile.
+A legacy font is a glyph mapping. A legacy encoding is the character sequence stored in the document. Installing a font does not turn the stored codes into Unicode; it makes the stored codes display using that font's glyph map.
 
-Legacy converters cannot reliably distinguish English words typed using the same legacy font from Hindi keystrokes. After conversion, review the entire result for English names, email addresses, numbers, dates, legal references, abbreviations and uncommon symbols. For important complaints, legal notices or government files, use Save As first and compare against the original.
+A converter is only needed when the user explicitly wants to transform legacy characters into Unicode Hindi, for portability, search, indexing or editing in applications without the legacy font.
 
-## What to send when a file still looks wrong
+## Optional Legacy-to-Unicode conversion
 
-The most useful diagnostic input is the original DOCX file, not a photograph of its screen. The DOCX package contains the font declarations and stored text needed to identify the actual encoding profile. If available, also supply the exact matching TTF/OTF font name or a legally obtained font file.
+Converters remain separate, opt-in utilities. Each exact family and version needs its own implementation and golden test corpus. Do not assume DevLys 010, DevLys 040, Kruti Dev 010, Chanakya, Shusha or Shree Lipi share one mapping.
 
+Before offering a converter, test:
+- Exact font version and internal family name.
+- Punctuation, smart quotes, brackets, symbols and numerals.
+- Matra ordering, reph, rakar, conjuncts and nukta.
+- Mixed Hindi/English, abbreviations, dates, addresses and legal references.
+- Real DOCX files with run-level and inherited paragraph/character styles.
+- Before/after output against Word with the exact source font installed.
 
-## Mixed Hindi/English and matra handling
+The converter code retained in the repository is not used by normal document viewing. It must not be described as verified for all DevLys/Kruti Dev variants.
 
-The viewer now converts a complete paragraph rather than each low-level Word text run separately. This is important because Word often splits a matra and its base consonant into adjacent runs. The converter preserves uppercase abbreviations such as ACEO, common English words and numeric/date/reference tokens. This reduces accidental changes but cannot perfectly distinguish every English word from legacy keyboard text when both use the same encoding and similar letter patterns. Review any document used for official or legal purposes.
+## Current rendering implementation
 
+The transitional WebView parses direct run font declarations and resolves paragraph style inheritance through styles.xml. Imported TTF/OTF families are registered as local CSS fonts. The production target is the Collabora/LibreOffice native engine, which reads app-private fonts through Fontconfig.
 
-## v0.5.2 safety change
-
-The viewer no longer converts all text in a paragraph based on content-pattern guesses. Automatic DevLys 010 or Kruti Dev 010 conversion is restricted to individual Word runs that carry an explicit exact matching font declaration. Unmarked runs remain unchanged. This can mean that a file using only paragraph-style inheritance will show a warning and remain unconverted until the style inheritance is resolved; this is intentional to avoid damaging English and Unicode Hindi text.
-
-
-## DevLys 010 support (v0.5.3)
-
-DevLys 010 is now detected as its own exact DOCX font profile. The ordinary key map is shared with Kruti Dev 010, while Word smart-quote code points are handled with DevLys-specific substitutions (`’` → श्, `“` → भ; unused curly quote slots are dropped). Other DevLys versions are not assumed compatible.
+If a font is missing, the viewer leaves text unchanged and shows a warning.
