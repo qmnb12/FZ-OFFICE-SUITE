@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Android / IDE
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+
+# Generated packages
+*.apk
+*.aab
+*.ap_
+
+# Signing material - never commit private keys
+*.jks
+*.keystore
+keystore.properties
