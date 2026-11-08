@@ -73,7 +73,7 @@ public class FontCenterActivity extends Activity {
         root.addView(title);
 
         TextView intro = text(
-                "Unicode और legacy Hindi TTF/OTF fonts चुनें या ZIP pack से सैकड़ों fonts एक साथ import करें। "
+                "12 Unicode fonts के साथ DevLys, Kruti Dev और Mangal legacy fonts पहली बार अपने-आप install होते हैं। आप अतिरिक्त TTF/OTF या ZIP packs भी import कर सकते हैं। "
                         + "Fonts केवल इस device के private storage में रहेंगे।",
                 13, MUTED, false
         );

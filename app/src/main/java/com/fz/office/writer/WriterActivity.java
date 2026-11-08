@@ -166,6 +166,7 @@ public class WriterActivity extends Activity {
         }
         statusView.setText("Opening document…");
         ioExecutor.execute(() -> {
+            try { FontManager.importBundledFontArchives(WriterActivity.this); } catch (Exception ignored) { }
             try (InputStream input = getContentResolver().openInputStream(sourceUri)) {
                 if (input == null) throw new IOException("Could not read the selected document.");
                 byte[] data = readLimited(input, plainText ? MAX_TEXT_BYTES : MAX_DOCX_BYTES);

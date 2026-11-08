@@ -303,8 +303,31 @@ public final class FontManager {
      */
     public static ImportResult importFontArchive(Context context, Uri uri) throws Exception {
         if (uri == null) throw new IOException("No font archive was selected.");
+        InputStream raw = context.getContentResolver().openInputStream(uri);
+        if (raw == null) throw new IOException("Could not read the selected ZIP archive.");
+        return importFontArchiveStream(context, raw);
+    }
+
+    /**
+     * Installs the project-supplied legacy Hindi font pack from APK assets.
+     * The archive is processed directly from assets and fonts remain in app-private storage.
+     */
+    public static synchronized ImportResult importBundledFontArchives(Context context) throws Exception {
+        final String archivePath = "font-packs/HINDI FONTS.zip";
+        final String marker = "bundled_legacy_pack_v1";
+        SharedPreferences prefs = preferences(context);
+        if (prefs.getBoolean(marker, false)) return new ImportResult();
+
+        InputStream raw = context.getAssets().open(archivePath);
+        ImportResult result = importFontArchiveStream(context, raw);
+        prefs.edit().putBoolean(marker, true).apply();
+        return result;
+    }
+
+    private static ImportResult importFontArchiveStream(Context context, InputStream raw) throws Exception {
         File directory = customDirectory(context);
         if (!directory.exists() && !directory.mkdirs()) {
+            raw.close();
             throw new IOException("Could not create the private font folder.");
         }
 
@@ -321,8 +344,6 @@ public final class FontManager {
             }
         }
 
-        InputStream raw = context.getContentResolver().openInputStream(uri);
-        if (raw == null) throw new IOException("Could not read the selected ZIP archive.");
         try (InputStream source = raw;
              ZipInputStream zip = new ZipInputStream(new BufferedInputStream(source))) {
             ZipEntry entry;

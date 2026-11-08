@@ -159,7 +159,7 @@ public class MainActivity extends Activity {
 
         LinearLayout fontCenter = actionCard(
                 "Hindi Font Center",
-                "12 bundled Unicode fonts, ZIP font-pack import and legacy family matching",
+                "12 Unicode fonts · automatic legacy font setup · family matching",
                 "अ"
         );
         LinearLayout.LayoutParams fontParams = matchWrap();
