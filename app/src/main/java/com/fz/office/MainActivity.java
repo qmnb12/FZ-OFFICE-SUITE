@@ -126,7 +126,7 @@ public class MainActivity extends Activity {
                 "↗"
         );
         openFile.setOnClickListener(v -> openDocumentPicker());
-        LinearLayout openParams = matchWrap();
+        LinearLayout.LayoutParams openParams = matchWrap();
         openParams.topMargin = dp(10);
         page.addView(openFile, openParams);
 
