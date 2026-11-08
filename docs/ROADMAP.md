@@ -66,3 +66,10 @@ The current custom WebView viewer is retained only until the native engine APK i
 - [ ] Full third-party licence/SBOM audit.
 - [ ] Reproducible arm64 build, then add other ABIs.
 - [ ] Real-document regression corpus before stable release.
+
+
+## User-supplied font archives
+
+- [x] Inspect the supplied DevLys (77), Kruti Dev (407) and Mangal (5) font archives and record metadata.
+- [x] Do not publish font binaries where no redistribution licence is supplied.
+- [x] Keep private on-device ZIP import available for fonts the user is entitled to use.

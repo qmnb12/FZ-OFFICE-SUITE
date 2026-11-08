@@ -72,12 +72,21 @@ jobs:
       - name: Install Android SDK, NDK and CMake
         run: |
           yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --channel=3 \
+            "platforms;android-37.0" \
+            "build-tools;37.0.0"
           "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
             "platform-tools" \
-            "platforms;android-37" \
-            "build-tools;37.0.0" \
             "ndk;${NDK_VERSION}" \
             "cmake;3.22.1"
+
+          # API 37.0 is installed under android-37.0; some AGP versions still
+          # probe the legacy integer directory name.
+          if [ -d "${ANDROID_HOME}/platforms/android-37.0" ] \
+             && [ ! -e "${ANDROID_HOME}/platforms/android-37" ]; then
+            ln -s android-37.0 "${ANDROID_HOME}/platforms/android-37"
+          fi
+          test -f "${ANDROID_HOME}/platforms/android-37.0/android.jar"
           df -h /
 
       - name: Set up Gradle

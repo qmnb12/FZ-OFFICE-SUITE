@@ -107,3 +107,6 @@ The files are installed under the app data directory, outside Android's shared p
 ## Default read-only opening
 
 The native FZ Office browser launches documents using ACTION_VIEW with read permission only and sets the private com.fz.office.READ_ONLY intent extra. The patched LibreOffice Android activity uses that extra to keep isDocEditable false and avoids attempting to resolve a writable source file. This protects the original document during normal reading. The engine's editing capability is not removed from the upstream project; a future explicit edit action can be added after reader-mode acceptance tests.
+
+
+For the user-supplied ZIP inventory and binary redistribution decision, see docs/USER_FONT_ARCHIVE_AUDIT.md.
