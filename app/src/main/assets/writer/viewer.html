@@ -31,6 +31,7 @@ body{padding:12px 8px 28px}
 <body>
 <div id="legacyNotice" role="status"></div>
 <main id="page" aria-label="Document content"></main>
+<script src="legacy-converter.js"></script>
 <script>
 (function(){
 "use strict";
@@ -87,22 +88,34 @@ function showNotice(title,message){notice.textContent="";var strong=document.cre
 function setDocument(html,profile,fontName,legacyHint,fontAvailable){
   page.innerHTML=html||"<p></p>";
   notice.style.display="none";
-  if(fontName&&fontAvailable){
+  page.style.fontFamily='"'+defaultFont.replace(/["\\]/g,"")+'","Noto Sans Devanagari",Arial,sans-serif';
+
+  // Convert only text runs explicitly tagged with the exact legacy font in DOCX.
+  // English runs, dates, reference numbers, images and the original DOCX bytes
+  // remain untouched. The conversion exists only in this read-only view.
+  var converted=0;
+  if((profile==="devlys010"||profile==="krutidev010")
+      &&window.FZLegacyHindi){
+    converted=convertLegacyFontRuns(page);
+  }
+  if(converted>0){
+    showNotice("Hindi text automatically converted for viewing",
+      "Only explicitly tagged "+(profile==="devlys010"?"DevLys 010":"Kruti Dev 010")
+      +" runs were converted. English runs, images and numeric references are preserved. Original DOCX is unchanged.");
+  }else if(fontName&&fontAvailable){
     var safeFamily=String(fontName).replace(/["\\]/g,"");
-    // Use the document's own font family. The encoded characters remain untouched;
-    // the font's glyph map performs the legacy Hindi rendering.
     page.style.fontFamily='"'+safeFamily+'","Noto Sans Devanagari",Arial,sans-serif';
-    showNotice("Document font loaded: "+fontName,
-      "This document is being rendered with its matching local font. Text encoding and the original DOCX file are unchanged.");
+    showNotice("Matching font loaded: "+fontName,
+      "The exact local font is being used. Original DOCX text is unchanged.");
   }else if(fontName){
-    showNotice("Font missing: "+fontName,
-      "Import the exact TTF/OTF family from Hindi Font Center. Text is shown unchanged; no guessed conversion has been applied.");
+    showNotice("Legacy font missing: "+fontName,
+      "Import the exact TTF/OTF font from Hindi Font Center. No unverified conversion has been applied.");
   }else if(profile==="krutidev010"||profile==="devlys010"){
     showNotice("Legacy font profile detected",
-      "The document's font is not available in this device's font library. Import the exact font to render its original Hindi glyph mapping. Nothing was converted.");
+      "The matching converter is not available in this build. Text remains unchanged.");
   }else if(legacyHint){
     showNotice("Possible legacy Hindi encoding",
-      "Text resembles an older Hindi keyboard-font encoding, but the exact font is unconfirmed. Nothing was converted.");
+      "The document does not declare a verified legacy font family. Text remains unchanged to avoid damaging English or Hindi content.");
   }
 }
 function zoom(direction){baseSize=Math.max(12,Math.min(30,baseSize+(direction>0?1:-1)));page.style.fontSize=baseSize+"px"}

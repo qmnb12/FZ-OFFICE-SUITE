@@ -698,6 +698,7 @@ function krutiDevToUnicodePreservingEnglish(input) {
     const core = part.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, "");
     if (!core) return part;
     if (/\d/.test(core)) return part;                 // dates / file numbers / refs
+    if (/^[A-Z]$/.test(core)) return part;           // isolated English initials/labels
     if (/^[A-Z]{2,12}$/.test(core)) return part;     // English abbreviations
     if (/^[A-Z]{2,8}\.$/.test(part)) return part;
     if (commonEnglish.has(core.toLowerCase())) return part;
