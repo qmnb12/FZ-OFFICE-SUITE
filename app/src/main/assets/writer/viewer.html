@@ -34,72 +34,65 @@ body{padding:12px 8px 28px}
 <script>
 (function(){
 "use strict";
-var page=document.getElementById("page"),notice=document.getElementById("legacyNotice"),baseSize=16;
+var page=document.getElementById("page"),notice=document.getElementById("legacyNotice"),baseSize=16,defaultFont="Noto Sans Devanagari";
 function registerFonts(css){if(!css)return;var style=document.getElementById("fz-font-face-rules");if(!style){style=document.createElement("style");style.id="fz-font-face-rules";document.head.appendChild(style)}style.textContent+=css}
-function setDefaultFont(family){if(!family)return;var safe=String(family).replace(/["\\]/g,"");page.style.fontFamily='"'+safe+'","Noto Sans Devanagari",Arial,sans-serif'}
-function extractBlockText(block){
+function setDefaultFont(family){if(!family)return;defaultFont=String(family);var safe=defaultFont.replace(/["\\]/g,"");page.style.fontFamily='"'+safe+'","Noto Sans Devanagari",Arial,sans-serif'}
+function readInlineText(node){
+  if(node.nodeType===Node.TEXT_NODE)return node.nodeValue||"";
+  if(node.nodeType!==Node.ELEMENT_NODE)return "";
+  if(node.tagName==="BR")return "\n";
+  if(node.tagName==="IMG")return "";
   var result="";
-  function walk(node){
-    if(node.nodeType===Node.TEXT_NODE){result+=node.nodeValue||"";return}
-    if(node.nodeType!==Node.ELEMENT_NODE)return;
-    if(node.tagName==="BR"){result+="\n";return}
-    if(node.tagName==="IMG")return;
-    for(var i=0;i<node.childNodes.length;i++)walk(node.childNodes[i]);
-  }
-  walk(block);
+  for(var i=0;i<node.childNodes.length;i++)result+=readInlineText(node.childNodes[i]);
   return result;
 }
-function replaceBlockText(block,text){
-  while(block.firstChild)block.removeChild(block.firstChild);
-  var lines=String(text).split("\n");
-  lines.forEach(function(line,index){
-    if(index>0)block.appendChild(document.createElement("br"));
-    block.appendChild(document.createTextNode(line));
-  });
+function isKrutiDev010Span(node){
+  if(!node||node.nodeType!==Node.ELEMENT_NODE||node.tagName!=="SPAN")return false;
+  var family=(node.style.fontFamily||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+  return family==="krutidev010"||family==="krutidev10";
 }
-function convertLegacyParagraphs(root){
-  if(!window.FZLegacyHindi||!window.FZLegacyHindi.krutiDevToUnicodePreservingEnglish)return false;
-  var selector="p,li,h1,h2,h3,h4,blockquote,td,th";
-  var blocks=Array.prototype.slice.call(root.querySelectorAll(selector));
-  if(!blocks.length)blocks=[root];
-  var converted=0,skipped=0;
-  blocks.forEach(function(block){
-    if(block.querySelector("p,li,h1,h2,h3,h4,blockquote,td,th")||block.querySelector("img,a")){
-      skipped++;return;
+function convertLegacyFontRuns(root){
+  if(!window.FZLegacyHindi||!window.FZLegacyHindi.krutiDevToUnicodePreservingEnglish)return 0;
+  var spans=Array.prototype.slice.call(root.querySelectorAll("span[style]"));
+  var converted=0,processed=[];
+  spans.forEach(function(span){
+    if(processed.indexOf(span)>=0||!isKrutiDev010Span(span))return;
+    // Word can split a matra and its consonant into adjacent runs.
+    var group=[span],next=span.nextSibling;
+    while(next&&next.nodeType===Node.ELEMENT_NODE&&isKrutiDev010Span(next)){
+      group.push(next);next=next.nextSibling;
     }
-    var source=extractBlockText(block);
+    group.forEach(function(item){processed.push(item)});
+    var source=group.map(readInlineText).join("");
     if(!source.trim())return;
-    // Do not run a legacy keyboard map over text that is already Unicode Hindi.
-    if(/[\u0900-\u097F]/.test(source)){skipped++;return}
     var output=window.FZLegacyHindi.krutiDevToUnicodePreservingEnglish(source);
-    replaceBlockText(block,output);
+    var replacement=span.cloneNode(false);
+    replacement.style.removeProperty("font-family");
+    replacement.style.fontFamily='"'+defaultFont.replace(/["\\]/g,"")+'", "Noto Sans Devanagari", sans-serif';
+    replacement.textContent=output;
+    span.parentNode.insertBefore(replacement,span);
+    group.forEach(function(item){if(item.parentNode)item.parentNode.removeChild(item)});
     converted++;
   });
-  return {converted:converted,skipped:skipped};
-}
-function removeLegacyFontOverrides(){
-  page.querySelectorAll("[style]").forEach(function(element){
-    var family=(element.style.fontFamily||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-    if(family.indexOf("krutidev")>=0||family.indexOf("devlys")>=0)element.style.removeProperty("font-family");
-  });
+  return converted;
 }
 function showNotice(title,message){notice.textContent="";var strong=document.createElement("strong"),body=document.createElement("span");strong.textContent=title;body.textContent=message;notice.appendChild(strong);notice.appendChild(body);notice.style.display="block"}
 function setDocument(html,profile,fontName,legacyHint){
   page.innerHTML=html||"<p></p>";
   notice.style.display="none";
   if(profile==="krutidev010"){
-    var result=convertLegacyParagraphs(page);
-    if(result&&result.converted>0){
-      removeLegacyFontOverrides();
-      showNotice("Hindi text automatically converted for viewing",
-        "Hindi paragraphs are converted as complete lines so matras stay together. English abbreviations, common English words and numeric references are preserved. Original DOCX is unchanged.");
+    var count=convertLegacyFontRuns(page);
+    if(count>0){
+      showNotice("Verified Kruti Dev 010 text converted for viewing",
+        "Only runs explicitly tagged with Kruti Dev 010 were converted. Other Hindi, English, dates, references and images are left untouched. Original DOCX is unchanged.");
     }else{
-      showNotice("Legacy Hindi text detected","No safe Hindi text blocks were found for conversion. The document is shown unchanged.");
+      showNotice("Legacy font is declared, but no tagged text runs were found",
+        "No text was changed. The document may store its font in a paragraph style that this reader has not resolved yet. Please share the original DOCX for exact compatibility work.");
     }
   }else if(fontName){
-    showNotice("Legacy font: "+fontName,"This font's exact encoding profile is not verified in this version. The viewer will not guess and alter its text.");
+    showNotice("Legacy font: "+fontName,"This font's exact encoding profile is not verified in this version. Text is shown unchanged.");
   }else if(legacyHint){
-    showNotice("Possible legacy Hindi encoding","The text looks like an older Hindi keyboard-font document, but its exact mapping could not be confirmed. It is shown unchanged.");
+    showNotice("Possible legacy Hindi encoding","Text resembles an older Hindi keyboard-font encoding, but the font profile is unconfirmed. Nothing was converted.");
   }
 }
 function zoom(direction){baseSize=Math.max(12,Math.min(30,baseSize+(direction>0?1:-1)));page.style.fontSize=baseSize+"px"}

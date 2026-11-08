@@ -1,5 +1,6 @@
 package com.fz.office.writer;
 
+import android.util.Base64;
 import android.util.Xml;
 
 import org.jsoup.Jsoup;
@@ -61,13 +62,14 @@ public final class DocxCodec {
         if (documentXml == null) {
             throw new IOException("This file is not a supported DOCX document.");
         }
-        String html = parseDocumentXml(documentXml);
+        Map<String, String> imageRelationships = readDocumentImageRelationships(entries);
+        String html = parseDocumentXml(documentXml, imageRelationships);
         if (html.trim().isEmpty()) {
             html = "<p></p>";
         }
         List<String> fonts = inspectFontNames(entries);
         String legacyFont = findLegacyFontName(fonts);
-        String legacyProfile = detectLegacyProfile(fonts, html);
+        String legacyProfile = detectLegacyProfile(fonts);
         return new LoadedDocument(html, entries, fonts, legacyProfile, legacyFont);
     }
 
@@ -113,26 +115,16 @@ public final class DocxCodec {
      * Returns a converter profile only when the metadata or content gives
      * sufficiently strong evidence for the exact mapping implemented here.
      */
-    private static String detectLegacyProfile(List<String> fonts, String html) {
+    private static String detectLegacyProfile(List<String> fonts) {
+        // Content-only guessing caused valid Hindi/English paragraphs to be corrupted.
+        // Only an explicit, exact DOCX font declaration may select this converter.
         for (String font : fonts) {
             String normalized = font.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
-            if (normalized.contains("krutidev010") || normalized.contains("krutidev10")) {
+            if (normalized.equals("krutidev010") || normalized.equals("krutidev10")) {
                 return "krutidev010";
             }
         }
-
-        // A conservative signature fallback for files whose DOCX style metadata is missing.
-        String plain = htmlToPlainText(html).toLowerCase(Locale.ROOT);
-        String[] signatures = new String[] {
-                "jheku", "'kklu", "lfpo", "foHkkx", "jkT;", "vkSj",
-                "fo\"k;", "izLrko", "fu;ekuqlkj", "Hkkjr", "vf/kdkj",
-                "fu;eksa", "egksn;"
-        };
-        int matches = 0;
-        for (String signature : signatures) {
-            if (plain.contains(signature.toLowerCase(Locale.ROOT))) matches++;
-        }
-        return matches >= 2 ? "krutidev010" : "";
+        return "";
     }
 
     private static List<String> inspectFontNames(Map<String, byte[]> entries) throws Exception {
@@ -209,6 +201,144 @@ public final class DocxCodec {
                 && ((double) suspicious / considered) >= 0.35;
     }
 
+
+    private static Map<String, String> readDocumentImageRelationships(
+            Map<String, byte[]> entries
+    ) throws Exception {
+        Map<String, String> images = new LinkedHashMap<>();
+        byte[] relationshipXml = entries.get("word/_rels/document.xml.rels");
+        if (relationshipXml == null) return images;
+
+        XmlPullParser parser = Xml.newPullParser();
+        parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true);
+        parser.setInput(new ByteArrayInputStream(relationshipXml), "UTF-8");
+        int event;
+        int totalImageBytes = 0;
+        while ((event = parser.next()) != XmlPullParser.END_DOCUMENT) {
+            if (event != XmlPullParser.START_TAG
+                    || !"Relationship".equals(parser.getName())) continue;
+
+            String type = attribute(parser, "Type");
+            String id = attribute(parser, "Id");
+            String target = attribute(parser, "Target");
+            String targetMode = attribute(parser, "TargetMode");
+            if (id == null || target == null || "External".equalsIgnoreCase(targetMode)) {
+                skipElement(parser);
+                continue;
+            }
+            if (type == null || !type.toLowerCase(Locale.ROOT).endsWith("/image")) {
+                skipElement(parser);
+                continue;
+            }
+
+            String packagePath = normalizeRelationshipTarget("word", target);
+            byte[] imageBytes = entries.get(packagePath);
+            if (imageBytes == null || imageBytes.length == 0
+                    || imageBytes.length > 12 * 1024 * 1024) {
+                skipElement(parser);
+                continue;
+            }
+            totalImageBytes += imageBytes.length;
+            if (totalImageBytes > 32 * 1024 * 1024) {
+                skipElement(parser);
+                continue;
+            }
+
+            String mime = imageMimeType(packagePath);
+            if (mime == null) {
+                skipElement(parser);
+                continue;
+            }
+            String dataUri = "data:" + mime + ";base64,"
+                    + Base64.encodeToString(imageBytes, Base64.NO_WRAP);
+            images.put(id, dataUri);
+            skipElement(parser);
+        }
+        return images;
+    }
+
+    private static String normalizeRelationshipTarget(String baseDirectory, String target) {
+        String normalized = target.replace('\\', '/');
+        List<String> parts = new ArrayList<>();
+        if (!normalized.startsWith("/")) {
+            for (String part : baseDirectory.split("/")) {
+                if (!part.isEmpty()) parts.add(part);
+            }
+        }
+        for (String part : normalized.split("/")) {
+            if (part.isEmpty() || ".".equals(part)) continue;
+            if ("..".equals(part)) {
+                if (!parts.isEmpty()) parts.remove(parts.size() - 1);
+            } else {
+                parts.add(part);
+            }
+        }
+        StringBuilder result = new StringBuilder();
+        for (String part : parts) {
+            if (result.length() > 0) result.append('/');
+            result.append(part);
+        }
+        return result.toString();
+    }
+
+    private static String imageMimeType(String path) {
+        String lower = path.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".jpe")) return "image/jpeg";
+        if (lower.endsWith(".gif")) return "image/gif";
+        if (lower.endsWith(".bmp") || lower.endsWith(".dib")) return "image/bmp";
+        if (lower.endsWith(".webp")) return "image/webp";
+        return null;
+    }
+
+    private static String readImageContainer(
+            XmlPullParser parser, Map<String, String> imageRelationships
+    ) throws Exception {
+        String relationshipId = null;
+        long widthEmu = 0;
+        long heightEmu = 0;
+        int depth = 1;
+
+        while (depth > 0) {
+            int event = parser.next();
+            if (event == XmlPullParser.END_DOCUMENT) break;
+            if (event == XmlPullParser.START_TAG) {
+                depth++;
+                String name = parser.getName();
+                if ("blip".equals(name)) {
+                    relationshipId = attribute(parser, "embed");
+                } else if ("imagedata".equals(name)) {
+                    relationshipId = attribute(parser, "id");
+                } else if ("extent".equals(name)) {
+                    try {
+                        widthEmu = Long.parseLong(attribute(parser, "cx"));
+                        heightEmu = Long.parseLong(attribute(parser, "cy"));
+                    } catch (Exception ignored) { }
+                }
+            } else if (event == XmlPullParser.END_TAG) {
+                depth--;
+            }
+        }
+
+        if (relationshipId == null) return "";
+        String source = imageRelationships.get(relationshipId);
+        if (source == null) return "";
+
+        StringBuilder image = new StringBuilder("<img src=\"")
+                .append(source)
+                .append("\" alt=\"Document image\" loading=\"lazy\" style=\"max-width:100%;height:auto;");
+        if (widthEmu > 0) {
+            long widthPx = Math.max(24, Math.min(1400, widthEmu / 9525));
+            image.append("width:").append(widthPx).append("px;");
+        }
+        if (heightEmu > 0) {
+            long heightPx = Math.max(16, Math.min(1800, heightEmu / 9525));
+            image.append("max-height:").append(heightPx).append("px;");
+        }
+        image.append("\"/>");
+        return image.toString();
+    }
+
     private static byte[] readCurrentEntry(InputStream input, int limit) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         byte[] buffer = new byte[8192];
@@ -224,7 +354,7 @@ public final class DocxCodec {
         return output.toByteArray();
     }
 
-    private static String parseDocumentXml(byte[] xml) throws Exception {
+    private static String parseDocumentXml(byte[] xml, Map<String, String> imageRelationships) throws Exception {
         XmlPullParser parser = Xml.newPullParser();
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true);
         parser.setInput(new ByteArrayInputStream(xml), "UTF-8");
@@ -232,14 +362,14 @@ public final class DocxCodec {
         int event;
         while ((event = parser.next()) != XmlPullParser.END_DOCUMENT) {
             if (event == XmlPullParser.START_TAG && "body".equals(parser.getName())) {
-                parseBody(parser, html);
+                parseBody(parser, html, imageRelationships);
                 break;
             }
         }
         return html.toString();
     }
 
-    private static void parseBody(XmlPullParser parser, StringBuilder html) throws Exception {
+    private static void parseBody(XmlPullParser parser, StringBuilder html, Map<String, String> imageRelationships) throws Exception {
         while (true) {
             int event = parser.next();
             if (event == XmlPullParser.END_DOCUMENT) return;
@@ -247,16 +377,16 @@ public final class DocxCodec {
             if (event != XmlPullParser.START_TAG) continue;
 
             if ("p".equals(parser.getName())) {
-                parseParagraph(parser, html);
+                parseParagraph(parser, html, imageRelationships);
             } else if ("tbl".equals(parser.getName())) {
-                parseTable(parser, html);
+                parseTable(parser, html, imageRelationships);
             } else {
                 skipElement(parser);
             }
         }
     }
 
-    private static void parseParagraph(XmlPullParser parser, StringBuilder html) throws Exception {
+    private static void parseParagraph(XmlPullParser parser, StringBuilder html, Map<String, String> imageRelationships) throws Exception {
         String alignment = "left";
         StringBuilder content = new StringBuilder();
 
@@ -270,10 +400,10 @@ public final class DocxCodec {
             if ("pPr".equals(name)) {
                 alignment = readParagraphProperties(parser);
             } else if ("r".equals(name)) {
-                content.append(readRun(parser));
+                content.append(readRun(parser, imageRelationships));
             } else if ("hyperlink".equals(name) || "sdtContent".equals(name)
                     || "smartTag".equals(name)) {
-                parseInlineContainer(parser, name, content);
+                parseInlineContainer(parser, name, content, imageRelationships);
             } else if ("bookmarkStart".equals(name) || "bookmarkEnd".equals(name)
                     || "proofErr".equals(name)) {
                 skipElement(parser);
@@ -293,7 +423,7 @@ public final class DocxCodec {
     }
 
     private static void parseInlineContainer(
-            XmlPullParser parser, String endTag, StringBuilder html
+            XmlPullParser parser, String endTag, StringBuilder html, Map<String, String> imageRelationships
     ) throws Exception {
         while (true) {
             int event = parser.next();
@@ -302,10 +432,10 @@ public final class DocxCodec {
             if (event != XmlPullParser.START_TAG) continue;
             String name = parser.getName();
             if ("r".equals(name)) {
-                html.append(readRun(parser));
+                html.append(readRun(parser, imageRelationships));
             } else if ("hyperlink".equals(name) || "sdtContent".equals(name)
                     || "smartTag".equals(name)) {
-                parseInlineContainer(parser, name, html);
+                parseInlineContainer(parser, name, html, imageRelationships);
             } else {
                 skipElement(parser);
             }
@@ -332,8 +462,9 @@ public final class DocxCodec {
         }
     }
 
-    private static String readRun(XmlPullParser parser) throws Exception {
+    private static String readRun(XmlPullParser parser, Map<String, String> imageRelationships) throws Exception {
         RunStyle style = new RunStyle();
+        StringBuilder output = new StringBuilder();
         StringBuilder text = new StringBuilder();
         while (true) {
             int event = parser.next();
@@ -352,12 +483,18 @@ public final class DocxCodec {
             } else if ("br".equals(name) || "cr".equals(name)) {
                 text.append('\n');
                 skipElement(parser);
+            } else if ("drawing".equals(name) || "pict".equals(name)) {
+                if (text.length() > 0) {
+                    output.append(runToHtml(text.toString(), style));
+                    text.setLength(0);
+                }
+                output.append(readImageContainer(parser, imageRelationships));
             } else {
                 skipElement(parser);
             }
         }
-        if (text.length() == 0) return "";
-        return runToHtml(text.toString(), style);
+        if (text.length() > 0) output.append(runToHtml(text.toString(), style));
+        return output.toString();
     }
 
     private static void readRunProperties(XmlPullParser parser, RunStyle style) throws Exception {
@@ -411,14 +548,14 @@ public final class DocxCodec {
         }
     }
 
-    private static void parseTable(XmlPullParser parser, StringBuilder html) throws Exception {
+    private static void parseTable(XmlPullParser parser, StringBuilder html, Map<String, String> imageRelationships) throws Exception {
         html.append("<table><tbody>");
         while (true) {
             int event = parser.next();
             if (event == XmlPullParser.END_DOCUMENT) break;
             if (event == XmlPullParser.END_TAG && "tbl".equals(parser.getName())) break;
             if (event == XmlPullParser.START_TAG && "tr".equals(parser.getName())) {
-                parseTableRow(parser, html);
+                parseTableRow(parser, html, imageRelationships);
             } else if (event == XmlPullParser.START_TAG) {
                 skipElement(parser);
             }
@@ -426,14 +563,14 @@ public final class DocxCodec {
         html.append("</tbody></table>");
     }
 
-    private static void parseTableRow(XmlPullParser parser, StringBuilder html) throws Exception {
+    private static void parseTableRow(XmlPullParser parser, StringBuilder html, Map<String, String> imageRelationships) throws Exception {
         html.append("<tr>");
         while (true) {
             int event = parser.next();
             if (event == XmlPullParser.END_DOCUMENT) break;
             if (event == XmlPullParser.END_TAG && "tr".equals(parser.getName())) break;
             if (event == XmlPullParser.START_TAG && "tc".equals(parser.getName())) {
-                parseTableCell(parser, html);
+                parseTableCell(parser, html, imageRelationships);
             } else if (event == XmlPullParser.START_TAG) {
                 skipElement(parser);
             }
@@ -441,7 +578,7 @@ public final class DocxCodec {
         html.append("</tr>");
     }
 
-    private static void parseTableCell(XmlPullParser parser, StringBuilder html) throws Exception {
+    private static void parseTableCell(XmlPullParser parser, StringBuilder html, Map<String, String> imageRelationships) throws Exception {
         html.append("<td>");
         boolean hasContent = false;
         while (true) {
@@ -449,10 +586,10 @@ public final class DocxCodec {
             if (event == XmlPullParser.END_DOCUMENT) break;
             if (event == XmlPullParser.END_TAG && "tc".equals(parser.getName())) break;
             if (event == XmlPullParser.START_TAG && "p".equals(parser.getName())) {
-                parseParagraph(parser, html);
+                parseParagraph(parser, html, imageRelationships);
                 hasContent = true;
             } else if (event == XmlPullParser.START_TAG && "tbl".equals(parser.getName())) {
-                parseTable(parser, html);
+                parseTable(parser, html, imageRelationships);
                 hasContent = true;
             } else if (event == XmlPullParser.START_TAG) {
                 skipElement(parser);

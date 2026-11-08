@@ -17,11 +17,11 @@ Items are complete only after implementation and real-file testing. UI labels al
 - [x] Display supported paragraphs, common text styles and simple tables.
 - [x] Add reader text-size controls and selectable/copyable text.
 - [x] Detect known Kruti Dev 010 font declarations and selected strong text signatures.
-- [x] Automatically convert confirmed Kruti Dev 010 text in the in-memory display layer only.
-- [x] Convert complete paragraphs to avoid matra loss across split Word text runs.
-- [x] Preserve uppercase English abbreviations, common English words and numeric/date/reference tokens.
+- [x] Restrict automatic conversion to text runs explicitly tagged with the exact Kruti Dev 010 font name.
+- [x] Leave unmarked text and unknown legacy encodings untouched rather than guessing.
+- [x] Add a read-only DOCX image relationship reader for common embedded raster formats.
 - [x] Keep the original DOCX/TXT file read-only and unchanged.
-- [ ] Add a full DOCX rendering engine for images, headers, footers, page layout, lists, charts and complex sections.
+- [ ] Add full DOCX layout support for floating images, headers, footers, page layout, lists, charts and complex sections.
 - [ ] Test real Hindi government/legal documents on multiple Android devices.
 
 The current renderer is a limited reader, not full Word layout compatibility. Unknown legacy encodings are never guessed or silently changed.

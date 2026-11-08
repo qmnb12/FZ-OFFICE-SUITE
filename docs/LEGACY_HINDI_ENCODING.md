@@ -28,3 +28,8 @@ The most useful diagnostic input is the original DOCX file, not a photograph of 
 ## Mixed Hindi/English and matra handling
 
 The viewer now converts a complete paragraph rather than each low-level Word text run separately. This is important because Word often splits a matra and its base consonant into adjacent runs. The converter preserves uppercase abbreviations such as ACEO, common English words and numeric/date/reference tokens. This reduces accidental changes but cannot perfectly distinguish every English word from legacy keyboard text when both use the same encoding and similar letter patterns. Review any document used for official or legal purposes.
+
+
+## v0.5.2 safety change
+
+The viewer no longer converts all text in a paragraph based on content-pattern guesses. Automatic Kruti Dev 010 conversion is restricted to individual Word runs that carry an explicit exact Kruti Dev 010 font declaration. Unmarked runs remain unchanged. This can mean that a file using only paragraph-style inheritance will show a warning and remain unconverted until the style inheritance is resolved; this is intentional to avoid damaging English and Unicode Hindi text.

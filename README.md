@@ -2,12 +2,12 @@
 
 **An Android-first, offline-first office suite with Hindi-first document and font support.**
 
-## Current status — v0.5.1
+## Current status — v0.5.2
 
 ### Document Viewer (read-only)
 
 - Open DOCX and UTF-8 TXT documents from Android's document picker.
-- Display supported paragraphs, headings, common text styles and simple tables.
+- Display supported paragraphs, headings, common text styles, simple tables and embedded raster images (PNG, JPEG, GIF, WebP, BMP).
 - Select and copy text; adjust reading size with A− / A+ controls.
 - There are no editing controls, keyboard input, Save or Save As actions in the document screen.
 - Original documents are opened read-only and are never rewritten by the app.
@@ -15,9 +15,9 @@
 ### Automatic legacy Hindi display
 
 - DOCX font declarations are inspected in document, styles, header/footer and font-table parts.
-- Known Kruti Dev 010 documents are automatically converted to Unicode Hindi in the viewer's temporary display content.
-- Conversion is paragraph-based so matra sequences split across Word runs are recombined before conversion.
-- Uppercase English abbreviations (for example ACEO), common English words and tokens containing dates/numbers are protected from conversion.
+- Automatic conversion is restricted to DOCX text runs explicitly tagged with the exact Kruti Dev 010 font name.
+- Unmarked text, existing Unicode Hindi, English/date/reference runs and content with unknown fonts are not changed.
+- If a file declares the legacy font only through an unresolved paragraph style, the viewer warns instead of guessing.
 - The conversion runs only in memory. The original DOCX package and the file on storage remain unchanged.
 - A conservative text-pattern fallback can identify some files whose font metadata is missing.
 - Unverified legacy families and variants are not guessed. The viewer shows a warning instead.
@@ -36,7 +36,7 @@ The automatic mapping in this release is for Kruti Dev 010 only. It is not a uni
 
 ### Document compatibility boundary
 
-This is an early read-only DOCX renderer, not full Microsoft Word or LibreOffice fidelity. It currently reads main-body paragraphs and simple tables. Complex elements such as images, charts, SmartArt, text boxes, equations, comments, tracked changes, advanced numbering, headers, footers and section layouts are not fully rendered. For complete layout fidelity, a full document engine integration remains a future milestone.
+This is an early read-only DOCX renderer, not full Microsoft Word or LibreOffice fidelity. It reads main-body paragraphs, simple tables and common embedded raster images. Image placement is approximated as inline content. Complex elements such as charts, SmartArt, text boxes, equations, comments, tracked changes, advanced numbering, headers, footers and section layouts are not fully rendered. Vector WMF/EMF and some SVG fallback images are not supported yet. For complete layout fidelity, a full document engine integration remains a future milestone.
 
 Sheets and Slides are not connected. PDF viewing is planned separately.
 
