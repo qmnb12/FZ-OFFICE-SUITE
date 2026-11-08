@@ -51,11 +51,12 @@ function applyPageLayout(layout){
   var available=Math.max(260,window.innerWidth-(window.innerWidth<700?16:40));
   var renderedWidth=Math.min(widthPx,available,900);
   pageScale=renderedWidth/widthPx;
-  page.style.width="100%";
-  page.style.maxWidth=widthPx+"px";
-  page.style.minHeight=(heightPx*pageScale)+"px";
-  page.style.padding=[topTwips/15*pageScale,rightTwips/15*pageScale,bottomTwips/15*pageScale,leftTwips/15*pageScale].map(function(v){return Math.max(0,v)+"px"}).join(" ");
-  page.style.fontSize=(16*pageScale*zoomLevel)+"px";
+  page.style.width=widthPx+"px";
+  page.style.maxWidth="none";
+  page.style.minHeight=heightPx+"px";
+  page.style.padding=[topTwips/15,rightTwips/15,bottomTwips/15,leftTwips/15].map(function(v){return Math.max(0,v)+"px"}).join(" ");
+  page.style.fontSize="16px";
+  page.style.zoom=(pageScale*zoomLevel);
 }
 function setDocument(html,profile,fontName,legacyHint,fontAvailable,layout){
   page.innerHTML=html||"<p></p>";
@@ -76,7 +77,7 @@ function setDocument(html,profile,fontName,legacyHint,fontAvailable,layout){
       "No exact font family is declared. Text remains unchanged; automatic conversion is disabled.");
   }
 }
-function zoom(direction){zoomLevel=Math.max(.75,Math.min(2,zoomLevel+(direction>0?.1:-.1)));page.style.fontSize=(16*pageScale*zoomLevel)+"px"}
+function zoom(direction){zoomLevel=Math.max(.75,Math.min(2,zoomLevel+(direction>0?.1:-.1)));page.style.zoom=(pageScale*zoomLevel)}
 window.addEventListener("resize",function(){applyPageLayout(lastLayout)});
 window.FZViewer={registerFonts:registerFonts,setDefaultFont:setDefaultFont,setDocument:setDocument,zoom:zoom};
 })();

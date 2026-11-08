@@ -32,7 +32,7 @@ assert(!manifest.includes('android.permission.INTERNET'), "Offline app must not 
 assert(gradle.includes("downloadGanderViewerAssets"), "Gander assets are not included in build");
 assert(gradle.includes("73cf325435868cab1683d8de8cc1b89533e767b3"), "Gander commit is not pinned");
 assert(gradle.includes("gitBlobSha"), "Viewer assets must be checksum verified");
-assert(gradle.includes('versionName = "0.6.2"'), "Version name was not advanced");
-assert(gradle.includes("versionCode = 11"), "Version code was not advanced");
+assert(gradle.includes('versionName = "0.6.3"'), "Version name was not advanced");
+assert(gradle.includes("versionCode = 12"), "Version code was not advanced");
 
 console.log("Office viewer routing, Hindi font bridge, offline policy and pinned assets verified.");

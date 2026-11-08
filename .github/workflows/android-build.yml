@@ -44,6 +44,9 @@ jobs:
       - name: Verify DOCX page dimensions and margins
         run: node tests/docx-page-layout.test.js
 
+      - name: Verify edge-to-edge insets and document zoom
+        run: node tests/system-bar-insets.test.js
+
       - name: Verify font-import safety and native integration
         run: node tests/font-import-safety.test.js
 

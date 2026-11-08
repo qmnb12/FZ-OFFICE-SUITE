@@ -208,6 +208,7 @@ public class OfficeViewerActivity extends Activity {
         status.setBackgroundColor(Color.WHITE);
         root.addView(status, new LinearLayout.LayoutParams(-1, -2));
         setContentView(root);
+        applySafeAreaInsets(root);
 
         String viewerUrl = "https://" + ASSET_HOST + "/assets/viewer/" + pageName
                 + "?name=" + Uri.encode(documentName)
@@ -411,6 +412,18 @@ public class OfficeViewerActivity extends Activity {
         drawable.setCornerRadius(dp(radius));
         return drawable;
     }
+    private void applySafeAreaInsets(View root) {
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            view.setPadding(
+                    insets.getSystemWindowInsetLeft(),
+                    insets.getSystemWindowInsetTop(),
+                    insets.getSystemWindowInsetRight(),
+                    insets.getSystemWindowInsetBottom());
+            return insets.consumeSystemWindowInsets();
+        });
+        root.requestApplyInsets();
+    }
+
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 
     @Override public void onBackPressed() { finish(); }

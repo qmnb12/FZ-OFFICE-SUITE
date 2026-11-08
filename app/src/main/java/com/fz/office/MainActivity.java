@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -48,6 +49,7 @@ public class MainActivity extends Activity {
         page.setPadding(dp(22), dp(30), dp(22), dp(28));
         scroll.addView(page, new ScrollView.LayoutParams(-1, -1));
         setContentView(scroll);
+        applySafeAreaInsets(scroll);
 
         LinearLayout brandRow = new LinearLayout(this);
         brandRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -107,6 +109,18 @@ public class MainActivity extends Activity {
         footer.setGravity(Gravity.CENTER);
         footer.setPadding(dp(10), dp(27), dp(10), 0);
         page.addView(footer, match());
+    }
+
+    private void applySafeAreaInsets(View root) {
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            view.setPadding(
+                    insets.getSystemWindowInsetLeft(),
+                    insets.getSystemWindowInsetTop(),
+                    insets.getSystemWindowInsetRight(),
+                    insets.getSystemWindowInsetBottom());
+            return insets.consumeSystemWindowInsets();
+        });
+        root.requestApplyInsets();
     }
 
     private void addTypeTile(LinearLayout row, String type, String name, int color) {

@@ -156,6 +156,7 @@ public class WriterActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
 
         setContentView(root);
+        applySafeAreaInsets(root);
         viewer.loadUrl("file:///android_asset/writer/viewer.html");
     }
 
@@ -386,6 +387,18 @@ public class WriterActivity extends Activity {
         }
         ioExecutor.shutdown();
         super.onDestroy();
+    }
+
+    private void applySafeAreaInsets(View root) {
+        root.setOnApplyWindowInsetsListener((view, insets) -> {
+            view.setPadding(
+                    insets.getSystemWindowInsetLeft(),
+                    insets.getSystemWindowInsetTop(),
+                    insets.getSystemWindowInsetRight(),
+                    insets.getSystemWindowInsetBottom());
+            return insets.consumeSystemWindowInsets();
+        });
+        root.requestApplyInsets();
     }
 
     private int dp(int value) {
