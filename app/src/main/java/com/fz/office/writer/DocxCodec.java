@@ -513,6 +513,10 @@ public final class DocxCodec {
         }
         if (element != null) {
             RunStyle initial = new RunStyle();
+            String defaultFamily = cssValue(element.attr("style"), "font-family");
+            if (!defaultFamily.isEmpty()) {
+                initial.fontFamily = defaultFamily.replace("\"", "").replace("'", "");
+            }
             String tag = element.tagName().toLowerCase(Locale.ROOT);
             if ("h1".equals(tag)) { initial.bold = true; initial.fontSizePt = 20; }
             else if ("h2".equals(tag)) { initial.bold = true; initial.fontSizePt = 16; }

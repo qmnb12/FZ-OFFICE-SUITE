@@ -93,6 +93,7 @@ body { padding:14px 10px 30px; }
     if (!family) return;
     page.style.fontFamily = '"' + family.replace(/["\\]/g, "") +
       '", "Noto Sans Devanagari", Arial, sans-serif';
+    page.setAttribute("data-fz-default-font", family);
     if (applyToSelection === true) {
       page.focus();
       document.execCommand("fontName", false, family);
@@ -106,7 +107,13 @@ body { padding:14px 10px 30px; }
   }
   function requestSave() {
     if (window.AndroidBridge && window.AndroidBridge.onSaveHtml) {
-      window.AndroidBridge.onSaveHtml(page.innerHTML);
+      var copy = page.cloneNode(true);
+      var defaultFont = page.getAttribute("data-fz-default-font") || "Noto Sans Devanagari";
+      var blocks = copy.querySelectorAll("p,div,td,th,li,h1,h2,h3,blockquote");
+      blocks.forEach(function (block) {
+        if (!block.style.fontFamily) block.style.fontFamily = defaultFont;
+      });
+      window.AndroidBridge.onSaveHtml(copy.innerHTML);
     }
   }
   window.FZWriter = {

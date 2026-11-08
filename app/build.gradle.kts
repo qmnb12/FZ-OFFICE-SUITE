@@ -135,7 +135,7 @@ android {
         isCoreLibraryDesugaringEnabled = true
     }
 
-    sourceSets.getByName("main").assets.srcDir(hindiFontAssets)
+    sourceSets.getByName("main").assets.srcDir(hindiFontAssets.get().asFile)
 
     buildFeatures {
         buildConfig = false
