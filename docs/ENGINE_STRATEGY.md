@@ -41,7 +41,7 @@ The target is **PC-like document rendering and broad office compatibility**, not
 1. **FZ Office shell** — home, recents, local file management, favorites, search, themes, Hindi Font Center and settings.
 2. **Collabora Android client** — document browser and native Android document-opening integration.
 3. **LibreOffice native core / LibreOfficeKit** — document import, layout, render, document features and export.
-4. **Hindi Font Service** — packaged open-license fonts, app-private custom-font folder, family aliases, missing-font reports and font-cache refresh.
+4. **Hindi Font Service** — packaged open-license fonts, app-private user/fonts directory, family aliases, missing-font reports and font-cache refresh.
 5. **Legacy Encoding Service** — separate conversion profiles for each exact legacy family/version. No content-only guessing and no silent replacement.
 6. **QA corpus** — real Hindi DOCX/XLSX/PPTX files with expected rendering and save/reopen checks.
 

@@ -25,10 +25,14 @@ The current custom WebView viewer is retained only until the native engine APK i
 
 ## Stage 2 — Native Hindi typography and font manager
 
-- [ ] Add the app-private files/hindi-fonts folder to native Fontconfig.
+- [x] Prepare the app-private user/fonts Fontconfig patch against the pinned upstream source.
+- [x] Prepare bundled Hindi font packaging patch using the verified 12-family OFL set.
+- [x] Prepare native Settings-based TTF/OTF import patch.
+- [ ] Build and test the native patches in the Collabora Android project.
 - [ ] Bundle the existing 12 licence-verified Devanagari families with their OFL texts.
 - [ ] Expand the Unicode Devanagari catalogue after coverage/licence review.
-- [ ] Import user TTF/OTF files using Android Storage Access Framework.
+- [x] Prepare Settings-based user TTF/OTF import using Android Storage Access Framework.
+- [ ] Build and exercise the import flow on a physical Android device.
 - [ ] Restart/reload the native document engine to refresh Fontconfig.
 - [ ] Add missing-font detection, family aliasing and fallback reports.
 - [ ] Test all shaping cases: matras, reph, rakar, conjuncts, nukta, ZWJ/ZWNJ and punctuation.

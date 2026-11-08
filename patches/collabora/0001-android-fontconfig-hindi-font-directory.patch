@@ -1,12 +1,11 @@
 diff --git a/android/lib/fonts.conf b/android/lib/fonts.conf
 --- a/android/lib/fonts.conf
 +++ b/android/lib/fonts.conf
-@@ -4,5 +4,6 @@
- <fontconfig>
+@@ -5,6 +5,7 @@
  
  <!-- Font directory list -->
  
-+	<dir>/data/data/@@APPLICATION_ID@@/files/hindi-fonts</dir>
++	<dir>/data/data/@@APPLICATION_ID@@/user/fonts</dir>
  	<dir>/system/fonts</dir>
  
  	<alias>
