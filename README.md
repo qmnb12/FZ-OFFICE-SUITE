@@ -1,56 +1,45 @@
 # FZ Office Suite
 
-**An Android-first, offline-first office suite with Hindi-first document and font support.**
+**An Android-first, offline-first office suite with a native office engine and Hindi-first typography.**
 
-## Current status — engine migration planned
+## Current status
 
-The v0.5.x Java/WebView reader is a prototype only. It does not provide full Microsoft Word-compatible DOCX rendering. The project has selected **Collabora Office / LibreOfficeKit** as the primary engine to replace the hand-written DOCX renderer.
+The installed v0.5.x app is a transitional Java/WebView document viewer. It is not the final architecture and is not Word-compatible enough for production documents.
 
-The default document experience remains read-only. Hindi support will be integrated into the office engine with:
-- A curated open-license Devanagari font pack.
-- App-private TTF/OTF font import and registration with the engine.
-- Exact legacy font support when users provide fonts they are licensed to use.
-- Version-specific opt-in Legacy-to-Unicode converters with real-document tests.
-- Full-engine layout rendering for images, tables, page breaks, headers/footers, sections and other Word structures.
+### Engine migration selected
 
-The native engine has not yet been integrated. See [Engine migration decision](docs/ENGINE_MIGRATION.md) before treating any v0.5.x build as a production document viewer.
+FZ Office is moving to the native Android application and LibreOffice engine from Collabora Office. The upstream source is pinned as a Git submodule under third_party/collabora. This gives the project a mature document engine instead of extending the limited custom DOCX parser.
 
-## Development environment
+- Engine decision and build requirements: docs/ENGINE_STRATEGY.md
+- Hindi font/custom-font integration: docs/HINDI_FONT_INTEGRATION.md
+- Pinned upstream source: third_party/collabora
 
-| Component | Version |
-|---|---:|
-| Gradle | 9.6.1 |
-| Android Gradle Plugin | 9.3.1 |
-| JDK | 21 |
-| Compile SDK | 36 |
-| Target SDK | 35 |
-| Minimum SDK | 24 |
+**Important:** the source is pinned, but the native engine has not yet been built into a FZ Office APK. Do not treat the current v0.5.x APK as the Collabora-backed build.
 
-The Android app shell can remain Java-first for Code On The Go. The selected office engine includes native C++ components and must be built on a Linux cloud runner with the Android NDK; the old Java-only build does not build that engine.
+## Target features
 
-## Build in Code On The Go
+- Writer, Sheets and Slides using the native LibreOffice engine.
+- DOCX, DOC, ODT, RTF, XLSX, XLS, ODS, PPTX, PPT, ODP and PDF workflows supported by the engine.
+- Word-like layout, images, tables, headers/footers, charts, numbering, styles and embedded objects where supported by the engine.
+- Offline local-document workflows; no compulsory document server or user account.
+- Reader-first mobile UX, with a deliberate edit action/settings choice rather than a cramped editing toolbar on every open.
+- Hindi Font Center with licence-safe bundled Unicode Devanagari fonts and import of personal TTF/OTF fonts.
+- Separate, tested legacy encoding profiles for DevLys, Kruti Dev, Chanakya, Shusha, Shree Lipi and other families.
 
-1. Pull the latest main branch from https://github.com/qmnb12/FZ-OFFICE-SUITE.git.
-2. Open the folder containing settings.gradle.kts as the project root.
-3. Sync Gradle dependencies.
-4. The first build downloads pinned Google Fonts files and license texts. Internet is required for this one-time build step; every file is size- and hash-verified.
-5. Run :app:assembleDebug and install the new APK.
+## Build environments
 
-Once installed, the app's bundled font library works offline. The GitHub Actions workflow also builds and uploads a debug APK.
+- **Code On The Go:** useful for Java/Gradle app-level changes, but it cannot compile the native LibreOffice C/C++ engine.
+- **Linux CI/build host:** required to cross-compile the native engine with Android NDK before packaging the Android app.
+- First native validation target: arm64-v8a, NDK 29.0.14206865, Android compile SDK 37, minimum SDK 26.
+
+The existing lightweight Android workflow builds only the transitional app. A separate native-engine pipeline must pass the acceptance gates in docs/ENGINE_STRATEGY.md before a new Collabora-backed APK is released.
 
 ## Project principles
 
 1. Offline-first after installation; no compulsory account.
-2. No ads or tracking.
-3. Review licenses before bundling third-party engines or fonts.
-4. Never claim a format or Hindi encoding is supported until it passes real test documents.
-5. Preserve original files where possible; important documents should be backed up before using the early DOCX editor.
-6. Keep the Android build manageable from Code On The Go wherever technically possible.
-
-## Third-party notices
-
-- Google Fonts Devanagari font files are distributed under their respective SIL Open Font License 1.1 texts, bundled in writer/fonts/licenses/ in the APK.
-- jsoup is used for safe HTML fragment parsing under the MIT License.
-- Core library desugaring is provided by Android's desugaring library.
-
-See docs/ENGINE_MIGRATION.md, docs/HINDI_FONTS.md, docs/HINDI_FONT_STRATEGY.md and docs/DEVANAGARI_TEST_CORPUS.md.
+2. No ads or document upload to a hosted server by default.
+3. Reuse mature open-source engines; do not maintain a home-grown office file parser.
+4. Bundle third-party fonts only when their redistribution licence allows it.
+5. Let users import fonts they are entitled to use.
+6. Never apply a legacy converter without an exact, tested font/version profile.
+7. Preserve upstream notices and comply with all component licences.

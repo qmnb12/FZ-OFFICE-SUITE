@@ -1,0 +1,94 @@
+# Hindi font integration for the Collabora / LibreOffice engine
+
+## Broad font availability
+
+There is no finite, lawful package called "all Hindi fonts". Devanagari fonts have different licences; commercial and proprietary families cannot be redistributed without permission.
+
+FZ Office will use two paths:
+
+1. **Bundled fonts:** a curated, licence-verified set of Unicode Devanagari fonts that can legally ship with the app. Include each font's upstream copyright and licence text.
+2. **Custom font library:** let users import any TTF/OTF font they are legally entitled to use. Keep it private to the device; do not upload it.
+
+This avoids a fixed list being the only available fonts.
+
+## Native font discovery
+
+The pinned Collabora Android source has android/lib/fonts.conf. It currently scans /system/fonts and stores its Fontconfig cache in the app's private data directory. It does not expose a custom-font folder in the app UI; an upstream request for scoped-storage font-folder support remains open.
+
+FZ's native patch adds:
+
+/data/data/@@APPLICATION_ID@@/files/hindi-fonts
+
+to the Fontconfig search directories. The build substitutes the real application id. The directory is inside the app sandbox.
+
+The patch is stored at:
+patches/collabora/0001-android-fontconfig-hindi-font-directory.patch
+
+The planned Hindi Font Center will:
+- Import .ttf and .otf via Android Storage Access Framework.
+- Validate font signature and loadability before copying.
+- Store files in the app-private files/hindi-fonts directory.
+- Show family, style, file name, coverage notes and licence/source metadata where known.
+- Detect duplicate family/style files and avoid silent overwrite.
+- Let users remove fonts they imported.
+- Offer a document-engine restart/reload so Fontconfig rescans after changes.
+
+TTC/OTC collections are a later item; initial import accepts individual TTF/OTF files only.
+
+## Bundled Devanagari collection
+
+Start with the existing 12-family Unicode collection from the v0.3 Font Center:
+- Noto Sans Devanagari
+- Noto Serif Devanagari
+- Mukta
+- Hind
+- Tiro Devanagari Hindi
+- Kalam
+- Sahitya
+- Martel
+- Baloo 2
+- Khand
+- Gotu
+- Glegoo
+
+Expand from the upstream Google Fonts Devanagari catalogue after checking each family, style, file size, glyph coverage and OFL licence. Do not claim that every font covers every Hindi/Marathi/Sanskrit code point. Noto Sans and Noto Serif Devanagari remain general-purpose defaults.
+
+## Legacy Hindi fonts
+
+Profiles to research and test include:
+- DevLys, each exact version including 010
+- Kruti Dev, each exact version
+- Chanakya
+- Shusha
+- Shree Lipi
+- APS-DV / APS family
+- Akruti and other vendor-specific DTP encodings
+
+The first choice is to render the original document using its exact legacy font when the user imports a font they are licensed to use. This preserves stored characters and avoids needless conversion.
+
+If the required legacy font is unavailable, a converter may be offered only when the document's exact encoding profile is known and a verified test corpus exists. Never infer an encoding from random-looking Latin text alone. Never apply one family's map to another family because the names look similar.
+
+Each profile needs:
+- Exact font family/version identifiers and aliases.
+- Source and licence for the mapping implementation.
+- Golden input/output pairs including punctuation and smart quotes.
+- Matra/reph/rakar/conjunct tests.
+- Mixed English, names, abbreviations, dates, reference numbers and symbols.
+- Real DOCX files with run-level and style-inherited font declarations.
+- Round-trip checks proving Unicode content is not modified a second time.
+
+## Shaping and QA corpus
+
+Run docs/DEVANAGARI_TEST_CORPUS.md through the native engine, not just WebView. Include:
+- कि, क्रि, प्रि, र्क, र्क्ष, क्ष, त्र, ज्ञ, श्र, स्त्र
+- क़, ख़, ग़, ज़, ड़, ढ़, फ़
+- अँ, अं, अः, ।, ॥, Devanagari digits and ₹
+- ZWJ and ZWNJ sequences
+- Mixed Hindi/English paragraphs, tables, headers/footers, footnotes and text boxes
+- Embedded fonts and missing-font substitution
+
+A font is not marked verified merely because it can be imported. It must render correctly in LibreOffice on a physical Android device and survive save/reopen/export tests.
+
+## Font-family matching rule
+
+DOCX stores family names in styles and runs. The font manager must expose matching family names to Fontconfig. If a declared font is missing, the engine substitutes another font and page layout may change. Importing a file with a different internal family name does not automatically satisfy a document's declared font. Family inspection and aliasing are part of the integration.
