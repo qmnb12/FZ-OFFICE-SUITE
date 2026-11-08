@@ -4,7 +4,7 @@
 
 ## Current status
 
-The installed v0.5.x app is a transitional Java/WebView document viewer. It is not the final architecture and is not Word-compatible enough for production documents.
+The v0.6.2 lightweight APK remains a transitional, read-only Java/WebView app. DOCX/TXT continue through the Hindi-aware in-app reader; XLS/XLSX, CSV, ODS and PPTX-family files now use pinned, bundled Gander-derived offline preview renderers. This adds spreadsheet and slide viewing, not editing or full Word compatibility. The native Collabora/LibreOffice engine remains the selected final architecture and is not yet a verified FZ Office APK.
 
 ### Engine migration selected
 
@@ -19,7 +19,8 @@ FZ Office is moving to the native Android application and LibreOffice engine fro
 
 ## Target features
 
-- Writer, Sheets and Slides using the native LibreOffice engine.
+- Writer, Sheets and Slides using the native LibreOffice engine (final target).
+- Transitional APK: offline, read-only XLS/XLSX/CSV/ODS and PPTX-family preview screens.
 - DOCX, DOC, ODT, RTF, XLSX, XLS, ODS, PPTX, PPT, ODP and PDF workflows supported by the engine.
 - Word-like layout, images, tables, headers/footers, charts, numbering, styles and embedded objects where supported by the engine.
 - Offline local-document workflows; no compulsory document server or user account.

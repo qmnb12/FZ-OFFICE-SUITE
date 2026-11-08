@@ -117,6 +117,100 @@ val downloadHindiFonts = tasks.register("downloadHindiFonts") {
     }
 }
 
+
+val ganderViewerCommit = "73cf325435868cab1683d8de8cc1b89533e767b3"
+val ganderHindiPatchCommit = "01afbbba5454860ae121b07d9b1cc3bdf184162e"
+val ganderViewerAssets = layout.buildDirectory.dir("generated/assets/ganderViewer")
+val ganderViewerFiles = listOf(
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/app.css", "output" to "viewer/app.css", "size" to "9951", "sha" to "b37458718aaf4ba2b1562dfa0afcddb98a623197"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/app.js", "output" to "viewer/app.js", "size" to "23310", "sha" to "cb1d7de66b578d66c5ceef7df69d67649dd5b62f"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/find.js", "output" to "viewer/find.js", "size" to "17380", "sha" to "530bc32f58c2a896addb86195dd2899b14172937"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/pptx.html", "output" to "viewer/pptx.html", "size" to "7319", "sha" to "80a2272423aafb310e4210cc533522503907ce09"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/pptx.js", "output" to "viewer/pptx.js", "size" to "29141", "sha" to "2374ed228760922f5437de2aee64fe1cf791ea56"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/symbol-fonts.js", "output" to "viewer/symbol-fonts.js", "size" to "8626", "sha" to "d39344196090081789eed4810d322038b6087751"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/xlsx.html", "output" to "viewer/xlsx.html", "size" to "13389", "sha" to "bf2b500194e754fabe0b8f55b17017f8efa7161c"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/xlsx.js", "output" to "viewer/xlsx.js", "size" to "75133", "sha" to "b87fe8739ca8178f824199c35976511eb3ed0524"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/xlsx-rules.js", "output" to "viewer/xlsx-rules.js", "size" to "24496", "sha" to "899e131c3250c688fe8a650817dc2cb6f3443072"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/xlsx-styles.js", "output" to "viewer/xlsx-styles.js", "size" to "70897", "sha" to "9adbf3ccbddeb943208d6e528852ca72c616afb4"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/xlsx-tables.js", "output" to "viewer/xlsx-tables.js", "size" to "8145", "sha" to "0741fd7364f89c4c5135bde8d9aa5e2e45087177"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/lib/pptx/jquery.min.js", "output" to "viewer/lib/pptx/jquery.min.js", "size" to "95957", "sha" to "0f60b7bd0d9c395e1748cc962810d2dee9bb9fc2"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/lib/pptx/jszip2.min.js", "output" to "viewer/lib/pptx/jszip2.min.js", "size" to "75490", "sha" to "767d8c11d272330741951ba78b0829a2ec83baf4"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/lib/pptx/filereader.js", "output" to "viewer/lib/pptx/filereader.js", "size" to "14528", "sha" to "24bf8c6b7afc0776abd666b3072c03c8b85d61e7"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/lib/pptx/d3.min.js", "output" to "viewer/lib/pptx/d3.min.js", "size" to "151661", "sha" to "5ae5160f2db1ecf7a0bb8aec9d8834db5204f730"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/lib/pptx/nv.d3.min.js", "output" to "viewer/lib/pptx/nv.d3.min.js", "size" to "215800", "sha" to "415441b471b626c518f48d1b1f137abd34f6f1f6"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/lib/pptx/nv.d3.min.css", "output" to "viewer/lib/pptx/nv.d3.min.css", "size" to "9345", "sha" to "7d63faf94d729ba1b01e5ad3f864be8536755689"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/lib/pptx/pptxjs.css", "output" to "viewer/lib/pptx/pptxjs.css", "size" to "2584", "sha" to "a722685e05b8d38b16b10af5e91dea93d60171ed"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/lib/pptx/pptxjs.js", "output" to "viewer/lib/pptx/pptxjs.js", "size" to "815945", "sha" to "11431453baf221fd90ce1754d23b53af133ddb9c"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/lib/pptx/divs2slides.js", "output" to "viewer/lib/pptx/divs2slides.js", "size" to "37767", "sha" to "ee174d8192119ffaad021ae077d22a8ea9597f1b"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/viewer/lib/xlsx.full.min.js", "output" to "viewer/lib/xlsx.full.min.js", "size" to "951904", "sha" to "21471af69ef0e4cda1613c2702c54101b92f48d2"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "app/src/main/assets/licences.md", "output" to "viewer/licenses/THIRD_PARTY.md", "size" to "18155", "sha" to "97c2879d6c50797f9eef6cbdc6f5b01e219d06ef"),
+    mapOf("repo" to "mokshablr/gander", "commit" to "73cf325435868cab1683d8de8cc1b89533e767b3", "path" to "LICENSE", "output" to "viewer/licenses/GANDER-MIT-LICENSE.txt", "size" to "1071", "sha" to "7d0697747e99d4b195d9613684f010ed2c7bc47d"),
+    mapOf("repo" to "qmnb12/gander", "commit" to "01afbbba5454860ae121b07d9b1cc3bdf184162e", "path" to "app/src/main/assets/viewer/hindi-fonts.js", "output" to "viewer/hindi-fonts.js", "size" to "3255", "sha" to "879a883d8b8826912e94342b3df88aae02843536")
+)
+
+val downloadGanderViewerAssets = tasks.register("downloadGanderViewerAssets") {
+    inputs.property("ganderViewerCommit", ganderViewerCommit)
+    inputs.property("ganderHindiPatchCommit", ganderHindiPatchCommit)
+    outputs.dir(ganderViewerAssets)
+    doLast {
+        val root = ganderViewerAssets.get().asFile
+        root.mkdirs()
+        fun gitBlobSha(bytes: ByteArray): String {
+            val header = ("blob " + bytes.size + "\u0000").toByteArray(Charsets.UTF_8)
+            val digest = MessageDigest.getInstance("SHA-1")
+            digest.update(header)
+            digest.update(bytes)
+            return digest.digest().joinToString("") { "%02x".format(it) }
+        }
+        ganderViewerFiles.forEach { asset ->
+            val repoName = asset.getValue("repo")
+            val commit = asset.getValue("commit")
+            val path = asset.getValue("path")
+            val output = asset.getValue("output")
+            val expectedSize = asset.getValue("size").toLong()
+            val expectedSha = asset.getValue("sha")
+            val destination = root.resolve(output)
+            var bytes: ByteArray? = null
+            if (destination.isFile && destination.length() == expectedSize) {
+                val existing = destination.readBytes()
+                if (gitBlobSha(existing) == expectedSha) bytes = existing
+            }
+            if (bytes == null) {
+                val url = URL("https://raw.githubusercontent.com/" + repoName + "/" + commit + "/" + path)
+                val connection = url.openConnection() as HttpURLConnection
+                connection.connectTimeout = 20000
+                connection.readTimeout = 60000
+                connection.instanceFollowRedirects = true
+                try {
+                    connection.connect()
+                    if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                        throw GradleException("Could not download viewer asset: " + path
+                                + " (HTTP " + connection.responseCode + ")")
+                    }
+                    bytes = connection.inputStream.use { it.readBytes() }
+                } finally { connection.disconnect() }
+            }
+            if (bytes!!.size.toLong() != expectedSize || gitBlobSha(bytes!!) != expectedSha) {
+                throw GradleException("Viewer asset checksum mismatch: " + path)
+            }
+            var outputBytes = bytes!!
+            if (output == "viewer/pptx.html" || output == "viewer/xlsx.html") {
+                var html = String(outputBytes, Charsets.UTF_8)
+                val styleLink = "<link rel=\"stylesheet\" href=\"app.css\">"
+                val scriptLink = "<script src=\"find.js\"></script>"
+                if (!html.contains(styleLink) || !html.contains(scriptLink)) {
+                    throw GradleException("Unexpected upstream viewer HTML structure: " + path)
+                }
+                html = html.replace(styleLink, styleLink + "\n<link rel=\"stylesheet\" href=\"hindi-fonts.css\">")
+                html = html.replace(scriptLink, scriptLink + "\n<script src=\"hindi-fonts.js\"></script>")
+                outputBytes = html.toByteArray(Charsets.UTF_8)
+            }
+            destination.parentFile.mkdirs()
+            destination.writeBytes(outputBytes)
+        }
+    }
+}
+
 android {
     namespace = "com.fz.office"
     compileSdk = 36
@@ -125,8 +219,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.6.1"
+        versionCode = 11
+        versionName = "0.6.2"
     }
 
     compileOptions {
@@ -136,6 +230,7 @@ android {
     }
 
     sourceSets.getByName("main").assets.srcDir(hindiFontAssets.get().asFile)
+    sourceSets.getByName("main").assets.srcDir(ganderViewerAssets.get().asFile)
 
     buildFeatures {
         buildConfig = false
@@ -143,7 +238,7 @@ android {
 }
 
 tasks.named("preBuild").configure {
-    dependsOn(downloadHindiFonts)
+    dependsOn(downloadHindiFonts, downloadGanderViewerAssets)
 }
 
 dependencies {

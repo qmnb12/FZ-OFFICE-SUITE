@@ -47,6 +47,9 @@ jobs:
       - name: Verify font-import safety and native integration
         run: node tests/font-import-safety.test.js
 
+      - name: Verify Office viewer routing and local asset pinning
+        run: node tests/office-viewer-routing.test.js
+
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
 
