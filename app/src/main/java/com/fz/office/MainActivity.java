@@ -114,7 +114,7 @@ public class MainActivity extends Activity {
         addModuleCard(secondRow, "PDF", "PDF tools", "View & export", "Not connected", 3);
 
         addSectionTitle(page, "Quick actions", "GET STARTED");
-        TextView openFile = actionCard(
+        LinearLayout openFile = actionCard(
                 "Open a document",
                 "Choose a DOCX, XLSX, PPTX or PDF test file",
                 "↗"
@@ -122,7 +122,7 @@ public class MainActivity extends Activity {
         openFile.setOnClickListener(v -> openDocumentPicker());
         page.addView(openFile, matchWrap());
 
-        TextView fontCenter = actionCard(
+        LinearLayout fontCenter = actionCard(
                 "Hindi Font Center",
                 "Unicode fonts, legacy fonts and conversion research",
                 "अ"
