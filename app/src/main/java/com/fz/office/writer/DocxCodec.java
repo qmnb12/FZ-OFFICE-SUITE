@@ -45,14 +45,36 @@ public final class DocxCodec {
         public final List<String> fontNames;
         public final String legacyProfile;
         public final String legacyFontName;
+        public final PageLayout pageLayout;
 
         LoadedDocument(String html, LinkedHashMap<String, byte[]> packageEntries,
-                       List<String> fontNames, String legacyProfile, String legacyFontName) {
+                       List<String> fontNames, String legacyProfile, String legacyFontName,
+                       PageLayout pageLayout) {
             this.html = html;
             this.packageEntries = packageEntries;
             this.fontNames = fontNames;
             this.legacyProfile = legacyProfile;
             this.legacyFontName = legacyFontName;
+            this.pageLayout = pageLayout;
+        }
+    }
+
+    /** Word page geometry is stored in twips (1/20 point). */
+    public static final class PageLayout {
+        public final int widthTwips;
+        public final int heightTwips;
+        public final int topTwips;
+        public final int rightTwips;
+        public final int bottomTwips;
+        public final int leftTwips;
+
+        PageLayout(int width, int height, int top, int right, int bottom, int left) {
+            widthTwips = width;
+            heightTwips = height;
+            topTwips = top;
+            rightTwips = right;
+            bottomTwips = bottom;
+            leftTwips = left;
         }
     }
 
@@ -71,7 +93,8 @@ public final class DocxCodec {
         List<String> fonts = inspectFontNames(entries);
         String legacyFont = findLegacyFontName(fonts);
         String legacyProfile = detectLegacyProfile(fonts);
-        return new LoadedDocument(html, entries, fonts, legacyProfile, legacyFont);
+        PageLayout pageLayout = readPageLayout(documentXml);
+        return new LoadedDocument(html, entries, fonts, legacyProfile, legacyFont, pageLayout);
     }
 
     public static LinkedHashMap<String, byte[]> readPackage(InputStream input) throws IOException {
@@ -356,6 +379,49 @@ public final class DocxCodec {
             output.write(buffer, 0, count);
         }
         return output.toByteArray();
+    }
+
+    private static PageLayout readPageLayout(byte[] documentXml) throws Exception {
+        int width = 11906, height = 16838;
+        int top = 1440, right = 1440, bottom = 1440, left = 1440;
+        XmlPullParser parser = Xml.newPullParser();
+        parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true);
+        parser.setInput(new ByteArrayInputStream(documentXml), "UTF-8");
+        int event;
+        while ((event = parser.next()) != XmlPullParser.END_DOCUMENT) {
+            if (event != XmlPullParser.START_TAG) continue;
+            String name = parser.getName();
+            if ("pgSz".equals(name)) {
+                width = boundedTwips(attribute(parser, "w"), width, 7200, 31680);
+                height = boundedTwips(attribute(parser, "h"), height, 7200, 31680);
+                String orientation = attribute(parser, "orient");
+                if ("landscape".equalsIgnoreCase(orientation) && width < height) {
+                    int swap = width; width = height; height = swap;
+                } else if ("portrait".equalsIgnoreCase(orientation) && width > height) {
+                    int swap = width; width = height; height = swap;
+                }
+            } else if ("pgMar".equals(name)) {
+                top = boundedTwips(attribute(parser, "top"), top, 0, 7200);
+                right = boundedTwips(attribute(parser, "right"), right, 0, 7200);
+                bottom = boundedTwips(attribute(parser, "bottom"), bottom, 0, 7200);
+                left = boundedTwips(attribute(parser, "left"), left, 0, 7200);
+            }
+        }
+        left = Math.min(left, Math.max(0, width / 2 - 360));
+        right = Math.min(right, Math.max(0, width / 2 - 360));
+        top = Math.min(top, Math.max(0, height / 2 - 360));
+        bottom = Math.min(bottom, Math.max(0, height / 2 - 360));
+        return new PageLayout(width, height, top, right, bottom, left);
+    }
+
+    private static int boundedTwips(String raw, int fallback, int minimum, int maximum) {
+        if (raw == null) return fallback;
+        try {
+            long value = Long.parseLong(raw);
+            return (int) Math.max(minimum, Math.min(maximum, value));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
     }
 
     private static String parseDocumentXml(byte[] xml, Map<String, String> imageRelationships,

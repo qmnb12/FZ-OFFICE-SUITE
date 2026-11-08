@@ -12,7 +12,7 @@ html,body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);fon
 body{padding:12px 8px 28px}
 #legacyNotice{display:none;max-width:900px;margin:0 auto 10px;padding:12px 14px;border-radius:12px;background:#fff4dc;color:#6c4c12;font-size:12px;line-height:1.55;border:1px solid #f0dfb9}
 #legacyNotice strong{display:block;margin-bottom:3px}
-#page{width:100%;min-height:calc(100vh - 70px);margin:0 auto;padding:26px 20px 42px;background:var(--paper);border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 10px rgba(23,55,43,.06);font-size:16px;line-height:1.75;overflow-wrap:anywhere;font-family:"Noto Sans Devanagari",Arial,sans-serif;font-feature-settings:"kern" 1,"liga" 1;user-select:text;-webkit-user-select:text}
+#page{width:100%;min-height:calc(100vh - 70px);margin:0 auto;padding:26px 20px 42px;background:var(--paper);border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 10px rgba(23,55,43,.06);font-size:16px;line-height:1.75;overflow-wrap:break-word;word-break:normal;font-family:"Noto Sans Devanagari",Arial,sans-serif;font-feature-settings:"kern" 1,"liga" 1;user-select:text;-webkit-user-select:text}
 #page p,#page div{margin:0 0 12px;min-height:1.4em}
 #page h1{font-size:1.65em;line-height:1.3;margin:0 0 14px}
 #page h2{font-size:1.35em;line-height:1.35;margin:0 0 12px}
@@ -33,12 +33,33 @@ body{padding:12px 8px 28px}
 <script>
 (function(){
 "use strict";
-var page=document.getElementById("page"),notice=document.getElementById("legacyNotice"),baseSize=16,defaultFont="Noto Sans Devanagari";
+var page=document.getElementById("page"),notice=document.getElementById("legacyNotice"),defaultFont="Noto Sans Devanagari",pageScale=1,zoomLevel=1,lastLayout=null;
 function registerFonts(css){if(!css)return;var style=document.getElementById("fz-font-face-rules");if(!style){style=document.createElement("style");style.id="fz-font-face-rules";document.head.appendChild(style)}style.textContent+=css}
 function setDefaultFont(family){if(!family)return;defaultFont=String(family);var safe=defaultFont.replace(/["\\]/g,"");page.style.fontFamily='"'+safe+'","Noto Sans Devanagari",Arial,sans-serif'}
 function showNotice(title,message){notice.textContent="";var strong=document.createElement("strong"),body=document.createElement("span");strong.textContent=title;body.textContent=message;notice.appendChild(strong);notice.appendChild(body);notice.style.display="block"}
-function setDocument(html,profile,fontName,legacyHint,fontAvailable){
+function applyPageLayout(layout){
+  lastLayout=layout||{};
+  var widthTwips=Number(lastLayout.widthTwips)||11906;
+  var heightTwips=Number(lastLayout.heightTwips)||16838;
+  var topTwips=Number(lastLayout.topTwips),rightTwips=Number(lastLayout.rightTwips);
+  var bottomTwips=Number(lastLayout.bottomTwips),leftTwips=Number(lastLayout.leftTwips);
+  if(!Number.isFinite(topTwips))topTwips=1440;
+  if(!Number.isFinite(rightTwips))rightTwips=1440;
+  if(!Number.isFinite(bottomTwips))bottomTwips=1440;
+  if(!Number.isFinite(leftTwips))leftTwips=1440;
+  var widthPx=widthTwips/15,heightPx=heightTwips/15;
+  var available=Math.max(260,window.innerWidth-(window.innerWidth<700?16:40));
+  var renderedWidth=Math.min(widthPx,available,900);
+  pageScale=renderedWidth/widthPx;
+  page.style.width="100%";
+  page.style.maxWidth=widthPx+"px";
+  page.style.minHeight=(heightPx*pageScale)+"px";
+  page.style.padding=[topTwips/15*pageScale,rightTwips/15*pageScale,bottomTwips/15*pageScale,leftTwips/15*pageScale].map(function(v){return Math.max(0,v)+"px"}).join(" ");
+  page.style.fontSize=(16*pageScale*zoomLevel)+"px";
+}
+function setDocument(html,profile,fontName,legacyHint,fontAvailable,layout){
   page.innerHTML=html||"<p></p>";
+  applyPageLayout(layout);
   notice.style.display="none";
   page.style.fontFamily='"'+defaultFont.replace(/["\\]/g,"")+'","Noto Sans Devanagari",Arial,sans-serif';
   if(fontName&&fontAvailable){
@@ -55,7 +76,8 @@ function setDocument(html,profile,fontName,legacyHint,fontAvailable){
       "No exact font family is declared. Text remains unchanged; automatic conversion is disabled.");
   }
 }
-function zoom(direction){baseSize=Math.max(12,Math.min(30,baseSize+(direction>0?1:-1)));page.style.fontSize=baseSize+"px"}
+function zoom(direction){zoomLevel=Math.max(.75,Math.min(2,zoomLevel+(direction>0?.1:-.1)));page.style.fontSize=(16*pageScale*zoomLevel)+"px"}
+window.addEventListener("resize",function(){applyPageLayout(lastLayout)});
 window.FZViewer={registerFonts:registerFonts,setDefaultFont:setDefaultFont,setDocument:setDocument,zoom:zoom};
 })();
 </script>

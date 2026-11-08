@@ -58,6 +58,7 @@ public class WriterActivity extends Activity {
     private boolean pendingLegacyFontLoaded;
     private final Set<String> registeredDocumentFonts = new HashSet<>();
     private List<String> pendingDocumentFonts = new ArrayList<>();
+    private DocxCodec.PageLayout pendingPageLayout;
 
     private WebView viewer;
     private TextView titleView;
@@ -173,6 +174,7 @@ public class WriterActivity extends Activity {
                 String legacyProfile = "";
                 String legacyFontName = "";
                 boolean legacyTextHint = false;
+                DocxCodec.PageLayout pageLayout = null;
                 List<String> documentFonts = new ArrayList<>();
 
                 if (plainText) {
@@ -186,6 +188,7 @@ public class WriterActivity extends Activity {
                     legacyProfile = loaded.legacyProfile;
                     legacyFontName = loaded.legacyFontName;
                     legacyTextHint = DocxCodec.looksLikeLegacyHindi(html);
+                    pageLayout = loaded.pageLayout;
                     documentFonts.addAll(loaded.fontNames);
                 } else {
                     throw new IOException("This viewer currently supports DOCX and TXT files.");
@@ -195,6 +198,7 @@ public class WriterActivity extends Activity {
                 final String loadedProfile = legacyProfile;
                 final String loadedFontName = legacyFontName;
                 final boolean loadedHint = legacyTextHint;
+                final DocxCodec.PageLayout loadedPageLayout = pageLayout;
                 final List<String> loadedFonts = new ArrayList<>(documentFonts);
 
                 runOnUiThread(() -> {
@@ -202,6 +206,7 @@ public class WriterActivity extends Activity {
                     pendingLegacyProfile = loadedProfile;
                     pendingLegacyFontName = loadedFontName;
                     pendingLegacyTextHint = loadedHint;
+                    pendingPageLayout = loadedPageLayout;
                     pendingDocumentFonts = loadedFonts;
                     if (titleView != null) titleView.setText(documentName);
                     updateStatus();
@@ -278,12 +283,24 @@ public class WriterActivity extends Activity {
         if (!pageReady || viewer == null) return;
         registerDocumentFonts();
         updateStatus();
+        JSONObject pageLayout = new JSONObject();
+        try {
+            DocxCodec.PageLayout layout = pendingPageLayout;
+            if (layout != null) {
+                pageLayout.put("widthTwips", layout.widthTwips);
+                pageLayout.put("heightTwips", layout.heightTwips);
+                pageLayout.put("topTwips", layout.topTwips);
+                pageLayout.put("rightTwips", layout.rightTwips);
+                pageLayout.put("bottomTwips", layout.bottomTwips);
+                pageLayout.put("leftTwips", layout.leftTwips);
+            }
+        } catch (Exception ignored) { }
         String script = "FZViewer.setDocument("
                 + JSONObject.quote(pendingHtml == null ? "<p></p>" : pendingHtml) + ","
                 + JSONObject.quote(pendingLegacyProfile == null ? "" : pendingLegacyProfile) + ","
                 + JSONObject.quote(pendingLegacyFontName == null ? "" : pendingLegacyFontName) + ","
                 + pendingLegacyTextHint + ","
-                + pendingLegacyFontLoaded + ");";
+                + pendingLegacyFontLoaded + "," + pageLayout.toString() + ");";
         viewer.evaluateJavascript(script, null);
     }
 

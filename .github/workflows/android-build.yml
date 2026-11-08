@@ -41,6 +41,9 @@ jobs:
       - name: Verify normal viewer never auto-converts
         run: node tests/viewer-font-policy.test.js
  
+      - name: Verify DOCX page dimensions and margins
+        run: node tests/docx-page-layout.test.js
+
       - name: Verify font-import safety and native integration
         run: node tests/font-import-safety.test.js
 
