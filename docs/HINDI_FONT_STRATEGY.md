@@ -1,69 +1,69 @@
-# Hindi font compatibility strategy
+# Hindi typography and encoding strategy
 
-Hindi font support has two separate technical parts. The app must not treat them as the same problem.
+Hindi support requires more than displaying Devanagari glyphs. The app must combine Unicode text, an Indic shaping engine, a font with the needed glyphs, and (for legacy files) a verified encoding converter.
 
 ## 1. Unicode Devanagari
 
-Modern Unicode text stores Devanagari characters as Unicode code points. Correct display still depends on font coverage and a shaping engine that handles Indic reordering and conjunct formation.
+Writer uses Android WebView's text layout/shaping stack and local font files. The editor declares Hindi as its document language and uses Noto Sans Devanagari as its general-purpose default. Font Center lets users select another family and import local TTF/OTF fonts.
 
-Initial font families to evaluate (not bundled yet):
+Bundled families:
 
-- Noto Sans Devanagari
-- Noto Serif Devanagari
-- Mukta
-- Hind
-- Lohit Devanagari
-- Shobhika
-- Other families after license and glyph-coverage review
+- Noto Sans Devanagari — variable sans-serif; default general-purpose font.
+- Noto Serif Devanagari — variable serif.
+- Mukta — regular and bold.
+- Hind — regular and bold.
+- Tiro Devanagari Hindi — regular and italic.
+- Kalam — handwriting.
+- Sahitya — regular and bold.
+- Martel — regular.
+- Baloo 2 — variable rounded display.
+- Khand — condensed display.
+- Gotu — rounded.
+- Glegoo — serif display.
 
-Test cases must cover:
+The current catalogue contains 12 families. This is a useful starter collection, not every Devanagari typeface ever published. Users can add their own TTF/OTF fonts through Font Center. Do not add font files without checking redistribution rights.
 
-- Independent vowels and consonants.
-- Dependent vowel signs before, above, below and after consonants.
-- Reph and rakar.
-- Half forms and conjunct clusters.
-- Nukta characters.
+## 2. Required shaping and coverage tests
+
+The in-app preview and DEVANAGARI_TEST_CORPUS.md cover:
+
+- Matras before, above, below and after consonants.
+- Reph, rakar, half forms and conjunct clusters.
+- Nukta characters and precomposed/decomposed forms.
+- Anusvara, chandrabindu, visarga, danda, double danda and Devanagari digits.
 - ZWJ and ZWNJ sequences.
-- Vedic marks and Sanskrit combinations where applicable.
-- Numerals, danda, punctuation and mixed Hindi/Latin text.
+- Hindi mixed with Latin text and the rupee sign.
 
-## 2. Legacy font encodings
-
-Fonts such as Kruti Dev, DevLys, Chanakya and Shusha often rely on legacy character mappings rather than Unicode Devanagari text.
-
-A legacy font file can change how stored character codes look, but it does not rewrite those codes into Unicode. Correct migration requires a converter for the exact encoding/profile.
-
-Planned converter requirements:
-
-- Separate mapping profile per font family and variant (for example, Kruti Dev 010 is not assumed identical to every other variant).
-- Verified fixtures with source text, expected Unicode output and reverse-conversion cases where possible.
-- Handling for pre-base vowel signs and reordering rules.
-- Unknown/ambiguous input warning.
-- Preview before conversion.
-- Save converted content as a new copy by default.
+A font may be installed while still lacking some code points. In those cases the Android/WebView fallback font can draw missing glyphs. That is why Noto Sans Devanagari remains the default and each family's preview must be checked. The first bundled collection has not yet been validated against a comprehensive real-document corpus on every Android WebView version.
 
 ## 3. User font import
 
-The target design is an app-private font library:
+- Import TTF and OTF only; TTC collections are not enabled in this build.
+- Files are limited to 5 MB and checked for a supported font signature and Android Typeface loadability.
+- Imported font files are copied into app-private storage; the original source file is not modified.
+- The file name is used as the CSS family label. For best matching with a legacy DOCX, name the file after the family name embedded in that document.
+- Imported fonts are private to this installation and are not uploaded.
+- The app cannot determine whether a user's font may legally be redistributed or embedded in a document.
 
-- Import TTF/OTF (TTC support only after explicit validation).
-- Validate the file before registering it.
-- Store imported fonts inside app-private storage.
-- Show family name, style, weight and a preview sentence.
-- Allow the user to remove imported fonts.
-- Never assume that an imported font is licensed for redistribution or embedding.
+## 4. Legacy Hindi font encodings
 
-## 4. Document engine integration
+Kruti Dev, DevLys, Chanakya, Shusha, Shree Lipi, Akruti and similar families may use legacy character mappings instead of Unicode. A font alone does not convert the stored data.
 
-The selected document engine must be tested for:
+The app does not redistribute proprietary legacy font binaries. Users may import fonts they are licensed to use. Legacy conversion is not implemented in this release; future support must contain separate mapping profiles for each actual font/version (for example, Kruti Dev 010 cannot be treated as every Kruti Dev variant).
 
-- Devanagari shaping in editing and rendering.
-- Font fallback when the exact font is absent.
-- Font substitution warnings.
-- Print/PDF export fidelity.
-- DOCX font metadata and embedded-font behavior.
-- Whether custom fonts can be made available to the engine without patching its native core.
+Converter requirements:
 
-## 5. Acceptance rule
+- Known input/output fixtures for every version.
+- Correct pre-base vowel reordering and conjunct handling.
+- Preview before conversion.
+- Unknown/ambiguous mapping warnings.
+- Save converted data as a new copy by default.
+- Never silently overwrite the source.
 
-No Hindi font or legacy encoding is marked as supported merely because its name appears in a list. It must pass a checked sample document on a real Android device, and the result must be compared with an expected rendering or Unicode output.
+## 5. Document engine integration
+
+The selected document engine must be tested for Devanagari shaping in editing, rendering, print and PDF export; custom-font discovery and substitution; DOCX font metadata; and font embedding rules. The current Writer bridge stores font-family choices in DOCX run properties but does not embed font files inside documents.
+
+## 6. Acceptance rule
+
+A font is listed as bundled when the binary and license are packaged. It is not labelled fully compatible with every Hindi document until it passes the real-device corpus and round-trip tests.

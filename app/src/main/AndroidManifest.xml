@@ -9,6 +9,10 @@
         android:usesCleartextTraffic="false">
 
         <activity
+            android:name=".fonts.FontCenterActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".writer.WriterActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />

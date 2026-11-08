@@ -1,7 +1,6 @@
 package com.fz.office;
 
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Color;
@@ -18,6 +17,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.fz.office.writer.WriterActivity;
+import com.fz.office.fonts.FontCenterActivity;
 
 public class MainActivity extends Activity {
 
@@ -77,18 +77,18 @@ public class MainActivity extends Activity {
         hero.setBackground(roundRect(Color.rgb(21, 65, 56), dp(20)));
         page.addView(hero, matchWrap());
 
-        TextView heroTag = text("WRITER MVP  ·  v0.2.0", 10,
+        TextView heroTag = text("HINDI FONT CENTER  ·  v0.3.0", 10,
                 Color.rgb(190, 224, 211), true);
         hero.addView(heroTag, matchWrap());
 
-        TextView heroTitle = text("Start writing. Save as DOCX or TXT.", 22,
+        TextView heroTitle = text("Hindi writing, with the right font.", 22,
                 Color.WHITE, true);
         heroTitle.setPadding(0, dp(13), 0, dp(7));
         hero.addView(heroTitle, matchWrap());
 
         TextView heroBody = text(
-                "Writer का पहला offline editor जुड़ गया है। DOCX और TXT files खोलें, "
-                        + "text edit करें और वापस save करें। Sheets, Slides और PDF पर काम जारी है।",
+                "Writer में 12 Unicode Devanagari font families, custom TTF/OTF import और Hindi shaping preview जुड़ रहे हैं। "
+                        + "अपनी पसंद का font चुनें और offline Hindi typing करें।",
                 13, Color.rgb(222, 237, 231), false
         );
         heroBody.setLineSpacing(dp(3), 1.0f);
@@ -132,13 +132,13 @@ public class MainActivity extends Activity {
 
         LinearLayout fontCenter = actionCard(
                 "Hindi Font Center",
-                "Unicode fonts, legacy fonts and conversion research",
+                "12 bundled Unicode fonts, custom font import and Hindi text tests",
                 "अ"
         );
         LinearLayout.LayoutParams fontParams = matchWrap();
         fontParams.topMargin = dp(10);
         page.addView(fontCenter, fontParams);
-        fontCenter.setOnClickListener(v -> showFontCenterInfo());
+        fontCenter.setOnClickListener(v -> startActivity(new Intent(this, FontCenterActivity.class)));
 
         LinearLayout note = new LinearLayout(this);
         note.setOrientation(LinearLayout.VERTICAL);
@@ -151,9 +151,9 @@ public class MainActivity extends Activity {
         TextView noteTitle = text("What works in this build?", 14, COLOR_TEXT, true);
         note.addView(noteTitle, matchWrap());
         TextView noteBody = text(
-                "Writer supports basic DOCX paragraphs, text formatting and tables, plus TXT editing. "
-                        + "Complex Word objects such as images, tracked changes, charts and embedded items "
-                        + "are not fully supported yet. Sheets, Slides and PDF engines are still pending.",
+                "Writer uses bundled Unicode Devanagari fonts and supports private TTF/OTF imports. "
+                        + "Legacy encodings still need verified converters; font installation alone cannot convert old text. "
+                        + "Sheets, Slides and PDF engines are still pending.",
                 12, COLOR_MUTED, false
         );
         noteBody.setPadding(0, dp(5), 0, 0);
@@ -331,21 +331,6 @@ public class MainActivity extends Activity {
             }
         } catch (Exception ignored) { }
         return uri.getLastPathSegment() == null ? "" : uri.getLastPathSegment();
-    }
-
-    private void showFontCenterInfo() {
-        new AlertDialog.Builder(this)
-                .setTitle("Hindi Font Center")
-                .setMessage(
-                        "This section is still a roadmap preview, not a working font installer.\n\n"
-                                + "Unicode: Noto Sans Devanagari, Noto Serif Devanagari, Mukta, "
-                                + "Hind, Lohit and Shobhika.\n\n"
-                                + "Legacy: Kruti Dev, DevLys, Chanakya and other encoding families.\n\n"
-                                + "Legacy text needs a verified encoding converter; installing a font alone "
-                                + "does not convert the document to Unicode."
-                )
-                .setPositiveButton("Got it", null)
-                .show();
     }
 
     private TextView text(String value, int sp, int color, boolean bold) {

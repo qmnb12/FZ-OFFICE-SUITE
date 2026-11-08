@@ -30,11 +30,14 @@ The first DOCX bridge is a deliberately limited WordprocessingML reader/writer. 
 
 ## Stage 2 — Hindi typography
 
-- [ ] Add Unicode font catalog and sample previews.
-- [ ] Import user-provided TTF/OTF fonts into app-private storage after validating font files.
-- [ ] Test matras, reph, rakar, half forms, conjuncts, nukta, ZWJ/ZWNJ and punctuation.
-- [ ] Add missing-font detection and safe substitution.
-- [ ] Do not bundle third-party font binaries until redistribution licenses are verified.
+- [x] Add 12 bundled Unicode Devanagari font families with corresponding OFL license texts.
+- [x] Pin upstream font revision and verify size plus Git blob SHA-1 at build time.
+- [x] Add a Font Center with font previews and default Writer font selection.
+- [x] Import user-provided TTF/OTF files into app-private storage after signature and Typeface validation.
+- [x] Add Writer font switching and Hindi special-character insertion.
+- [x] Add an in-app Devanagari shaping sample covering matras, reph/rakar, conjuncts, nukta, ZWJ/ZWNJ and numerals.
+- [ ] Test the full corpus on multiple Android WebView versions and compare reference screenshots.
+- [ ] Add missing-font detection and document-level substitution warnings.
 
 ## Stage 3 — Legacy Hindi text
 

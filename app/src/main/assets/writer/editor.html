@@ -8,13 +8,13 @@
 <style>
 :root { color-scheme: light; --ink:#1b342d; --muted:#718078; --paper:#ffffff; --canvas:#eef3f0; --line:#e3eae6; }
 * { box-sizing:border-box; }
-html,body { margin:0; min-height:100%; background:var(--canvas); color:var(--ink); font-family:Arial,"Noto Sans Devanagari",sans-serif; }
+html,body { margin:0; min-height:100%; background:var(--canvas); color:var(--ink); font-family:"Noto Sans Devanagari",Arial,sans-serif; font-kerning:normal; text-rendering:optimizeLegibility; }
 body { padding:14px 10px 30px; }
 #page {
   width:100%; min-height:calc(100vh - 44px); margin:0 auto; padding:28px 22px 40px;
   background:var(--paper); border:1px solid var(--line); border-radius:8px;
   box-shadow:0 2px 10px rgba(23,55,43,.06); outline:none;
-  font-size:16px; line-height:1.7; overflow-wrap:anywhere;
+  font-size:16px; line-height:1.75; overflow-wrap:anywhere; font-family:"Noto Sans Devanagari",Arial,sans-serif; font-feature-settings:"kern" 1,"liga" 1;
 }
 #page:focus { border-color:#c8d9d0; }
 #page p, #page div { margin:0 0 12px; min-height:1.55em; }
@@ -79,6 +79,31 @@ body { padding:14px 10px 30px; }
     page.innerHTML = html || "<p></p>";
     if (!page.innerHTML.trim()) page.innerHTML = "<p></p>";
   }
+  function registerFonts(css) {
+    if (!css) return;
+    var style = document.getElementById("fz-font-face-rules");
+    if (!style) {
+      style = document.createElement("style");
+      style.id = "fz-font-face-rules";
+      document.head.appendChild(style);
+    }
+    style.textContent += css;
+  }
+  function setFont(family, applyToSelection) {
+    if (!family) return;
+    page.style.fontFamily = '"' + family.replace(/["\\]/g, "") +
+      '", "Noto Sans Devanagari", Arial, sans-serif';
+    if (applyToSelection === true) {
+      page.focus();
+      document.execCommand("fontName", false, family);
+      changed();
+    }
+  }
+  function insertText(value) {
+    page.focus();
+    document.execCommand("insertText", false, value || "");
+    changed();
+  }
   function requestSave() {
     if (window.AndroidBridge && window.AndroidBridge.onSaveHtml) {
       window.AndroidBridge.onSaveHtml(page.innerHTML);
@@ -88,6 +113,9 @@ body { padding:14px 10px 30px; }
     command: command,
     insertTable: insertTable,
     setHtml: setHtml,
+    registerFonts: registerFonts,
+    setFont: setFont,
+    insertText: insertText,
     requestSave: requestSave
   };
   if (window.AndroidBridge && window.AndroidBridge.onEditorReady) {

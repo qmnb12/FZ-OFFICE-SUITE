@@ -21,6 +21,8 @@ import android.widget.Toast;
 
 import org.json.JSONObject;
 
+import com.fz.office.fonts.FontManager;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -28,6 +30,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -44,6 +47,7 @@ public class WriterActivity extends Activity {
     private boolean dirty;
     private boolean saving;
     private boolean pageReady;
+    private boolean fontsInitialized;
     private String pendingHtml = "<p></p>";
     private byte[] pendingSaveBytes;
     private LinkedHashMap<String, byte[]> packageEntries = new LinkedHashMap<>();
@@ -123,6 +127,8 @@ public class WriterActivity extends Activity {
         addTool(tools, "Redo", "redo");
         addTool(tools, "A+", "fontSize", "5");
         addTool(tools, "A−", "fontSize", "3");
+        addTool(tools, "Font", "font");
+        addTool(tools, "अक्षर", "hindiChars");
         addTool(tools, "Green", "foreColor", "#176B5B");
         addTool(tools, "Highlight", "backColor", "#FFF2A8");
         addTool(tools, "Table", "insertTable");
@@ -144,14 +150,14 @@ public class WriterActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 pageReady = true;
-                applyPendingHtml();
+                initializeEditor();
             }
         });
         root.addView(editor, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
 
         statusView = new TextView(this);
-        statusView.setText("Offline Writer  ·  DOCX / TXT  ·  Basic formatting");
+        statusView.setText("Offline Writer  ·  Hindi fonts  ·  DOCX / TXT");
         statusView.setTextColor(0xFF60766D);
         statusView.setTextSize(11);
         statusView.setPadding(dp(14), dp(8), dp(14), dp(8));
@@ -179,6 +185,12 @@ public class WriterActivity extends Activity {
                 script = "FZWriter.insertTable()";
             } else if ("formatBlock".equals(command)) {
                 script = "FZWriter.command('formatBlock','" + value + "')";
+            } else if ("font".equals(command)) {
+                showFontPicker();
+                return;
+            } else if ("hindiChars".equals(command)) {
+                showHindiCharacters();
+                return;
             } else if ("fontSize".equals(command) || value != null) {
                 script = "FZWriter.command('" + command + "','" + value + "')";
             } else {
@@ -261,6 +273,78 @@ public class WriterActivity extends Activity {
                 });
             }
         });
+    }
+
+    private void initializeEditor() {
+        if (!pageReady || editor == null || fontsInitialized) return;
+        fontsInitialized = true;
+        try {
+            String css = FontManager.getBundledCss();
+            String family = FontManager.getDefaultFont(this);
+            String script = "FZWriter.registerFonts(" + JSONObject.quote(css) + ");"
+                    + "FZWriter.setFont(" + JSONObject.quote(family) + ",false);";
+            editor.evaluateJavascript(script, null);
+            FontManager.FontRecord selected = FontManager.findByFamily(this, family);
+            if (!selected.bundled) registerCustomFont(selected);
+            applyPendingHtml();
+        } catch (Exception exception) {
+            fontsInitialized = false;
+            statusView.setText("Hindi font setup failed; using device fallback.");
+            applyPendingHtml();
+        }
+    }
+
+    private void registerCustomFont(FontManager.FontRecord record) {
+        try {
+            String css = FontManager.getCustomFontCss(record);
+            if (!css.isEmpty()) {
+                String script = "FZWriter.registerFonts(" + JSONObject.quote(css) + ");";
+                editor.evaluateJavascript(script, null);
+            }
+        } catch (Exception exception) {
+            Toast.makeText(this, "Could not load the imported font.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void showFontPicker() {
+        List<FontManager.FontRecord> fonts = FontManager.getAvailableFonts(this);
+        String[] labels = new String[fonts.size()];
+        for (int i = 0; i < fonts.size(); i++) {
+            FontManager.FontRecord font = fonts.get(i);
+            labels[i] = font.name + "  ·  " + font.category;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Choose a Devanagari font")
+                .setItems(labels, (dialog, which) -> {
+                    FontManager.FontRecord selected = fonts.get(which);
+                    FontManager.setDefaultFont(this, selected);
+                    if (!selected.bundled) registerCustomFont(selected);
+                    runEditorScript("FZWriter.setFont("
+                            + JSONObject.quote(selected.cssFamily) + ",true)");
+                    statusView.setText("Font: " + selected.name + "  ·  Offline");
+                })
+                .setNeutralButton("Font Center", (dialog, which) ->
+                        startActivity(new Intent(this, com.fz.office.fonts.FontCenterActivity.class)))
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void showHindiCharacters() {
+        String[] characters = new String[] {
+                "ँ", "ं", "ः", "़", "्", "ॐ", "।", "॥", "₹", "ऽ",
+                "्र", "क्ष", "त्र", "ज्ञ", "श्र", "क़", "ख़", "ज़", "ड़", "फ़",
+                "\u200D ZWJ", "\u200C ZWNJ"
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("Hindi characters and signs")
+                .setItems(characters, (dialog, which) -> {
+                    String value = characters[which];
+                    if (value.contains("ZWJ")) value = "\u200D";
+                    else if (value.contains("ZWNJ")) value = "\u200C";
+                    runEditorScript("FZWriter.insertText(" + JSONObject.quote(value) + ")");
+                })
+                .setNegativeButton("Close", null)
+                .show();
     }
 
     private void applyPendingHtml() {
@@ -485,7 +569,7 @@ public class WriterActivity extends Activity {
         public void onEditorReady() {
             runOnUiThread(() -> {
                 pageReady = true;
-                applyPendingHtml();
+                initializeEditor();
             });
         }
 
