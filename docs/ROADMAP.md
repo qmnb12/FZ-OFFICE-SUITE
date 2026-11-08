@@ -10,23 +10,19 @@ Items are complete only after implementation and real-file testing. UI labels al
 - [x] Add GitHub Actions debug-build workflow.
 - [x] Confirm a first APK installs and launches on a physical Android device.
 
-## Stage 1 — Writer MVP
+## Stage 1 — Read-only Document Viewer
 
-- [x] Add a local, offline HTML editing surface in Android WebView.
-- [x] Create a blank Writer document.
-- [x] Open UTF-8 TXT files.
-- [x] Open DOCX package main-body paragraphs and simple tables.
-- [x] Support basic direct run formatting: bold, italic, underline, strike, color, font size and font family.
-- [x] Add basic formatting toolbar, lists, alignment, undo/redo and table insertion.
-- [x] Save as DOCX or TXT and attempt in-place save when the document provider allows it.
-- [ ] Add automated DOCX round-trip tests with a corpus of real files.
-- [ ] Add better preservation for images, hyperlinks, headers, footers, page breaks, lists and section properties.
-- [ ] Add document outline, page layout, print preview and spell-check settings.
-- [ ] Test with real Hindi documents and Devanagari shaping cases.
+- [x] Open DOCX and UTF-8 TXT files from Android document picker with read-only permission.
+- [x] Remove editing toolbar, keyboard editing, Save and Save As actions.
+- [x] Display supported paragraphs, common text styles and simple tables.
+- [x] Add reader text-size controls and selectable/copyable text.
+- [x] Detect known Kruti Dev 010 font declarations and selected strong text signatures.
+- [x] Automatically convert confirmed Kruti Dev 010 text in the in-memory display layer only.
+- [x] Keep the original DOCX/TXT file read-only and unchanged.
+- [ ] Add a full DOCX rendering engine for images, headers, footers, page layout, lists, charts and complex sections.
+- [ ] Test real Hindi government/legal documents on multiple Android devices.
 
-### Current Writer compatibility boundary
-
-The first DOCX bridge is a deliberately limited WordprocessingML reader/writer. It retains package parts, but replaces word/document.xml with a new body generated from the editable content. Complex document body elements that are not represented in the current editor are not guaranteed to survive. Keep a backup of important originals.
+The current renderer is a limited reader, not full Word layout compatibility. Unknown legacy encodings are never guessed or silently changed.
 
 ## Stage 2 — Hindi typography
 

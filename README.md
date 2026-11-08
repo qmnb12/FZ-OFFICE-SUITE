@@ -2,37 +2,41 @@
 
 **An Android-first, offline-first office suite with Hindi-first document and font support.**
 
-## Current status — v0.4.0
+## Current status — v0.5.0
 
-### Writer MVP
+### Document Viewer (read-only)
 
-- Create a blank Writer document.
-- Open and edit DOCX and TXT files.
-- Save changes or use Save As.
-- Basic formatting, lists, alignment and simple tables.
-- Hindi character insertion for nukta, halant, danda, rupee sign, conjunct samples and ZWJ/ZWNJ.
+- Open DOCX and UTF-8 TXT documents from Android's document picker.
+- Display supported paragraphs, headings, common text styles and simple tables.
+- Select and copy text; adjust reading size with A− / A+ controls.
+- There are no editing controls, keyboard input, Save or Save As actions in the document screen.
+- Original documents are opened read-only and are never rewritten by the app.
+
+### Automatic legacy Hindi display
+
+- DOCX font declarations are inspected in document, styles, header/footer and font-table parts.
+- Known Kruti Dev 010 documents are automatically converted to Unicode Hindi in the viewer's temporary display content.
+- The conversion runs only in memory. The original DOCX package and the file on storage remain unchanged.
+- A conservative text-pattern fallback can identify some files whose font metadata is missing.
+- Unverified legacy families and variants are not guessed. The viewer shows a warning instead.
 
 ### Hindi Font Center
 
-- 12 bundled Unicode Devanagari font families: Noto Sans Devanagari, Noto Serif Devanagari, Mukta, Hind, Tiro Devanagari Hindi, Kalam, Sahitya, Martel, Baloo 2, Khand, Gotu and Glegoo.
-- Regular/bold or italic companion files are included for selected families; variable font files are used where available.
-- Import personal TTF and OTF fonts into private app storage, preview them, set a default Writer font or remove them.
-- Bundled font files are pinned to a Google Fonts repository revision and verified against their Git object SHA-1 before packaging. The respective OFL license texts are bundled with the assets.
-- After installation, bundled and imported fonts are available offline.
+- 12 bundled Unicode Devanagari font families with their OFL license texts.
+- Import personal TTF/OTF fonts into private app storage and preview/select a default display font.
+- Bundled and imported fonts work offline after installation.
 
-**Font coverage is not identical across families.** Noto Sans Devanagari and Noto Serif Devanagari are the recommended general-purpose choices. Decorative/display families may not contain every Devanagari extension character. Font Center includes shaping samples for comparison.
+**Coverage note:** font coverage differs by family. Noto Sans Devanagari and Noto Serif Devanagari remain the general-purpose choices.
 
-### Legacy Hindi fonts and encoding
+### Legacy conversion limits
 
-The app does not bundle proprietary legacy font binaries such as Kruti Dev, DevLys, Chanakya, Shusha or Shree Lipi. Users may import TTF/OTF files they are legally entitled to use. Importing a legacy font changes glyph rendering only when the stored document text uses the matching legacy character mapping; it does not convert that text to Unicode.
+The automatic mapping in this release is for Kruti Dev 010 only. It is not a universal converter for all Kruti Dev versions, DevLys, Chanakya, Shusha, Shree Lipi or other DTP encodings. Unknown mappings are shown unchanged with a warning. A font name alone does not prove the character encoding.
 
-Legacy-to-Unicode converters are a separate planned feature. Each version/profile requires verified mappings and sample documents. No automatic guessing or silent conversion is performed.
+### Document compatibility boundary
 
-### Compatibility boundary
+This is an early read-only DOCX renderer, not full Microsoft Word or LibreOffice fidelity. It currently reads main-body paragraphs and simple tables. Complex elements such as images, charts, SmartArt, text boxes, equations, comments, tracked changes, advanced numbering, headers, footers and section layouts are not fully rendered. For complete layout fidelity, a full document engine integration remains a future milestone.
 
-This remains an early Writer MVP, not full Microsoft Word or LibreOffice compatibility. The current DOCX bridge handles normal paragraphs, common direct run formatting and simple tables. Complex objects such as images, charts, SmartArt, text boxes, equations, macros, tracked changes, comments, advanced numbering, headers/footers and complex section layouts are not fully implemented and may be lost or changed when the document is saved. Keep a copy of important originals.
-
-Sheets, Slides and PDF editing engines are still under development.
+Sheets and Slides are not connected. PDF viewing is planned separately.
 
 ## Development environment
 

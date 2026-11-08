@@ -42,12 +42,16 @@ public final class DocxCodec {
         public final String html;
         public final LinkedHashMap<String, byte[]> packageEntries;
         public final List<String> fontNames;
+        public final String legacyProfile;
+        public final String legacyFontName;
 
         LoadedDocument(String html, LinkedHashMap<String, byte[]> packageEntries,
-                       List<String> fontNames) {
+                       List<String> fontNames, String legacyProfile, String legacyFontName) {
             this.html = html;
             this.packageEntries = packageEntries;
             this.fontNames = fontNames;
+            this.legacyProfile = legacyProfile;
+            this.legacyFontName = legacyFontName;
         }
     }
 
@@ -61,7 +65,10 @@ public final class DocxCodec {
         if (html.trim().isEmpty()) {
             html = "<p></p>";
         }
-        return new LoadedDocument(html, entries, inspectFontNames(entries));
+        List<String> fonts = inspectFontNames(entries);
+        String legacyFont = findLegacyFontName(fonts);
+        String legacyProfile = detectLegacyProfile(fonts, html);
+        return new LoadedDocument(html, entries, fonts, legacyProfile, legacyFont);
     }
 
     public static LinkedHashMap<String, byte[]> readPackage(InputStream input) throws IOException {
@@ -89,6 +96,45 @@ public final class DocxCodec {
      * Reads font-family declarations from document, styles, headers and footers.
      * Word may store legacy fonts in styles.xml rather than directly on each run.
      */
+
+    private static String findLegacyFontName(List<String> fonts) {
+        for (String font : fonts) {
+            String lower = font.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+            if (lower.contains("krutidev") || lower.contains("devlys")
+                    || lower.contains("chanakya") || lower.contains("shreelipi")
+                    || lower.contains("shusha") || lower.contains("apsdv")) {
+                return font;
+            }
+        }
+        return "";
+    }
+
+    /**
+     * Returns a converter profile only when the metadata or content gives
+     * sufficiently strong evidence for the exact mapping implemented here.
+     */
+    private static String detectLegacyProfile(List<String> fonts, String html) {
+        for (String font : fonts) {
+            String normalized = font.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+            if (normalized.contains("krutidev010") || normalized.contains("krutidev10")) {
+                return "krutidev010";
+            }
+        }
+
+        // A conservative signature fallback for files whose DOCX style metadata is missing.
+        String plain = htmlToPlainText(html).toLowerCase(Locale.ROOT);
+        String[] signatures = new String[] {
+                "jheku", "'kklu", "lfpo", "foHkkx", "jkT;", "vkSj",
+                "fo\"k;", "izLrko", "fu;ekuqlkj", "Hkkjr", "vf/kdkj",
+                "fu;eksa", "egksn;"
+        };
+        int matches = 0;
+        for (String signature : signatures) {
+            if (plain.contains(signature.toLowerCase(Locale.ROOT))) matches++;
+        }
+        return matches >= 2 ? "krutidev010" : "";
+    }
+
     private static List<String> inspectFontNames(Map<String, byte[]> entries) throws Exception {
         LinkedHashSet<String> names = new LinkedHashSet<>();
         for (Map.Entry<String, byte[]> item : entries.entrySet()) {
@@ -350,8 +396,10 @@ public final class DocxCodec {
                 } catch (Exception ignored) { }
                 skipElement(parser);
             } else if ("rFonts".equals(name)) {
-                String font = attribute(parser, "ascii");
+                String font = attribute(parser, "eastAsia");
+                if (font == null) font = attribute(parser, "ascii");
                 if (font == null) font = attribute(parser, "hAnsi");
+                if (font == null) font = attribute(parser, "cs");
                 if (font != null) style.fontFamily = font;
                 skipElement(parser);
             } else if ("vertAlign".equals(name)) {

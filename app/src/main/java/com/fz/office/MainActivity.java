@@ -77,18 +77,17 @@ public class MainActivity extends Activity {
         hero.setBackground(roundRect(Color.rgb(21, 65, 56), dp(20)));
         page.addView(hero, matchWrap());
 
-        TextView heroTag = text("LEGACY HINDI FIX  ·  v0.4.0", 10,
+        TextView heroTag = text("DOCUMENT VIEWER  ·  v0.5.0", 10,
                 Color.rgb(190, 224, 211), true);
         hero.addView(heroTag, matchWrap());
 
-        TextView heroTitle = text("Hindi writing, with the right font.", 22,
+        TextView heroTitle = text("Hindi documents, easy to read.", 22,
                 Color.WHITE, true);
         heroTitle.setPadding(0, dp(13), 0, dp(7));
         hero.addView(heroTitle, matchWrap());
 
         TextView heroBody = text(
-                "Writer में 12 Unicode Devanagari font families, custom TTF/OTF import और Hindi shaping preview जुड़ रहे हैं। "
-                        + "अपनी पसंद का font चुनें और offline Hindi typing करें।",
+                "DOCX और TXT documents read-only खुलेंगे। Supported legacy Hindi text display के लिए अपने-आप Unicode में बदलेगा; original file untouched रहेगी।",
                 13, Color.rgb(222, 237, 231), false
         );
         heroBody.setLineSpacing(dp(3), 1.0f);
@@ -99,7 +98,7 @@ public class MainActivity extends Activity {
         firstRow.setOrientation(LinearLayout.HORIZONTAL);
         page.addView(firstRow, matchWrap());
 
-        addModuleCard(firstRow, "W", "Writer", "DOCX · TXT", "MVP editor ready", 0);
+        addModuleCard(firstRow, "D", "Documents", "DOCX · TXT", "View only", 0);
         addModuleCard(firstRow, "▦", "Sheets", "Spreadsheets", "Engine pending", 1);
 
         LinearLayout secondRow = new LinearLayout(this);
@@ -112,17 +111,9 @@ public class MainActivity extends Activity {
         addModuleCard(secondRow, "PDF", "PDF tools", "View & export", "Not connected", 3);
 
         addSectionTitle(page, "Quick actions", "GET STARTED");
-        LinearLayout newFile = actionCard(
-                "New document",
-                "Create a blank Writer document",
-                "+"
-        );
-        newFile.setOnClickListener(v -> openNewWriter());
-        page.addView(newFile, matchWrap());
-
         LinearLayout openFile = actionCard(
                 "Open a document",
-                "Choose a DOCX or TXT file to edit",
+                "Choose a DOCX or TXT file to view",
                 "↗"
         );
         openFile.setOnClickListener(v -> openDocumentPicker());
@@ -228,7 +219,7 @@ public class MainActivity extends Activity {
         card.setFocusable(true);
         card.setOnClickListener(v -> {
             if (index == 0) {
-                openNewWriter();
+                openDocumentPicker();
             } else {
                 Toast.makeText(
                         this,
@@ -271,10 +262,6 @@ public class MainActivity extends Activity {
         return card;
     }
 
-    private void openNewWriter() {
-        startActivity(new Intent(this, WriterActivity.class));
-    }
-
     private void openDocumentPicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
@@ -284,7 +271,6 @@ public class MainActivity extends Activity {
                 "text/plain"
         });
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         try {
             startActivityForResult(intent, REQUEST_OPEN_DOCUMENT);
@@ -306,8 +292,7 @@ public class MainActivity extends Activity {
                         Toast.LENGTH_LONG).show();
                 return;
             }
-            int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            int flags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
             try {
                 getContentResolver().takePersistableUriPermission(selectedFile, flags);
             } catch (Exception ignored) { }

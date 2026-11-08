@@ -15,7 +15,7 @@
         <activity
             android:name=".writer.WriterActivity"
             android:exported="false"
-            android:windowSoftInputMode="adjustResize" />
+            />
 
         <activity
             android:name=".MainActivity"

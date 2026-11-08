@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=4">
+<meta name="color-scheme" content="light">
+<title>FZ Office Document Viewer</title>
+<style>
+:root{color-scheme:light;--ink:#1b342d;--muted:#718078;--paper:#fff;--canvas:#eef3f0;--line:#e3eae6}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);font-family:"Noto Sans Devanagari",Arial,sans-serif;font-kerning:normal;text-rendering:optimizeLegibility}
+body{padding:12px 8px 28px}
+#legacyNotice{display:none;max-width:900px;margin:0 auto 10px;padding:12px 14px;border-radius:12px;background:#fff4dc;color:#6c4c12;font-size:12px;line-height:1.55;border:1px solid #f0dfb9}
+#legacyNotice strong{display:block;margin-bottom:3px}
+#page{width:100%;min-height:calc(100vh - 70px);margin:0 auto;padding:26px 20px 42px;background:var(--paper);border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 10px rgba(23,55,43,.06);font-size:16px;line-height:1.75;overflow-wrap:anywhere;font-family:"Noto Sans Devanagari",Arial,sans-serif;font-feature-settings:"kern" 1,"liga" 1;user-select:text;-webkit-user-select:text}
+#page p,#page div{margin:0 0 12px;min-height:1.4em}
+#page h1{font-size:1.65em;line-height:1.3;margin:0 0 14px}
+#page h2{font-size:1.35em;line-height:1.35;margin:0 0 12px}
+#page h3{font-size:1.15em;margin:0 0 10px}
+#page ul,#page ol{padding-left:25px;margin:0 0 12px}
+#page table{width:100%;border-collapse:collapse;table-layout:fixed;margin:12px 0}
+#page td,#page th{border:1px solid #9eafa7;padding:7px;min-width:35px;vertical-align:top}
+#page blockquote{border-left:3px solid #9ab8a9;margin:12px 0;padding:5px 12px;color:#52655c}
+#page img{max-width:100%;height:auto}
+#page a{color:#176b5b;text-decoration:underline}
+@media(min-width:700px){body{padding:20px}#page{max-width:900px;min-height:100vh;padding:42px 54px}}
+@media print{html,body{background:#fff;padding:0}#legacyNotice{display:none!important}#page{border:0;box-shadow:none;max-width:none;padding:0}}
+</style>
+<script src="legacy-converter.js"></script>
+</head>
+<body>
+<div id="legacyNotice" role="status"></div>
+<main id="page" aria-label="Document content"></main>
+<script>
+(function(){
+"use strict";
+var page=document.getElementById("page"),notice=document.getElementById("legacyNotice"),baseSize=16;
+function registerFonts(css){if(!css)return;var style=document.getElementById("fz-font-face-rules");if(!style){style=document.createElement("style");style.id="fz-font-face-rules";document.head.appendChild(style)}style.textContent+=css}
+function setDefaultFont(family){if(!family)return;var safe=String(family).replace(/["\\]/g,"");page.style.fontFamily='"'+safe+'","Noto Sans Devanagari",Arial,sans-serif'}
+function convertTextNodes(root){if(!window.FZLegacyHindi||!window.FZLegacyHindi.krutiDevToUnicode)return false;var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[];while(walker.nextNode()){var node=walker.currentNode;if(node.nodeValue&&node.nodeValue.trim())nodes.push(node)}nodes.forEach(function(node){node.nodeValue=window.FZLegacyHindi.krutiDevToUnicode(node.nodeValue)});return true}
+function removeLegacyFontOverrides(){page.querySelectorAll("[style]").forEach(function(element){var family=(element.style.fontFamily||"").toLowerCase().replace(/[^a-z0-9]/g,"");if(family.indexOf("krutidev")>=0||family.indexOf("devlys")>=0)element.style.removeProperty("font-family")})}
+function showNotice(title,message){notice.textContent="";var strong=document.createElement("strong"),body=document.createElement("span");strong.textContent=title;body.textContent=message;notice.appendChild(strong);notice.appendChild(body);notice.style.display="block"}
+function setDocument(html,profile,fontName,legacyHint){page.innerHTML=html||"<p></p>";notice.style.display="none";if(profile==="krutidev010"){if(convertTextNodes(page)){removeLegacyFontOverrides();showNotice("Hindi text automatically converted for viewing","Kruti Dev 010 text is displayed as Unicode Hindi. The original DOCX file has not been changed.")}else{showNotice("Legacy Hindi text detected","Converter could not be loaded. The document is shown without conversion.")}}else if(fontName){showNotice("Legacy font: "+fontName,"This font's exact encoding profile is not verified in this version. The viewer will not guess and alter its text.")}else if(legacyHint){showNotice("Possible legacy Hindi encoding","The text looks like an older Hindi keyboard-font document, but its exact mapping could not be confirmed. It is shown unchanged.")}}
+function zoom(direction){baseSize=Math.max(12,Math.min(30,baseSize+(direction>0?1:-1)));page.style.fontSize=baseSize+"px"}
+window.FZViewer={registerFonts:registerFonts,setDefaultFont:setDefaultFont,setDocument:setDocument,zoom:zoom};
+})();
+</script>
+</body>
+</html>
