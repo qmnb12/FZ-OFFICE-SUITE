@@ -120,6 +120,9 @@ public final class DocxCodec {
         // Only an explicit, exact DOCX font declaration may select this converter.
         for (String font : fonts) {
             String normalized = font.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+            if (normalized.equals("devlys010") || normalized.equals("devlys10")) {
+                return "devlys010";
+            }
             if (normalized.equals("krutidev010") || normalized.equals("krutidev10")) {
                 return "krutidev010";
             }

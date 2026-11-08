@@ -15,7 +15,7 @@
 ### Automatic legacy Hindi display
 
 - DOCX font declarations are inspected in document, styles, header/footer and font-table parts.
-- Automatic conversion is restricted to DOCX text runs explicitly tagged with the exact Kruti Dev 010 font name.
+- Automatic conversion is restricted to DOCX text runs explicitly tagged with the exact DevLys 010 or Kruti Dev 010 font name.
 - Unmarked text, existing Unicode Hindi, English/date/reference runs and content with unknown fonts are not changed.
 - If a file declares the legacy font only through an unresolved paragraph style, the viewer warns instead of guessing.
 - The conversion runs only in memory. The original DOCX package and the file on storage remain unchanged.

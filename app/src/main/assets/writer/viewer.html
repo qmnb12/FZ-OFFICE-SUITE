@@ -46,26 +46,33 @@ function readInlineText(node){
   for(var i=0;i<node.childNodes.length;i++)result+=readInlineText(node.childNodes[i]);
   return result;
 }
-function isKrutiDev010Span(node){
-  if(!node||node.nodeType!==Node.ELEMENT_NODE||node.tagName!=="SPAN")return false;
+function legacyFontProfileForSpan(node){
+  if(!node||node.nodeType!==Node.ELEMENT_NODE||node.tagName!=="SPAN")return "";
   var family=(node.style.fontFamily||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-  return family==="krutidev010"||family==="krutidev10";
+  if(family==="devlys010"||family==="devlys10")return "devlys010";
+  if(family==="krutidev010"||family==="krutidev10")return "krutidev010";
+  return "";
 }
 function convertLegacyFontRuns(root){
-  if(!window.FZLegacyHindi||!window.FZLegacyHindi.krutiDevToUnicodePreservingEnglish)return 0;
+  if(!window.FZLegacyHindi)return 0;
   var spans=Array.prototype.slice.call(root.querySelectorAll("span[style]"));
   var converted=0,processed=[];
   spans.forEach(function(span){
-    if(processed.indexOf(span)>=0||!isKrutiDev010Span(span))return;
+    var profile=legacyFontProfileForSpan(span);
+    if(processed.indexOf(span)>=0||!profile)return;
     // Word can split a matra and its consonant into adjacent runs.
     var group=[span],next=span.nextSibling;
-    while(next&&next.nodeType===Node.ELEMENT_NODE&&isKrutiDev010Span(next)){
+    while(next&&next.nodeType===Node.ELEMENT_NODE&&legacyFontProfileForSpan(next)===profile){
       group.push(next);next=next.nextSibling;
     }
     group.forEach(function(item){processed.push(item)});
     var source=group.map(readInlineText).join("");
     if(!source.trim())return;
-    var output=window.FZLegacyHindi.krutiDevToUnicodePreservingEnglish(source);
+    var converter=profile==="devlys010"
+      ?window.FZLegacyHindi.devLys010ToUnicodePreservingEnglish
+      :window.FZLegacyHindi.krutiDevToUnicodePreservingEnglish;
+    if(!converter)return;
+    var output=converter(source);
     var replacement=span.cloneNode(false);
     replacement.style.removeProperty("font-family");
     replacement.style.fontFamily='"'+defaultFont.replace(/["\\]/g,"")+'", "Noto Sans Devanagari", sans-serif';
@@ -80,11 +87,12 @@ function showNotice(title,message){notice.textContent="";var strong=document.cre
 function setDocument(html,profile,fontName,legacyHint){
   page.innerHTML=html||"<p></p>";
   notice.style.display="none";
-  if(profile==="krutidev010"){
+  if(profile==="krutidev010"||profile==="devlys010"){
     var count=convertLegacyFontRuns(page);
     if(count>0){
-      showNotice("Verified Kruti Dev 010 text converted for viewing",
-        "Only runs explicitly tagged with Kruti Dev 010 were converted. Other Hindi, English, dates, references and images are left untouched. Original DOCX is unchanged.");
+      var fontLabel=profile==="devlys010"?"DevLys 010":"Kruti Dev 010";
+      showNotice("Verified "+fontLabel+" text converted for viewing",
+        "Only runs explicitly tagged with "+fontLabel+" were converted. Other Hindi, English, dates, references and images are left untouched. Original DOCX is unchanged.");
     }else{
       showNotice("Legacy font is declared, but no tagged text runs were found",
         "No text was changed. The document may store its font in a paragraph style that this reader has not resolved yet. Please share the original DOCX for exact compatibility work.");

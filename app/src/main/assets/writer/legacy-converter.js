@@ -707,7 +707,30 @@ function krutiDevToUnicodePreservingEnglish(input) {
   }).join("");
 }
 
+// DevLys 010 shares the ordinary keyboard map with Kruti Dev 010, but
+// Word smart-quote substitutions differ. Protect those code points before
+// the shared decoder so DevLys quote glyphs are decoded correctly.
+function devLys010ToUnicodePreservingEnglish(input) {
+  if (!input) return "";
+  const protectedTokens = [
+    ["\uE000", "‘", ""],
+    ["\uE001", "’", "श्"],
+    ["\uE002", "“", "भ"],
+    ["\uE003", "”", ""]
+  ];
+  let text = String(input);
+  protectedTokens.forEach(function (entry) {
+    text = text.split(entry[1]).join(entry[0]);
+  });
+  text = krutiDevToUnicodePreservingEnglish(text);
+  protectedTokens.forEach(function (entry) {
+    text = text.split(entry[0]).join(entry[2]);
+  });
+  return text;
+}
+
 window.FZLegacyHindi = {
   krutiDevToUnicode: krutiDevToUnicode,
-  krutiDevToUnicodePreservingEnglish: krutiDevToUnicodePreservingEnglish
+  krutiDevToUnicodePreservingEnglish: krutiDevToUnicodePreservingEnglish,
+  devLys010ToUnicodePreservingEnglish: devLys010ToUnicodePreservingEnglish
 };

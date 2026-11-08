@@ -16,7 +16,7 @@ Changing a font is not the same as converting the stored text.
 
 ## Important conversion limits
 
-The current profile is for Kruti Dev 010. It is not a verified universal decoder for every Kruti Dev version. Many DevLys 010 documents use a similar keyboard layout, but the uncommon glyphs and punctuation need their own fixtures. Chanakya, Shusha, Shree Lipi, APS-DV and other DTP encodings are not converted by this profile.
+The app supports explicit DevLys 010 and Kruti Dev 010 font declarations. Their ordinary keyboard maps are shared; DevLys smart-quote substitutions are handled separately. Other versions such as DevLys 040, Chanakya, Shusha, Shree Lipi and APS-DV are not covered by this profile. Chanakya, Shusha, Shree Lipi, APS-DV and other DTP encodings are not converted by this profile.
 
 Legacy converters cannot reliably distinguish English words typed using the same legacy font from Hindi keystrokes. After conversion, review the entire result for English names, email addresses, numbers, dates, legal references, abbreviations and uncommon symbols. For important complaints, legal notices or government files, use Save As first and compare against the original.
 
@@ -32,4 +32,9 @@ The viewer now converts a complete paragraph rather than each low-level Word tex
 
 ## v0.5.2 safety change
 
-The viewer no longer converts all text in a paragraph based on content-pattern guesses. Automatic Kruti Dev 010 conversion is restricted to individual Word runs that carry an explicit exact Kruti Dev 010 font declaration. Unmarked runs remain unchanged. This can mean that a file using only paragraph-style inheritance will show a warning and remain unconverted until the style inheritance is resolved; this is intentional to avoid damaging English and Unicode Hindi text.
+The viewer no longer converts all text in a paragraph based on content-pattern guesses. Automatic DevLys 010 or Kruti Dev 010 conversion is restricted to individual Word runs that carry an explicit exact matching font declaration. Unmarked runs remain unchanged. This can mean that a file using only paragraph-style inheritance will show a warning and remain unconverted until the style inheritance is resolved; this is intentional to avoid damaging English and Unicode Hindi text.
+
+
+## DevLys 010 support (v0.5.3)
+
+DevLys 010 is now detected as its own exact DOCX font profile. The ordinary key map is shared with Kruti Dev 010, while Word smart-quote code points are handled with DevLys-specific substitutions (`’` → श्, `“` → भ; unused curly quote slots are dropped). Other DevLys versions are not assumed compatible.

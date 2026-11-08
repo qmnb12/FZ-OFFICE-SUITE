@@ -17,7 +17,7 @@ Items are complete only after implementation and real-file testing. UI labels al
 - [x] Display supported paragraphs, common text styles and simple tables.
 - [x] Add reader text-size controls and selectable/copyable text.
 - [x] Detect known Kruti Dev 010 font declarations and selected strong text signatures.
-- [x] Restrict automatic conversion to text runs explicitly tagged with the exact Kruti Dev 010 font name.
+- [x] Restrict automatic conversion to text runs explicitly tagged with the exact DevLys 010 or Kruti Dev 010 font name.
 - [x] Leave unmarked text and unknown legacy encodings untouched rather than guessing.
 - [x] Add a read-only DOCX image relationship reader for common embedded raster formats.
 - [x] Keep the original DOCX/TXT file read-only and unchanged.

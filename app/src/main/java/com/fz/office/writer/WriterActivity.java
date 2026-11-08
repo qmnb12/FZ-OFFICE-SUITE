@@ -238,7 +238,8 @@ public class WriterActivity extends Activity {
     }
 
     private void updateStatus() {
-        if (pendingLegacyProfile.equals("krutidev010")) {
+        if (pendingLegacyProfile.equals("krutidev010")
+                || pendingLegacyProfile.equals("devlys010")) {
             statusView.setText("Hindi auto-converted for viewing · Original DOCX unchanged");
         } else if (!pendingLegacyFontName.isEmpty()) {
             statusView.setText("Legacy font: " + pendingLegacyFontName + " · No verified viewer mapping");
