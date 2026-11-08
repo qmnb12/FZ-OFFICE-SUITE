@@ -2,65 +2,58 @@
 
 Items are complete only after implementation and real-file testing. UI labels alone do not count as format support.
 
-## Stage 0 — Android foundation
+## Stage 0 — Prototype (historical)
 
-- [x] Create a Java-first Android project for Code On The Go.
-- [x] Add the Hindi-first dashboard.
-- [x] Add document-picker entry point.
-- [x] Add GitHub Actions debug-build workflow.
-- [x] Confirm a first APK installs and launches on a physical Android device.
+- [x] Create the Java-first Android shell and GitHub Actions debug workflow.
+- [x] Create a limited DOCX/TXT viewer prototype.
+- [x] Add prototype Unicode font catalogue and font import UI.
+- [ ] Do not treat the prototype parser or converter as production-compatible.
 
-## Stage 1 — Read-only Document Viewer
+## Stage 1 — Office engine migration (selected: Collabora / LibreOfficeKit)
 
-- [x] Open DOCX and UTF-8 TXT files from Android document picker with read-only permission.
-- [x] Remove editing toolbar, keyboard editing, Save and Save As actions.
-- [x] Display supported paragraphs, common text styles and simple tables.
-- [x] Add reader text-size controls and selectable/copyable text.
-- [x] Detect known Kruti Dev 010 font declarations and selected strong text signatures.
-- [x] Restrict automatic conversion to text runs explicitly tagged with the exact DevLys 010 or Kruti Dev 010 font name.
-- [x] Leave unmarked text and unknown legacy encodings untouched rather than guessing.
-- [x] Add a read-only DOCX image relationship reader for common embedded raster formats.
-- [x] Keep the original DOCX/TXT file read-only and unchanged.
-- [ ] Add full DOCX layout support for floating images, headers, footers, page layout, lists, charts and complex sections.
-- [ ] Test real Hindi government/legal documents on multiple Android devices.
+- [ ] Pin the Collabora Online monorepo revision and preserve upstream license/third-party notices.
+- [ ] Build the native LibreOffice engine for arm64-v8a on a cloud Linux runner.
+- [ ] Build and package the Collabora Android application with FZ Office branding.
+- [ ] Replace the custom DOCX WebView renderer with the native LibreOfficeKit-based viewer.
+- [ ] Keep the default opening mode read-only.
+- [ ] Verify DOCX images, tables, styles, sections, headers/footers, page breaks and floating objects.
+- [ ] Verify XLSX/XLS/ODS/CSV and PPTX/PPT/ODP viewing.
+- [ ] Verify PDF viewing, print and export flows.
+- [ ] Keep a reproducible CI artifact and source revision.
 
-The current renderer is a limited reader, not full Word layout compatibility. Unknown legacy encodings are never guessed or silently changed.
+## Stage 2 — Hindi font integration
 
-## Stage 2 — Hindi typography
+- [ ] Integrate a licensed Devanagari font pack into the engine font path.
+- [ ] Build an app-private TTF/OTF importer that registers fonts with LibreOffice's user profile.
+- [ ] Refresh the engine font cache and show the exact missing font in document information.
+- [ ] Add font substitution/fallback choices without altering the document's saved font metadata.
+- [ ] Validate matras, reph, rakar, conjuncts, nukta, ZWJ/ZWNJ, numerals and punctuation on Android.
+- [ ] Add Hindi spell-check dictionary and hyphenation where licence-compatible.
 
-- [x] Add 12 bundled Unicode Devanagari font families with corresponding OFL license texts.
-- [x] Pin upstream font revision and verify size plus Git blob SHA-1 at build time.
-- [x] Add a Font Center with font previews and default Writer font selection.
-- [x] Import user-provided TTF/OTF files into app-private storage after signature and Typeface validation.
-- [x] Add Writer font switching and Hindi special-character insertion.
-- [x] Add an in-app Devanagari shaping sample covering matras, reph/rakar, conjuncts, nukta, ZWJ/ZWNJ and numerals.
-- [ ] Test the full corpus on multiple Android WebView versions and compare reference screenshots.
-- [ ] Add missing-font detection and document-level substitution warnings.
+## Stage 3 — Legacy Hindi fonts and encoding
 
-## Stage 3 — Legacy Hindi text
+- [ ] Test user-provided DevLys 010 font in actual DOCX.
+- [ ] Add separate, documented profiles for each DevLys and Kruti Dev version.
+- [ ] Add verified Chanakya, Shusha, Shree Lipi, APS-DV and other profiles where legally and technically possible.
+- [ ] Render original legacy text with its exact font first; do not auto-convert on open.
+- [ ] Keep Unicode conversion opt-in, previewable and non-destructive.
+- [ ] Build golden fixtures from real documents for punctuation, English tokens, matras and mixed-language paragraphs.
 
-- [x] Add a manual Kruti Dev 010 to Unicode preview based on an MIT-licensed mapping implementation.
-- [x] Inspect DOCX font declarations in document/styles/header/footer/font-table parts and flag likely Kruti Dev/DevLys fonts.
-- [ ] Verify Kruti Dev 010 conversion against a large golden fixture corpus and real official documents.
-- [ ] Create separately verified encoding profiles for DevLys, Chanakya, Shusha, Shree Lipi and other font families.
-- [ ] Build test fixtures with known input/output pairs for each font version.
-- [ ] Convert to Unicode in a new copy; never silently overwrite the source.
-- [ ] Preserve paragraph boundaries and document structure where supported.
-- [ ] Report ambiguous or unknown encodings instead of guessing.
+## Stage 4 — FZ Office app experience
 
-## Stage 4 — Remaining office modules
-
-1. Sheets: XLSX, XLS, ODS and CSV.
-2. Slides: PPTX, PPT and ODP.
-3. PDF viewing, export and print/share flows.
-4. Evaluate an office engine for higher-fidelity cross-format rendering and editing.
-
-Each format needs open, edit, save, reopen and export regression tests.
+- [ ] Build document home, recent files, folders, search and favourites around the engine.
+- [ ] Add app-level read-only mode and optional editing mode only after stability testing.
+- [ ] Add Hindi Font Center, file info, share/open-with, print and export flows.
+- [ ] Offline-first; no compulsory account and no document upload.
 
 ## Stage 5 — Quality and release
 
-- [ ] Offline and low-memory tests.
-- [ ] Accessibility, screen-size and dark-theme checks.
-- [ ] File permission and privacy review.
-- [ ] Dependency/license and security audit.
-- [ ] Reproducible debug/release builds.
+- [ ] Compare real user documents against Microsoft Word and Collabora desktop output.
+- [ ] Test large files, password-protected files, damaged packages and missing fonts.
+- [ ] Run offline, low-memory, accessibility and Android-version tests.
+- [ ] Complete dependency/license/security audit.
+- [ ] Publish upstream source notices and reproducible build instructions.
+
+## Important boundary
+
+Collabora/LibreOfficeKit has been selected, but it is **not yet integrated**. Do not label any current v0.5.x build as a full Microsoft Word replacement.

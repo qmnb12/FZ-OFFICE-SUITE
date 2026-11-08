@@ -2,43 +2,18 @@
 
 **An Android-first, offline-first office suite with Hindi-first document and font support.**
 
-## Current status — v0.5.2
+## Current status — engine migration planned
 
-### Document Viewer (read-only)
+The v0.5.x Java/WebView reader is a prototype only. It does not provide full Microsoft Word-compatible DOCX rendering. The project has selected **Collabora Office / LibreOfficeKit** as the primary engine to replace the hand-written DOCX renderer.
 
-- Open DOCX and UTF-8 TXT documents from Android's document picker.
-- Display supported paragraphs, headings, common text styles, simple tables and embedded raster images (PNG, JPEG, GIF, WebP, BMP).
-- Select and copy text; adjust reading size with A− / A+ controls.
-- There are no editing controls, keyboard input, Save or Save As actions in the document screen.
-- Original documents are opened read-only and are never rewritten by the app.
+The default document experience remains read-only. Hindi support will be integrated into the office engine with:
+- A curated open-license Devanagari font pack.
+- App-private TTF/OTF font import and registration with the engine.
+- Exact legacy font support when users provide fonts they are licensed to use.
+- Version-specific opt-in Legacy-to-Unicode converters with real-document tests.
+- Full-engine layout rendering for images, tables, page breaks, headers/footers, sections and other Word structures.
 
-### Automatic legacy Hindi display
-
-- DOCX font declarations are inspected in document, styles, header/footer and font-table parts.
-- Automatic conversion is restricted to DOCX text runs explicitly tagged with the exact DevLys 010 or Kruti Dev 010 font name.
-- Unmarked text, existing Unicode Hindi, English/date/reference runs and content with unknown fonts are not changed.
-- If a file declares the legacy font only through an unresolved paragraph style, the viewer warns instead of guessing.
-- The conversion runs only in memory. The original DOCX package and the file on storage remain unchanged.
-- A conservative text-pattern fallback can identify some files whose font metadata is missing.
-- Unverified legacy families and variants are not guessed. The viewer shows a warning instead.
-
-### Hindi Font Center
-
-- 12 bundled Unicode Devanagari font families with their OFL license texts.
-- Import personal TTF/OTF fonts into private app storage and preview/select a default display font.
-- Bundled and imported fonts work offline after installation.
-
-**Coverage note:** font coverage differs by family. Noto Sans Devanagari and Noto Serif Devanagari remain the general-purpose choices.
-
-### Legacy conversion limits
-
-The automatic mapping in this release is for Kruti Dev 010 only. It is not a universal converter for all Kruti Dev versions, DevLys, Chanakya, Shusha, Shree Lipi or other DTP encodings. Unknown mappings are shown unchanged with a warning. A font name alone does not prove the character encoding.
-
-### Document compatibility boundary
-
-This is an early read-only DOCX renderer, not full Microsoft Word or LibreOffice fidelity. It reads main-body paragraphs, simple tables and common embedded raster images. Image placement is approximated as inline content. Complex elements such as charts, SmartArt, text boxes, equations, comments, tracked changes, advanced numbering, headers, footers and section layouts are not fully rendered. Vector WMF/EMF and some SVG fallback images are not supported yet. For complete layout fidelity, a full document engine integration remains a future milestone.
-
-Sheets and Slides are not connected. PDF viewing is planned separately.
+The native engine has not yet been integrated. See [Engine migration decision](docs/ENGINE_MIGRATION.md) before treating any v0.5.x build as a production document viewer.
 
 ## Development environment
 
@@ -51,7 +26,7 @@ Sheets and Slides are not connected. PDF viewing is planned separately.
 | Target SDK | 35 |
 | Minimum SDK | 24 |
 
-The Android app remains Java-first for Code On The Go. The embedded Writer editor is a local HTML asset. Document and font processing is on-device.
+The Android app shell can remain Java-first for Code On The Go. The selected office engine includes native C++ components and must be built on a Linux cloud runner with the Android NDK; the old Java-only build does not build that engine.
 
 ## Build in Code On The Go
 
@@ -78,4 +53,4 @@ Once installed, the app's bundled font library works offline. The GitHub Actions
 - jsoup is used for safe HTML fragment parsing under the MIT License.
 - Core library desugaring is provided by Android's desugaring library.
 
-See docs/HINDI_FONTS.md, docs/HINDI_FONT_STRATEGY.md and docs/DEVANAGARI_TEST_CORPUS.md.
+See docs/ENGINE_MIGRATION.md, docs/HINDI_FONTS.md, docs/HINDI_FONT_STRATEGY.md and docs/DEVANAGARI_TEST_CORPUS.md.
