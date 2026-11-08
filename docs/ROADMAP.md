@@ -18,6 +18,8 @@ Items are complete only after implementation and real-file testing. UI labels al
 - [x] Add reader text-size controls and selectable/copyable text.
 - [x] Detect known Kruti Dev 010 font declarations and selected strong text signatures.
 - [x] Automatically convert confirmed Kruti Dev 010 text in the in-memory display layer only.
+- [x] Convert complete paragraphs to avoid matra loss across split Word text runs.
+- [x] Preserve uppercase English abbreviations, common English words and numeric/date/reference tokens.
 - [x] Keep the original DOCX/TXT file read-only and unchanged.
 - [ ] Add a full DOCX rendering engine for images, headers, footers, page layout, lists, charts and complex sections.
 - [ ] Test real Hindi government/legal documents on multiple Android devices.

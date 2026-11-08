@@ -2,7 +2,7 @@
 
 **An Android-first, offline-first office suite with Hindi-first document and font support.**
 
-## Current status — v0.5.0
+## Current status — v0.5.1
 
 ### Document Viewer (read-only)
 
@@ -16,6 +16,8 @@
 
 - DOCX font declarations are inspected in document, styles, header/footer and font-table parts.
 - Known Kruti Dev 010 documents are automatically converted to Unicode Hindi in the viewer's temporary display content.
+- Conversion is paragraph-based so matra sequences split across Word runs are recombined before conversion.
+- Uppercase English abbreviations (for example ACEO), common English words and tokens containing dates/numbers are protected from conversion.
 - The conversion runs only in memory. The original DOCX package and the file on storage remain unchanged.
 - A conservative text-pattern fallback can identify some files whose font metadata is missing.
 - Unverified legacy families and variants are not guessed. The viewer shows a warning instead.

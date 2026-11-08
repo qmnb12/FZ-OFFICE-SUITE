@@ -679,4 +679,35 @@ function krutiDevToUnicode(input) {
 }
 
 
-window.FZLegacyHindi = { krutiDevToUnicode: krutiDevToUnicode };
+// Protect mixed English text and numeric/reference tokens before legacy conversion.
+// All-uppercase abbreviations (ACEO, CEO, IAS, FIR), dates and case references
+// are not Kruti Dev words and must remain exactly as entered.
+function krutiDevToUnicodePreservingEnglish(input) {
+  if (!input) return "";
+  const commonEnglish = new Set([
+    "a","an","and","or","the","to","of","in","on","at","by","for","from",
+    "with","as","is","are","was","were","be","been","being","this","that",
+    "these","those","it","its","not","no","yes","dear","sir","madam","mr",
+    "mrs","ms","subject","reference","copy","date","office","department",
+    "government","order","report","please","kindly","attached","enclosed",
+    "annexure","annex","email","mobile","phone","address","regarding",
+    "and","versus","under","per","etc","ref"
+  ]);
+  return String(input).split(/(\s+)/).map(function (part) {
+    if (!part || /^\s+$/.test(part)) return part;
+    const core = part.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, "");
+    if (!core) return part;
+    if (/\d/.test(core)) return part;                 // dates / file numbers / refs
+    if (/^[A-Z]{2,12}$/.test(core)) return part;     // English abbreviations
+    if (/^[A-Z]{2,8}\.$/.test(part)) return part;
+    if (commonEnglish.has(core.toLowerCase())) return part;
+    // Preserve obvious Latin technical/email/web tokens.
+    if (/[.@:/\\]/.test(core) && /^[A-Za-z0-9_.@:/\\-]+$/.test(core)) return part;
+    return krutiDevToUnicode(part);
+  }).join("");
+}
+
+window.FZLegacyHindi = {
+  krutiDevToUnicode: krutiDevToUnicode,
+  krutiDevToUnicodePreservingEnglish: krutiDevToUnicodePreservingEnglish
+};

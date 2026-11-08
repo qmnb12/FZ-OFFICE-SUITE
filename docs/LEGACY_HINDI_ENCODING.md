@@ -23,3 +23,8 @@ Legacy converters cannot reliably distinguish English words typed using the same
 ## What to send when a file still looks wrong
 
 The most useful diagnostic input is the original DOCX file, not a photograph of its screen. The DOCX package contains the font declarations and stored text needed to identify the actual encoding profile. If available, also supply the exact matching TTF/OTF font name or a legally obtained font file.
+
+
+## Mixed Hindi/English and matra handling
+
+The viewer now converts a complete paragraph rather than each low-level Word text run separately. This is important because Word often splits a matra and its base consonant into adjacent runs. The converter preserves uppercase abbreviations such as ACEO, common English words and numeric/date/reference tokens. This reduces accidental changes but cannot perfectly distinguish every English word from legacy keyboard text when both use the same encoding and similar letter patterns. Review any document used for official or legal purposes.
