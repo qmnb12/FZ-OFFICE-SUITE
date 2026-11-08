@@ -10,13 +10,10 @@ if ! git -C "$COLLABORA" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   exit 2
 fi
 
-# The patch directory also contains older alternatives. Applying every *.patch
-# stacked incompatible Gradle and LibreOfficeUIActivity changes. Only this
-# ordered, tested subset matches the pinned Collabora source revision.
+# Keep these small patches pinned to the Collabora submodule revision.
 PATCHES=(
   "$PATCH_DIR/0001-android-fontconfig-hindi-font-directory.patch"
   "$PATCH_DIR/0002-bundle-fz-hindi-fonts.patch"
-  "$PATCH_DIR/0003-native-hindi-font-center-zip-import.patch"
 )
 
 for PATCH in "${PATCHES[@]}"; do
@@ -35,3 +32,5 @@ for PATCH in "${PATCHES[@]}"; do
   git -C "$COLLABORA" apply "$PATCH"
   echo "Applied: $(basename "$PATCH")"
 done
+
+python3 "$ROOT/scripts/patch-collabora-hindi.py" "$COLLABORA"

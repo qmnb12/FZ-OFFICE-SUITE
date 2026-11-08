@@ -45,7 +45,7 @@ The target is **PC-like document rendering and broad office compatibility**, not
 5. **Legacy Encoding Service** — separate conversion profiles for each exact legacy family/version. No content-only guessing and no silent replacement.
 6. **QA corpus** — real Hindi DOCX/XLSX/PPTX files with expected rendering and save/reopen checks.
 
-The mobile UX will remain reader-first by default. A document opens in a comfortable reading experience; editing can be an explicit action/settings choice rather than a dense toolbar on every open. The underlying engine remains capable of full office editing.
+The native FZ Office patch opens internal document URIs with ACTION_VIEW, grants read permission only and sets an explicit read-only flag that LibreOfficeKit's Android activity honours. The underlying engine retains its editing capability for a future explicit user-selected mode. The mobile UX will remain reader-first by default. A document opens in a comfortable reading experience; editing can be an explicit action/settings choice rather than a dense toolbar on every open. The underlying engine remains capable of full office editing.
 
 ## Native build constraints
 
@@ -81,4 +81,4 @@ The first native validation target is arm64-v8a to limit build scope. Additional
 8. Save/reopen and export regression tests pass before editing mode is promoted.
 9. No APK is labelled Collabora-backed until these CI gates pass.
 
-The current v0.6.0 APK remains a limited transitional viewer. The native patches are committed but the Collabora engine build has not yet passed CI.
+The current lightweight Java/WebView APK remains a limited transitional viewer. The native Collabora workflow has a pinned source revision, two small upstream patches and an idempotent integration script; the full native compile and APK acceptance gates are still pending.

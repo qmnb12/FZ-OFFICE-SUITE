@@ -8,6 +8,7 @@ on:
       - "patches/collabora/**"
       - "scripts/build-collabora-android.sh"
       - "scripts/apply-collabora-patches.sh"
+      - "scripts/patch-collabora-hindi.py"
       - ".github/workflows/collabora-native-build.yml"
       - "app/build.gradle.kts"
 
@@ -26,8 +27,8 @@ jobs:
       NDK_VERSION: 29.0.14206865
       ANDROID_ABI: arm64-v8a
       JOBS: 2
-      VERSION_NAME: 0.6.1.0
-      VERSION_CODE: 10
+      VERSION_NAME: 0.6.2.0
+      VERSION_CODE: 11
       GRADLE_BIN: gradle
 
     steps:
@@ -73,8 +74,8 @@ jobs:
           yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses
           "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
             "platform-tools" \
-            "platforms;android-36" \
-            "build-tools;36.0.0" \
+            "platforms;android-37" \
+            "build-tools;37.0.0" \
             "ndk;${NDK_VERSION}" \
             "cmake;3.22.1"
           df -h /
@@ -93,6 +94,16 @@ jobs:
                "$(git ls-tree HEAD third_party/collabora | awk '{print $3}')"
           bash -n scripts/apply-collabora-patches.sh
           bash -n scripts/build-collabora-android.sh
+          python3 -m py_compile scripts/patch-collabora-hindi.py
+
+      - name: Build checksum-verified Hindi font pack
+        run: gradle --no-daemon :app:downloadHindiFonts
+
+      - name: Apply FZ Office Hindi and read-only integration
+        run: |
+          export FZ_OFFICE_HINDI_FONT_DIR="$GITHUB_WORKSPACE/app/build/generated/assets/hindiFonts/writer/fonts"
+          bash scripts/apply-collabora-patches.sh
+          git -C third_party/collabora diff --check
 
       - name: Build FZ Office with native LibreOffice engine
         run: bash scripts/build-collabora-android.sh

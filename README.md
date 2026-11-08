@@ -15,7 +15,7 @@ FZ Office is moving to the native Android application and LibreOffice engine fro
 - Hindi font/custom-font integration: docs/HINDI_FONT_INTEGRATION.md
 - Pinned upstream source: third_party/collabora
 
-**Important:** the source and three Hindi-font patches are pinned/prepared, but the native engine has not yet been built into a FZ Office APK. The current v0.5.x APK remains transitional and must not be treated as the Collabora-backed build.
+**Important:** the native source is pinned. Two small upstream-compatible patches plus an idempotent Python integration script add the Fontconfig user-font directory, the open-license Devanagari bundle, the ZIP font importer and read-only document opening. The native engine has not yet produced a verified FZ Office APK; the current lightweight APK remains transitional.
 
 ## Target features
 

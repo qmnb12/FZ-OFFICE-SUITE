@@ -30,10 +30,10 @@ After installing the SDK, NDK 29.0.14206865, CMake 3.22.1, JDK 21, Gradle 9.6.1 
     NDK_VERSION=29.0.14206865 \
     ANDROID_ABI=arm64-v8a \
     JOBS=2 \
-    VERSION_NAME=0.6.0.0 \
-    VERSION_CODE=9 \
+    VERSION_NAME=0.6.2.0 \
+    VERSION_CODE=11 \
     GRADLE_BIN=gradle \
-    bash bash scripts/build-collabora-android.sh
+    bash scripts/build-collabora-android.sh
 
 The script:
 - verifies the checked-out submodule matches the gitlink pin;

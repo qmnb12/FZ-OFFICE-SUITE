@@ -24,13 +24,14 @@ to the Fontconfig search directories. The build substitutes the real application
 The Fontconfig path patch is stored at patches/collabora/0001-android-fontconfig-hindi-font-directory.patch. The native build also applies patches 0002 and 0003 to bundle the generated OFL font pack and add the native Font Center screen.
 
 The native Hindi Font Center:
-- Import .ttf and .otf via Android Storage Access Framework into the same user/fonts directory already scanned by Fontconfig.
-- Validate font signature and loadability before copying.
-- Store files in the app-private user/fonts directory.
-- Show family, style, file name, coverage notes and licence/source metadata where known.
-- Detect duplicate family/style files and avoid silent overwrite.
-- Let users remove fonts they imported.
-- Clear the Fontconfig cache and require documents to be closed/reopened so the engine rescans after changes.
+- Import ZIP font packs through Android Storage Access Framework; archives may contain nested folders.
+- Extract only TTF/OTF files. ZIP path names are discarded, preventing path traversal.
+- Enforce 180 MB total expanded size, 12 MB per font, 20,000 archive entries and 1,200 font entries.
+- Validate TrueType/OpenType signatures and Android Typeface readability before copying.
+- Detect exact duplicate files by SHA-256 and avoid overwriting existing names.
+- Store imported files only in the app-private user/fonts directory read by Fontconfig.
+- Clear the app-private Fontconfig cache after import; close and reopen documents so the engine rescans.
+- Keep the imported ZIP and font binaries on the device; they are not committed to the public repository.
 
 TTC/OTC collections are a later item; initial import accepts individual TTF/OTF files only.
 
@@ -101,3 +102,8 @@ DOCX stores family names in styles and runs. The font manager must expose matchi
 The native Collabora client gets a Hindi Font Center entry in its document-browser menu. It lists font files from user/fonts, previews a Devanagari sample using Android Typeface, imports validated TTF/OTF files, and removes user-imported files. On import/removal, the app-private Fontconfig cache is cleared; the user should close and reopen documents so the native engine rescans the directory.
 
 The files are installed under the app data directory, outside Android's shared public storage. Imported files are never uploaded. The same user/fonts path is used by the transitional Font Center and the native Collabora engine.
+
+
+## Default read-only opening
+
+The native FZ Office browser launches documents using ACTION_VIEW with read permission only and sets the private com.fz.office.READ_ONLY intent extra. The patched LibreOffice Android activity uses that extra to keep isDocEditable false and avoids attempting to resolve a writable source file. This protects the original document during normal reading. The engine's editing capability is not removed from the upstream project; a future explicit edit action can be added after reader-mode acceptance tests.
