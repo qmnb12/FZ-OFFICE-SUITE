@@ -38,6 +38,8 @@ public class FontCenterActivity extends Activity {
     private LinearLayout fontList;
     private TextView previewInput;
     private TextView selectedStatus;
+    // Reuse the scanned library while the user filters/searches; refresh only after changes.
+    private List<FontManager.FontRecord> fontSnapshot;
 
     private static final int INK = Color.rgb(26, 50, 42);
     private static final int MUTED = Color.rgb(101, 119, 109);
@@ -194,7 +196,11 @@ public class FontCenterActivity extends Activity {
         String current = FontManager.getDefaultFont(this);
         selectedStatus.setText("Default font: " + current + " · App-private native font folder");
 
-        List<FontManager.FontRecord> allFonts = FontManager.getAvailableFonts(this);
+        List<FontManager.FontRecord> allFonts = fontSnapshot;
+        if (allFonts == null) {
+            allFonts = FontManager.getAvailableFonts(this);
+            fontSnapshot = allFonts;
+        }
         String query = searchInput == null ? "" : searchInput.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
         List<FontManager.FontRecord> filtered = new java.util.ArrayList<>();
         for (FontManager.FontRecord record : allFonts) {
@@ -333,6 +339,7 @@ public class FontCenterActivity extends Activity {
                     FontManager.ImportResult result = FontManager.importFontArchive(this, uri);
                     runOnUiThread(() -> {
                         visibleFontLimit = INITIAL_FONT_LIMIT;
+                        fontSnapshot = null;
                         renderFonts();
                         selectedStatus.setText("Imported " + result.imported + " fonts · "
                                 + result.duplicates + " duplicates · " + result.invalid + " invalid");
@@ -350,6 +357,7 @@ public class FontCenterActivity extends Activity {
                 } else {
                     File imported = FontManager.importFont(this, uri, name);
                     runOnUiThread(() -> {
+                        fontSnapshot = null;
                         renderFonts();
                         Toast.makeText(this, "Font imported: " + imported.getName(),
                                 Toast.LENGTH_LONG).show();
@@ -388,6 +396,7 @@ public class FontCenterActivity extends Activity {
                 .setPositiveButton("Remove", (dialog, which) -> {
                     boolean wasDefault = FontManager.getDefaultFont(this).equals(record.cssFamily);
                     FontManager.removeCustomFont(record);
+                    fontSnapshot = null;
                     if (wasDefault) {
                         FontManager.setDefaultFont(this, FontManager.getBundledFonts().get(0));
                     }

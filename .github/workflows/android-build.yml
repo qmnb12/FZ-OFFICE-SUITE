@@ -40,6 +40,9 @@ jobs:
 
       - name: Verify normal viewer never auto-converts
         run: node tests/viewer-font-policy.test.js
+ 
+      - name: Verify font-import safety and native integration
+        run: node tests/font-import-safety.test.js
 
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug

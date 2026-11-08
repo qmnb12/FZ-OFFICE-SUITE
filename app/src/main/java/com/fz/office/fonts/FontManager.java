@@ -242,7 +242,7 @@ public final class FontManager {
             while ((count = input.read(buffer)) != -1) {
                 total += count;
                 if (total > MAX_CUSTOM_FONT_BYTES) {
-                    throw new IOException("Font file is too large. Maximum allowed size is 5 MB.");
+                    throw new IOException("Font file is too large. Maximum allowed size is 12 MB.");
                 }
                 if (prefix.size() < 16) {
                     int keep = Math.min(count, 16 - prefix.size());
@@ -340,11 +340,7 @@ public final class FontManager {
                 if (slash >= 0) baseName = baseName.substring(slash + 1);
                 if (!isSupportedExtension(baseName)) {
                     result.ignored++;
-                    int remaining = (int) Math.max(0L, MAX_ARCHIVE_EXPANDED_BYTES - expanded);
-                    expanded += readZipEntryLimited(zip, remaining).length;
-                    if (expanded > MAX_ARCHIVE_EXPANDED_BYTES) {
-                        throw new IOException("Expanded ZIP data exceeds the 180 MB safety limit.");
-                    }
+                    expanded += skipZipEntryLimited(zip, MAX_ARCHIVE_EXPANDED_BYTES - expanded);
                     zip.closeEntry();
                     continue;
                 }
@@ -433,6 +429,23 @@ public final class FontManager {
             output.flush();
         }
         return config;
+    }
+
+    /**
+     * Drains an ignored ZIP entry without buffering it in memory, while still
+     * enforcing the total expanded-archive limit.
+     */
+    private static long skipZipEntryLimited(InputStream input, long limit) throws IOException {
+        byte[] buffer = new byte[8192];
+        long total = 0;
+        int count;
+        while ((count = input.read(buffer)) != -1) {
+            total += count;
+            if (total > limit) {
+                throw new IOException("Expanded ZIP data exceeds the 180 MB safety limit.");
+            }
+        }
+        return total;
     }
 
     private static byte[] readZipEntryLimited(InputStream input, int limit) throws IOException {
