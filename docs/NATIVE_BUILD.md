@@ -2,10 +2,10 @@
 
 ## The two Android builds are different
 
-- android-build.yml builds the small transitional Java/WebView prototype. It does not contain LibreOfficeKit.
-- collabora-native-build.yml is the native build. It checks out the pinned Collabora submodule, installs the Android NDK and builds the LibreOffice C/C++ engine before packaging the Android app.
+- android-build.yml runs tests and builds a **shell-preview** APK. It does not contain LibreOfficeKit and is not the final Office app.
+- collabora-native-build.yml is the integrated native build. It checks out the pinned Collabora submodule, copies FZ's Java source/assets into the Collabora Android app, sets FZ MainActivity as the sole launcher, routes Office documents to the internal read-only LOActivity, builds the LibreOffice C/C++ engine and packages one FZ Office APK.
 
-Do not identify a v0.5.x prototype APK as a native-engine build.
+Do not identify the shell-preview APK as a native-engine build.
 
 ## Run from GitHub Actions
 
@@ -30,8 +30,8 @@ After installing the SDK, NDK 29.0.14206865, CMake 3.22.1, JDK 21, Gradle 9.6.1 
     NDK_VERSION=29.0.14206865 \
     ANDROID_ABI=arm64-v8a \
     JOBS=2 \
-    VERSION_NAME=0.6.2.0 \
-    VERSION_CODE=11 \
+    VERSION_NAME=0.6.6.0 \
+    VERSION_CODE=15 \
     GRADLE_BIN=gradle \
     bash scripts/build-collabora-android.sh
 
@@ -41,6 +41,8 @@ The script:
 
 - generates the Devanagari assets from pinned Google Fonts binaries and verifies hashes;
 - applies the FZ Fontconfig, bundled-font and native Font Center patches;
+- merges the FZ shell, local library, font center and fallback reader classes/assets into the native app;
+- validates that FZ MainActivity is the only launcher and LOActivity is internal;
 - builds the Android LibreOffice engine;
 - configures package name com.fz.office;
 - packages the Collabora Android app and exports the APK.

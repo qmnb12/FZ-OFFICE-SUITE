@@ -1,6 +1,6 @@
 # Office engine decision: Collabora / LibreOffice native engine
 
-**Decision status:** selected; upstream source pinned; native FZ APK not yet built.
+**Decision status:** selected; upstream source pinned; FZ shell-to-Collabora integration is wired; native APK build and device acceptance remain pending.
 
 ## Why the current renderer is being retired
 
@@ -38,14 +38,14 @@ The target is **PC-like document rendering and broad office compatibility**, not
 
 ## Target application architecture
 
-1. **FZ Office shell** — home, recents, local file management, favorites, search, themes, Hindi Font Center and settings.
-2. **Collabora Android client** — document browser and native Android document-opening integration.
-3. **LibreOffice native core / LibreOfficeKit** — document import, layout, render, document features and export.
+1. **FZ Office shell** — the only launcher; home, recents, local file management, favorites, search, Hindi Font Center and settings.
+2. **Collabora Android client** — bundled in the same APK; its file browser is not a second launcher. FZ opens its internal LOActivity for Office documents.
+3. **LibreOffice native core / LibreOfficeKit** — document import, real page layout/pagination, render, document features and export.
 4. **Hindi Font Service** — packaged open-license fonts, app-private user/fonts directory, family aliases, missing-font reports and font-cache refresh.
 5. **Legacy Encoding Service** — separate conversion profiles for each exact legacy family/version. No content-only guessing and no silent replacement.
 6. **QA corpus** — real Hindi DOCX/XLSX/PPTX files with expected rendering and save/reopen checks.
 
-The native FZ Office patch opens internal document URIs with ACTION_VIEW, grants read permission only and sets an explicit read-only flag that LibreOfficeKit's Android activity honours. The underlying engine retains its editing capability for a future explicit user-selected mode. The mobile UX will remain reader-first by default. A document opens in a comfortable reading experience; editing can be an explicit action/settings choice rather than a dense toolbar on every open. The underlying engine remains capable of full office editing.
+The native FZ Office integration keeps the upstream Collabora browser/editor activities private, makes com.fz.office.MainActivity the app launcher, and opens internal document URIs in LOActivity with ACTION_VIEW, read permission only and an explicit read-only flag that the Android activity honours. DOCX/ODF/RTF, XLS/XLSX/ODS/CSV and PPT/PPTX/ODP formats use the native office renderer; PDF and TXT retain the FZ readers. The underlying engine retains its editing capability for a future explicit user-selected mode. The mobile UX will remain reader-first by default. A document opens in a comfortable reading experience; editing can be an explicit action/settings choice rather than a dense toolbar on every open. The underlying engine remains capable of full office editing.
 
 ## Native build constraints
 
@@ -81,4 +81,4 @@ The first native validation target is arm64-v8a to limit build scope. Additional
 8. Save/reopen and export regression tests pass before editing mode is promoted.
 9. No APK is labelled Collabora-backed until these CI gates pass.
 
-The current lightweight Java/WebView APK remains a limited transitional viewer. The native Collabora workflow has a pinned source revision, two small upstream patches and an idempotent integration script; the full native compile and APK acceptance gates are still pending.
+The shell-preview APK remains a limited transitional build. The native Collabora workflow has a pinned source revision, the Hindi/read-only upstream patches, and an idempotent FZ-shell integration script. The native compile and APK acceptance gates are still pending; do not claim desktop-equivalent rendering until real DOCX samples have been compared on-device.

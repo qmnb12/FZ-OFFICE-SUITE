@@ -8,8 +8,8 @@ ANDROID_HOME="$(printenv ANDROID_HOME || printenv ANDROID_SDK_ROOT || true)"
 NDK_VERSION="$(printenv NDK_VERSION || echo 29.0.14206865)"
 ANDROID_ABI="$(printenv ANDROID_ABI || echo arm64-v8a)"
 JOBS="$(printenv JOBS || echo 2)"
-VERSION_CODE="$(printenv VERSION_CODE || echo 11)"
-VERSION_NAME="$(printenv VERSION_NAME || echo 0.6.2.0)"
+VERSION_CODE="$(printenv VERSION_CODE || echo 15)"
+VERSION_NAME="$(printenv VERSION_NAME || echo 0.6.6.0)"
 GRADLE_BIN="$(printenv GRADLE_BIN || echo gradle)"
 
 if [[ -z "$ANDROID_HOME" || ! -d "$ANDROID_HOME/ndk/$NDK_VERSION" ]]; then
@@ -31,7 +31,7 @@ if [[ -n "$PINNED_COMMIT" && "$CHECKED_OUT_COMMIT" != "$PINNED_COMMIT" ]]; then
 fi
 
 # Generate the pinned/open-licence Devanagari assets before Collabora's Copy task.
-"$GRADLE_BIN" --no-daemon :app:downloadHindiFonts
+"$GRADLE_BIN" --no-daemon :app:downloadHindiFonts :app:downloadGanderViewerAssets
 FONT_SOURCE="$ROOT/app/build/generated/assets/hindiFonts/writer/fonts"
 if [[ ! -d "$FONT_SOURCE" ]]; then
   echo "Hindi font assets were not generated: $FONT_SOURCE" >&2

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -363,7 +365,268 @@ def patch_lo_activity(root: Path) -> None:
                 isDocEditable = !getIntent().getBooleanExtra("com.fz.office.READ_ONLY", false);""",
         "file URI read-only mode",
     )
+    text = replace_once(
+        text,
+        """    private boolean canAllFilesAccessHelp() {
+        if (mAllFilesAccessAsked || Build.VERSION.SDK_INT < Build.VERSION_CODES.R)""",
+        """    private boolean canAllFilesAccessHelp() {
+        // FZ opens native documents in reader-only mode: never ask users for broad storage access.
+        if (getIntent().getBooleanExtra("com.fz.office.READ_ONLY", false))
+            return false;
+        if (mAllFilesAccessAsked || Build.VERSION.SDK_INT < Build.VERSION_CODES.R)""",
+        "disable All files access prompt in reader-only mode",
+    )
     write(path, text)
+
+
+
+
+def patch_fz_shell(root: Path) -> None:
+    """Merge the FZ launcher, library, font center and fallback readers into Collabora's APK."""
+    repo_root = Path(__file__).resolve().parents[1]
+    source_main = repo_root / "app" / "src" / "main"
+    android_app = root / "android" / "app"
+    source_java = source_main / "java" / "com" / "fz" / "office"
+    target_java = android_app / "src" / "main" / "java" / "com" / "fz" / "office"
+    target_assets = android_app / "src" / "main" / "assets"
+
+    if not source_java.is_dir():
+        raise SystemExit(f"FZ Android sources are missing: {source_java}")
+    shutil.copytree(source_java, target_java, dirs_exist_ok=True)
+
+    # Give the merged native package FZ branding without replacing Collabora's themes/strings.
+    source_res = source_main / "res"
+    target_res = android_app / "src" / "main" / "res"
+    brand_resources = (
+        ("drawable/ic_launcher_foreground.xml", "drawable/fz_launcher_foreground.xml"),
+        ("mipmap-anydpi-v26/ic_launcher.xml", "mipmap-anydpi-v26/fz_launcher.xml"),
+        ("mipmap-anydpi-v26/ic_launcher_round.xml", "mipmap-anydpi-v26/fz_launcher_round.xml"),
+        ("mipmap-anydpi/ic_launcher.xml", "mipmap-anydpi/fz_launcher.xml"),
+        ("mipmap-anydpi/ic_launcher_round.xml", "mipmap-anydpi/fz_launcher_round.xml"),
+        ("values/colors.xml", "values/fz_brand_colors.xml"),
+    )
+    for source_relative, destination_relative in brand_resources:
+        source = source_res / source_relative
+        destination = target_res / destination_relative
+        if not source.is_file():
+            raise SystemExit(f"FZ launcher resource is missing: {source}")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+        if destination.name in ("fz_launcher.xml", "fz_launcher_round.xml") and "anydpi-v26" in destination_relative:
+            xml = destination.read_text(encoding="utf-8")
+            xml = xml.replace("@drawable/ic_launcher_foreground", "@drawable/fz_launcher_foreground")
+            destination.write_text(xml, encoding="utf-8")
+
+    for relative in ("writer", "font-packs", "licenses"):
+        source = source_main / "assets" / relative
+        if source.is_dir():
+            shutil.copytree(source, target_assets / relative, dirs_exist_ok=True)
+
+    generated_fonts = repo_root / "app" / "build" / "generated" / "assets" / "hindiFonts" / "writer" / "fonts"
+    if not generated_fonts.is_dir():
+        raise SystemExit("Generated FZ Hindi font assets are missing; run :app:downloadHindiFonts first.")
+    shutil.copytree(generated_fonts, target_assets / "writer" / "fonts", dirs_exist_ok=True)
+
+    generated_viewer = repo_root / "app" / "build" / "generated" / "assets" / "ganderViewer"
+    if not generated_viewer.is_dir():
+        raise SystemExit("Generated Gander viewer assets are missing; run :app:downloadGanderViewerAssets first.")
+    shutil.copytree(generated_viewer, target_assets, dirs_exist_ok=True)
+
+    # The lightweight FZ module has its own R namespace. These are framework resources.
+    for activity_source in (
+        target_java / "viewer" / "OfficeViewerActivity.java",
+        target_java / "pdf" / "PdfViewerActivity.java",
+    ):
+        source_text = activity_source.read_text(encoding="utf-8")
+        source_text = re.sub(
+            r"(?<![\w.])R\.attr\.progressBarStyleHorizontal",
+            "android.R.attr.progressBarStyleHorizontal",
+            source_text,
+        )
+        activity_source.write_text(source_text, encoding="utf-8")
+
+    gradle_file = android_app / "build.gradle"
+    gradle_text = gradle_file.read_text(encoding="utf-8")
+    gradle_changed = False
+
+    jsoup_dependency = "    implementation 'org.jsoup:jsoup:1.24.1'"
+    if jsoup_dependency not in gradle_text:
+        anchor = "    implementation 'com.google.android.material:material:1.13.0'"
+        if gradle_text.count(anchor) != 1:
+            raise SystemExit("Collabora app Gradle file: dependency insertion anchor missing.")
+        gradle_text = gradle_text.replace(anchor, anchor + "\n" + jsoup_dependency, 1)
+        gradle_changed = True
+
+    # The generated Fontconfig file points at <dataDir>/user/fonts using the base
+    # application ID from configure. Drop the upstream debug suffix so it resolves
+    # to the same private directory in the APK we build and distribute.
+    debug_suffix = "applicationIdSuffix '.debug'"
+    debug_suffix_lines = [
+        line for line in gradle_text.splitlines(keepends=True)
+        if line.strip() == debug_suffix
+    ]
+    if len(debug_suffix_lines) > 1:
+        raise SystemExit("Collabora Gradle file has an ambiguous debug applicationIdSuffix.")
+    if debug_suffix_lines:
+        gradle_text = "".join(
+            line for line in gradle_text.splitlines(keepends=True)
+            if line.strip() != debug_suffix
+        )
+        gradle_changed = True
+
+    if gradle_changed:
+        gradle_file.write_text(gradle_text, encoding="utf-8")
+
+    manifest = android_app / "src" / "main" / "AndroidManifest.xml"
+    manifest_text = manifest.read_text(encoding="utf-8")
+    # FZ opens SAF/document URIs read-only, so these broad storage permissions are not needed.
+    for permission in (
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.MANAGE_EXTERNAL_STORAGE",
+    ):
+        permission_pattern = (
+            r'(?m)^[ \t]*<uses-permission android:name="' + re.escape(permission)
+            + r'"[ \t]*/>[ \t]*\r?\n'
+        )
+        if permission in manifest_text:
+            manifest_text, removed = re.subn(permission_pattern, "", manifest_text)
+            if removed < 1 or permission in manifest_text:
+                raise SystemExit(f"Could not remove all upstream storage permission entries: {permission}")
+    application_tag = re.search(r"<application\b[^>]*>", manifest_text)
+    if application_tag is None:
+        raise SystemExit("Collabora application tag was not found.")
+    app_tag = application_tag.group(0)
+    app_tag = re.sub(r'android:allowBackup="[^"]+"', 'android:allowBackup="false"', app_tag)
+    app_tag = re.sub(r'android:icon="[^"]+"', 'android:icon="@mipmap/fz_launcher"', app_tag)
+    app_tag = re.sub(r'android:label="[^"]+"', 'android:label="FZ Work Suite"', app_tag)
+    if 'android:roundIcon=' in app_tag:
+        app_tag = re.sub(r'android:roundIcon="[^"]+"',
+                         'android:roundIcon="@mipmap/fz_launcher_round"', app_tag)
+    else:
+        app_tag = app_tag[:-1] + ' android:roundIcon="@mipmap/fz_launcher_round">'
+    manifest_text = manifest_text[:application_tag.start()] + app_tag + manifest_text[application_tag.end():]
+
+    # Do not expose the raw Collabora file browser or editor as an alternate app entry.
+    # FZ MainActivity is the single user-facing entry point; it explicitly launches LOActivity.
+    def make_internal(text: str, activity_name: str) -> str:
+        activity_pattern = re.compile(
+            r'(?P<start><activity\b(?=[^>]*android:name="' + re.escape(activity_name)
+            + r'")[^>]*>)(?P<body>.*?)(?P<end></activity>)',
+            re.DOTALL,
+        )
+        matches = list(activity_pattern.finditer(text))
+        if len(matches) != 1:
+            raise SystemExit(
+                f"Expected exactly one Collabora activity {activity_name}, found {len(matches)}."
+            )
+        match = matches[0]
+        start_tag = match.group("start")
+        if re.search(r'\bandroid:exported="[^"]+"', start_tag):
+            start_tag = re.sub(r'\bandroid:exported="[^"]+"',
+                               'android:exported="false"', start_tag, count=1)
+        else:
+            start_tag = start_tag[:-1] + ' android:exported="false">'
+        body = re.sub(
+            r'\s*<intent-filter\b[^>]*>.*?</intent-filter>\s*',
+            "\n",
+            match.group("body"),
+            flags=re.DOTALL,
+        )
+        # The regex can leave an indentation-only blank line in the activity block.
+        # Remove only whitespace-only lines in this block so git diff --check stays clean.
+        body = re.sub(r"(?m)^[ \t]+$", "", body)
+        replacement = start_tag + body + match.group("end")
+        return text[:match.start()] + replacement + text[match.end():]
+
+    manifest_text = make_internal(manifest_text, ".ui.LibreOfficeUIActivity")
+    manifest_text = make_internal(manifest_text, "org.libreoffice.androidlib.LOActivity")
+
+    if 'android:name="com.fz.office.MainActivity"' not in manifest_text:
+        fz_activities = r'''
+        <activity android:name="com.fz.office.fonts.FontCenterActivity" android:exported="false" />
+        <activity android:name="com.fz.office.writer.WriterActivity" android:exported="false" />
+        <activity android:name="com.fz.office.viewer.OfficeViewerActivity" android:exported="false" />
+        <activity android:name="com.fz.office.pdf.PdfViewerActivity" android:exported="false" />
+        <activity
+            android:name="com.fz.office.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="application/msword" />
+                <data android:mimeType="application/vnd.ms-word.document.macroenabled.12" />
+                <data android:mimeType="application/vnd.ms-word.template.macroenabled.12" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.template" />
+                <data android:mimeType="application/vnd.oasis.opendocument.text" />
+                <data android:mimeType="application/vnd.oasis.opendocument.text-template" />
+                <data android:mimeType="application/vnd.oasis.opendocument.text-flat-xml" />
+                <data android:mimeType="application/rtf" />
+                <data android:mimeType="text/rtf" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                <data android:mimeType="application/vnd.ms-excel" />
+                <data android:mimeType="application/vnd.ms-excel.sheet.macroenabled.12" />
+                <data android:mimeType="application/vnd.ms-excel.sheet.binary.macroenabled.12" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.template" />
+                <data android:mimeType="application/vnd.oasis.opendocument.spreadsheet" />
+                <data android:mimeType="application/vnd.oasis.opendocument.spreadsheet-template" />
+                <data android:mimeType="application/vnd.oasis.opendocument.spreadsheet-flat-xml" />
+                <data android:mimeType="text/csv" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.slideshow" />
+                <data android:mimeType="application/vnd.ms-powerpoint.presentation.macroenabled.12" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.template" />
+                <data android:mimeType="application/vnd.ms-powerpoint" />
+                <data android:mimeType="application/vnd.oasis.opendocument.presentation" />
+                <data android:mimeType="application/vnd.oasis.opendocument.presentation-template" />
+                <data android:mimeType="application/vnd.oasis.opendocument.presentation-flat-xml" />
+                <data android:mimeType="text/comma-separated-values" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+'''
+        fz_activities = fz_activities.strip("\n")
+        manifest_text, inserted = re.subn(
+            r"(?m)^[ \t]*</application>",
+            fz_activities + "\n    </application>",
+            manifest_text,
+            count=1,
+        )
+        if inserted != 1:
+            raise SystemExit("Could not insert FZ activities into the native manifest.")
+
+    # Remove only whitespace-only lines from this generated manifest so git diff --check
+    # cannot fail on indentation left behind by replacing the upstream launcher line.
+    manifest_text = re.sub(r"(?m)^[ \t]+$", "", manifest_text)
+    manifest.write_text(manifest_text, encoding="utf-8")
+
+    # Post-patch assertions catch a partial merge before C++ compilation starts.
+    if 'android:name="com.fz.office.MainActivity"' not in manifest_text:
+        raise SystemExit("FZ MainActivity was not registered in the native manifest.")
+    if 'android:icon="@mipmap/fz_launcher"' not in manifest_text or 'android:label="FZ Work Suite"' not in manifest_text:
+        raise SystemExit("FZ launcher label or icon was not applied.")
+    if 'android:allowBackup="false"' not in manifest_text:
+        raise SystemExit("FZ local app data must not be included in Android backup.")
+    if "android.permission.MANAGE_EXTERNAL_STORAGE" in manifest_text or "android.permission.WRITE_EXTERNAL_STORAGE" in manifest_text:
+        raise SystemExit("Reader-only FZ Office must not request broad shared-storage permissions.")
+    if manifest_text.count('android:name="android.intent.category.LAUNCHER"') != 1:
+        raise SystemExit("Expected FZ MainActivity to be the only launcher activity.")
+    if not re.search(
+        r'<activity\b(?=[^>]*android:name="org\.libreoffice\.androidlib\.LOActivity")'
+        r'(?=[^>]*android:exported="false")[^>]*>',
+        manifest_text,
+    ):
+        raise SystemExit("LOActivity must be private to the FZ app shell.")
+    if 'android:exported="false"' not in manifest_text:
+        raise SystemExit("Internal Collabora activities must not be exported.")
+
+    print("FZ Home, library, Hindi Font Center and native LibreOffice readers are integrated.")
 
 
 def main() -> None:
@@ -373,7 +636,8 @@ def main() -> None:
     patch_menu(root)
     patch_activity(root)
     patch_lo_activity(root)
-    print("FZ Office Hindi font import and read-only integration applied.")
+    patch_fz_shell(root)
+    print("FZ Office shell, native Collabora routing, Hindi font integration and read-only mode applied.")
 
 
 if __name__ == "__main__":

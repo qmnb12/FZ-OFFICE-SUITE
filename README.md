@@ -4,7 +4,7 @@
 
 ## Current status
 
-The v0.6.5 lightweight APK remains a transitional, read-only Java/WebView app. DOCX/TXT continue through the Hindi-aware in-app reader; PDF uses Android PdfRenderer with page navigation and bounded zoom; XLS/XLSX, CSV, ODS and PPTX-family files use pinned, bundled Gander-derived offline preview renderers. This adds spreadsheet and slide viewing, not editing or full Word compatibility. The native Collabora/LibreOffice engine remains the selected final architecture and is not yet a verified FZ Office APK.
+The v0.6.6 shell-preview APK remains a transitional Java/WebView build and is not the final Office package. The native Collabora build now merges the FZ Home screen, Recent/Starred library, Hindi Font Center, PDF reader and fallback viewers into the same Android package as LibreOffice. In that integrated package, Word, Excel and PowerPoint documents are routed from FZ Home directly to the native LibreOffice activity in read-only mode by default. DOCX page size, pagination and page spacing therefore come from the real office layout engine instead of the single-page HTML prototype. The native APK still needs a successful CI build and device acceptance tests before it can be called verified.
 
 ### Engine migration selected
 
@@ -15,12 +15,11 @@ FZ Office is moving to the native Android application and LibreOffice engine fro
 - Hindi font/custom-font integration: docs/HINDI_FONT_INTEGRATION.md
 - Pinned upstream source: third_party/collabora
 
-**Important:** the native source is pinned. Two small upstream-compatible patches plus an idempotent Python integration script add the Fontconfig user-font directory, the open-license Devanagari bundle, the ZIP font importer and read-only document opening. The native engine has not yet produced a verified FZ Office APK; the current lightweight APK remains transitional.
+**Important:** the native source is pinned. The integration script copies FZ's Java shell and offline assets into the Collabora Android app, makes FZ MainActivity the only launcher, keeps LibreOffice's document activity internal, and routes Office files to it in read-only mode. It also applies the Fontconfig user-font directory, open-license Devanagari bundle and ZIP font importer. The integrated native APK is not verified until the native workflow completes and the resulting APK passes device tests.
 
 ## FZ app shell features
 
 - Local recent-document library with private URI history, search, Starred shortcuts, share and remove-from-history actions.
-- Built-in offline PDF reader with page navigation, fit-to-width rendering and bounded zoom; PDF text search and markup are not included in this transitional reader.
 - Built-in offline PDF reader with page navigation, fit-to-width rendering and bounded zoom; PDF text search and markup are not included in this transitional reader.
 - History is limited to files explicitly opened by the user; FZ does not scan shared storage or delete the original file when history is cleared.
 
@@ -41,7 +40,7 @@ FZ Office is moving to the native Android application and LibreOffice engine fro
 - **Linux CI/build host:** required to cross-compile the native engine with Android NDK before packaging the Android app.
 - First native validation target: arm64-v8a, NDK 29.0.14206865, Android compile SDK 37, minimum SDK 26.
 
-The existing lightweight Android workflow builds only the transitional app. Use the manual Collabora native build workflow for the real LibreOffice engine; it must pass the acceptance gates in docs/ENGINE_STRATEGY.md before the Collabora-backed APK replaces the prototype.
+The **FZ Office shell validation** workflow builds the lightweight preview APK. The **Collabora native Android build** workflow packages the real LibreOffice engine together with the FZ Home/library/font shell; its artifact is **FZ-Office-Collabora-arm64**. Treat that APK as the candidate product only after the native build and device acceptance gates in docs/ENGINE_STRATEGY.md pass.
 
 ## Project principles
 

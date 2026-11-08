@@ -11,13 +11,21 @@ on:
       - "scripts/patch-collabora-hindi.py"
       - ".github/workflows/collabora-native-build.yml"
       - "app/build.gradle.kts"
+      - "app/src/main/java/com/fz/office/**"
+      - "app/src/main/assets/writer/**"
+      - "app/src/main/assets/font-packs/**"
+      - "app/src/main/assets/licenses/**"
+      - "app/src/main/res/**"
+      - "tests/native-collabora-integration.test.js"
+      - "tests/office-viewer-routing.test.js"
+      - "tests/file-library.test.js"
 
 permissions:
   contents: read
 
 concurrency:
   group: collabora-native-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   native-arm64:
@@ -27,8 +35,8 @@ jobs:
       NDK_VERSION: 29.0.14206865
       ANDROID_ABI: arm64-v8a
       JOBS: 2
-      VERSION_NAME: 0.6.2.0
-      VERSION_CODE: 11
+      VERSION_NAME: 0.6.6.0
+      VERSION_CODE: 15
       GRADLE_BIN: gradle
 
     steps:
@@ -106,13 +114,21 @@ jobs:
           python3 -m py_compile scripts/patch-collabora-hindi.py
 
       - name: Build checksum-verified Hindi font pack
-        run: gradle --no-daemon :app:downloadHindiFonts
+        run: gradle --no-daemon :app:downloadHindiFonts :app:downloadGanderViewerAssets
 
-      - name: Apply FZ Office Hindi and read-only integration
+      - name: Apply FZ Office shell, Hindi and read-only integration
         run: |
           export FZ_OFFICE_HINDI_FONT_DIR="$GITHUB_WORKSPACE/app/build/generated/assets/hindiFonts/writer/fonts"
           bash scripts/apply-collabora-patches.sh
           git -C third_party/collabora diff --check
+          node tests/native-collabora-integration.test.js
+
+      - name: Verify native integration is idempotent
+        run: |
+          export FZ_OFFICE_HINDI_FONT_DIR="$GITHUB_WORKSPACE/app/build/generated/assets/hindiFonts/writer/fonts"
+          bash scripts/apply-collabora-patches.sh
+          git -C third_party/collabora diff --check
+          node tests/native-collabora-integration.test.js
 
       - name: Build FZ Office with native LibreOffice engine
         run: bash scripts/build-collabora-android.sh
