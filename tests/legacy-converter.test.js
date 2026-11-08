@@ -58,3 +58,29 @@ for (const [input, expected] of safeCases) {
 }
 
 console.log("Mixed-language preservation tests passed (" + safeCases.length + " cases).");
+
+const devLysConvert = global.FZLegacyHindi.devLys010ToUnicodePreservingEnglish;
+if (typeof devLysConvert !== "function") {
+  throw new Error("DevLys 010 converter did not register.");
+}
+
+const devLysCases = [
+  ["Hkkjr", "भारत"],
+  ["jktLFkku", "राजस्थान"],
+  ["’", "श्"],
+  ["“", "भ"],
+  ["‘”", ""],
+  ["ACEO", "ACEO"],
+  ["01.05.25", "01.05.25"]
+];
+
+for (const [input, expected] of devLysCases) {
+  const actual = devLysConvert(input);
+  if (actual !== expected) {
+    throw new Error("DevLys 010 conversion failed for " + JSON.stringify(input)
+      + ": expected " + JSON.stringify(expected)
+      + ", got " + JSON.stringify(actual));
+  }
+}
+
+console.log("DevLys 010 conversion tests passed (" + devLysCases.length + " cases).");
