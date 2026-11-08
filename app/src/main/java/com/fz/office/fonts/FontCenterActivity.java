@@ -51,6 +51,13 @@ public class FontCenterActivity extends Activity {
         super.onCreate(savedInstanceState);
         buildScreen();
         renderFonts();
+        importer.execute(() -> {
+            try { FontManager.importBundledFontArchives(FontCenterActivity.this); }
+            catch (Exception ignored) { }
+            runOnUiThread(() -> {
+                if (!isFinishing()) renderFonts();
+            });
+        });
     }
 
     private void buildScreen() {
