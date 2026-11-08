@@ -124,6 +124,8 @@ public class WriterActivity extends Activity {
 
         WebSettings settings = viewer.getSettings();
         settings.setJavaScriptEnabled(true);
+        settings.setLoadsImagesAutomatically(true);
+        settings.setBlockNetworkImage(false);
         settings.setDomStorageEnabled(false);
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(false);

@@ -329,7 +329,7 @@ public final class DocxCodec {
 
         StringBuilder image = new StringBuilder("<img src=\"")
                 .append(source)
-                .append("\" alt=\"Document image\" loading=\"lazy\" style=\"max-width:100%;height:auto;");
+                .append("\" alt=\"Document image\" style=\"display:block;max-width:100%;height:auto;object-fit:contain;");
         if (widthEmu > 0) {
             long widthPx = Math.max(24, Math.min(1400, widthEmu / 9525));
             image.append("width:").append(widthPx).append("px;");
