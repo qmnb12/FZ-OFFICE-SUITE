@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: collabora-native-\${{ github.ref }}
+  group: collabora-native-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -70,12 +70,12 @@ jobs:
 
       - name: Install Android SDK, NDK and CMake
         run: |
-          yes | "\${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses
-          "\${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
+          yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
             "platform-tools" \
             "platforms;android-37" \
             "build-tools;37.0.0" \
-            "ndk;\${NDK_VERSION}" \
+            "ndk;${NDK_VERSION}" \
             "cmake;3.22.1"
           df -h /
 
