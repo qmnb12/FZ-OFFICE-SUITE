@@ -225,7 +225,7 @@ public class MainActivity extends Activity {
         ).show());
     }
 
-    private TextView actionCard(String title, String subtitle, String symbol) {
+    private LinearLayout actionCard(String title, String subtitle, String symbol) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.HORIZONTAL);
         card.setGravity(Gravity.CENTER_VERTICAL);
