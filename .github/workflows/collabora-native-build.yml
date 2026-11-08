@@ -2,6 +2,14 @@ name: Collabora native Android build
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "patches/collabora/**"
+      - "scripts/build-collabora-android.sh"
+      - "scripts/apply-collabora-patches.sh"
+      - ".github/workflows/collabora-native-build.yml"
+      - "app/build.gradle.kts"
 
 permissions:
   contents: read

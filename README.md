@@ -24,7 +24,7 @@ FZ Office is moving to the native Android application and LibreOffice engine fro
 - Word-like layout, images, tables, headers/footers, charts, numbering, styles and embedded objects where supported by the engine.
 - Offline local-document workflows; no compulsory document server or user account.
 - Reader-first mobile UX, with a deliberate edit action/settings choice rather than a cramped editing toolbar on every open.
-- Hindi Font Center with licence-safe bundled Unicode Devanagari fonts and private TTF/OTF import through the native Fontconfig directory.
+- Hindi Font Center with licence-safe bundled Unicode Devanagari fonts and ZIP/TTF/OTF import into the same app-private user/fonts folder scanned by the Collabora Fontconfig patch. The supplied DevLys/Kruti Dev/Mangal archives are not copied into the public repository because they contain no redistribution licence.
 - Separate, tested legacy encoding profiles for DevLys, Kruti Dev, Chanakya, Shusha, Shree Lipi and other families.
 
 ## Build environments

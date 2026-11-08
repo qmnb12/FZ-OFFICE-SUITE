@@ -97,4 +97,4 @@ DOCX stores family names in styles and runs. The font manager must expose matchi
 
 The native Collabora client gets a Hindi Font Center entry in its document-browser menu. It lists font files from user/fonts, previews a Devanagari sample using Android Typeface, imports validated TTF/OTF files, and removes user-imported files. On import/removal, the app-private Fontconfig cache is cleared; the user should close and reopen documents so the native engine rescans the directory.
 
-The files are installed under the app data directory, outside Android's shared public storage. Imported files are never uploaded.
+The files are installed under the app data directory, outside Android's shared public storage. Imported files are never uploaded. The same user/fonts path is used by the transitional Font Center and the native Collabora engine.

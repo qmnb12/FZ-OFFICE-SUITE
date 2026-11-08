@@ -9,7 +9,9 @@ Items are complete only after implementation and real-file testing. UI labels al
 - [x] Pin the upstream Collabora source revision as a Git submodule.
 - [x] Design the app-private Hindi font directory patch.
 - [x] Add a separate manual GitHub Actions native build workflow for arm64.
-- [x] Prepare Fontconfig integration, packaged open-license Devanagari fonts and native Font Center patches.
+- [x] Add Fontconfig's app-private user/fonts directory patch.
+- [x] Add native Collabora ZIP font-pack import menu and bounded TTF/OTF importer.
+- [x] Add the 12-family open-license Devanagari pack to native user/fonts packaging.
 - [ ] Run the native LibreOffice engine build successfully on a sufficiently provisioned Linux runner.
 - [ ] Package the Collabora Android app under com.fz.office.
 - [ ] Preserve notices and add FZ Office branding without upstream trademarks.
@@ -27,21 +29,21 @@ The current custom WebView viewer is retained only until the native engine APK i
 
 ## Stage 2 — Native Hindi typography and font manager
 
-- [x] Prepare the app-private user/fonts Fontconfig patch against the pinned upstream source.
-- [x] Prepare bundled Hindi font packaging patch using the verified 12-family OFL set.
-- [x] Prepare native Settings-based TTF/OTF import patch.
+- [x] Add the app-private user/fonts Fontconfig patch against the pinned upstream source.
+- [x] Add bundled Hindi font packaging using the verified 12-family OFL set.
+- [x] Add native Collabora browser Hindi Fonts menu with ZIP TTF/OTF import, validation, dedupe and Fontconfig cache refresh.
 - [ ] Build and test the native patches in the Collabora Android project.
 - [ ] Bundle the existing 12 licence-verified Devanagari families with their OFL texts.
 - [ ] Expand the Unicode Devanagari catalogue after coverage/licence review.
-- [x] Prepare Settings-based user TTF/OTF import using Android Storage Access Framework.
-- [ ] Build and exercise the import flow on a physical Android device.
+- [x] Add transitional FZ Font Center ZIP import for TTF/OTF packs, including OpenType family/style metadata.
+- [ ] Build and exercise both transitional and native import flows on a physical Android device.
 - [ ] Restart/reload the native document engine to refresh Fontconfig.
 - [ ] Add missing-font detection, family aliasing and fallback reports.
 - [ ] Test all shaping cases: matras, reph, rakar, conjuncts, nukta, ZWJ/ZWNJ and punctuation.
 
 ## Stage 3 — Legacy Hindi compatibility
 
-- [ ] Prefer rendering with the exact imported legacy font when the DOCX names it.
+- [x] Prefer rendering with the exact imported legacy font when the DOCX names it; do not automatically rewrite legacy text.
 - [ ] Add a separate exact-version mapping profile for DevLys 010.
 - [ ] Add separate verified profiles for Kruti Dev versions, Chanakya, Shusha, Shree Lipi, APS-DV and Akruti where test fixtures and legal mapping sources exist.
 - [ ] Preserve English names, abbreviations, numbers, dates, references and punctuation.

@@ -13,6 +13,9 @@ import android.provider.OpenableColumns;
 import android.view.Gravity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -25,6 +28,12 @@ import java.util.concurrent.Executors;
 
 public class FontCenterActivity extends Activity {
     private static final int REQUEST_IMPORT_FONT = 410;
+    private static final int REQUEST_IMPORT_ARCHIVE = 411;
+    private static final int INITIAL_FONT_LIMIT = 36;
+    private int visibleFontLimit = INITIAL_FONT_LIMIT;
+    private EditText searchInput;
+    private TextView countInfo;
+    private Button loadMoreButton;
     private final ExecutorService importer = Executors.newSingleThreadExecutor();
     private LinearLayout fontList;
     private TextView previewInput;
@@ -62,8 +71,8 @@ public class FontCenterActivity extends Activity {
         root.addView(title);
 
         TextView intro = text(
-                "देवनागरी text के लिए fonts चुनें, preview देखें और अपना TTF/OTF font import करें। "
-                        + "Font files इस device के private storage में रखी जाती हैं।",
+                "Unicode और legacy Hindi TTF/OTF fonts चुनें या ZIP pack से सैकड़ों fonts एक साथ import करें। "
+                        + "Fonts केवल इस device के private storage में रहेंगे।",
                 13, MUTED, false
         );
         intro.setLineSpacing(dp(3), 1f);
@@ -74,6 +83,31 @@ public class FontCenterActivity extends Activity {
         importParams.topMargin = dp(15);
         root.addView(importButton, importParams);
         importButton.setOnClickListener(v -> chooseFontFile());
+
+        Button archiveButton = button("+  Import ZIP font pack", 0xFFE3EFE9, PRIMARY);
+        LinearLayout.LayoutParams archiveParams = wrapMatch();
+        archiveParams.topMargin = dp(8);
+        root.addView(archiveButton, archiveParams);
+        archiveButton.setOnClickListener(v -> chooseFontArchive());
+
+        searchInput = new EditText(this);
+        searchInput.setSingleLine(true);
+        searchInput.setTextSize(14);
+        searchInput.setTextColor(INK);
+        searchInput.setHint("Search font family, e.g. DevLys 010");
+        searchInput.setPadding(dp(13), dp(10), dp(13), dp(10));
+        searchInput.setBackground(roundRect(Color.WHITE, dp(11)));
+        LinearLayout.LayoutParams searchParams = wrapMatch();
+        searchParams.topMargin = dp(12);
+        root.addView(searchInput, searchParams);
+        searchInput.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                visibleFontLimit = INITIAL_FONT_LIMIT;
+                renderFonts();
+            }
+            @Override public void afterTextChanged(Editable s) { }
+        });
 
         selectedStatus = text("", 12, PRIMARY, true);
         selectedStatus.setPadding(0, dp(10), 0, dp(4));
@@ -89,10 +123,9 @@ public class FontCenterActivity extends Activity {
         previewInput.setLineSpacing(dp(3), 1f);
         root.addView(previewInput, wrapMatch());
 
-        addHeading(root, "Bundled Unicode fonts", "12 FAMILIES");
+        addHeading(root, "Available font library", "UNICODE + LEGACY");
         TextView bundledInfo = text(
-                "These open-license fonts are bundled by the project and work offline after installation. "
-                        + "Some display faces have narrower glyph coverage; Noto Sans / Noto Serif are the broad-coverage defaults.",
+                "Bundled Unicode fonts are open-license. Imported Kruti Dev, DevLys and Mangal files are stored locally; their source ZIPs did not include redistribution licences, so they are not uploaded to the public repository.",
                 12, MUTED, false
         );
         bundledInfo.setPadding(0, 0, 0, dp(10));
@@ -101,8 +134,16 @@ public class FontCenterActivity extends Activity {
         fontList = new LinearLayout(this);
         fontList.setOrientation(LinearLayout.VERTICAL);
         root.addView(fontList, wrapMatch());
+        loadMoreButton = button("Show more fonts", 0xFFE8F0EC, PRIMARY);
+        LinearLayout.LayoutParams moreParams = wrapMatch();
+        moreParams.topMargin = dp(6);
+        root.addView(loadMoreButton, moreParams);
+        loadMoreButton.setOnClickListener(v -> {
+            visibleFontLimit += INITIAL_FONT_LIMIT;
+            renderFonts();
+        });
 
-        addHeading(root, "Legacy Hindi fonts", "IMPORT AND CONVERT");
+        addHeading(root, "Legacy Hindi fonts", "LOCAL FONT LIBRARY");
         LinearLayout legacyCard = new LinearLayout(this);
         legacyCard.setOrientation(LinearLayout.VERTICAL);
         legacyCard.setPadding(dp(14), dp(14), dp(14), dp(14));
@@ -114,26 +155,26 @@ public class FontCenterActivity extends Activity {
                 14, INK, true
         ));
         TextView legacyInfo = text(
-                "इनके font files proprietary या अलग-अलग license वाले हो सकते हैं, इसलिए project इन्हें bundle नहीं करता। "
-                        + "अपनी legally obtained TTF/OTF file import कर सकते हैं। Writer में अभी Kruti Dev 010 के लिए "
-                        + "Unicode conversion preview उपलब्ध है; DevLys और अन्य profiles को अलग-अलग verify करना बाकी है.",
+                "आपके ZIP packs से DevLys 010, Kruti Dev variants और Mangal fonts import किए जा सकते हैं। "
+                        + "DOCX में matching legacy font मिलने पर viewer उस exact family को local font library से load करेगा; "
+                        + "font import अपने-आप text encoding को Unicode में convert नहीं करता.",
                 12, MUTED, false
         );
         legacyInfo.setPadding(0, dp(7), 0, 0);
         legacyInfo.setLineSpacing(dp(2), 1f);
         legacyCard.addView(legacyInfo);
 
-        Button converterInfo = button("Legacy conversion status", 0xFFE8F0EC, PRIMARY);
+        Button converterInfo = button("How legacy Hindi fonts render", 0xFFE8F0EC, PRIMARY);
         LinearLayout.LayoutParams infoParams = wrapMatch();
         infoParams.topMargin = dp(12);
         legacyCard.addView(converterInfo, infoParams);
         converterInfo.setOnClickListener(v -> new AlertDialog.Builder(this)
-                .setTitle("Legacy-to-Unicode conversion")
+                .setTitle("Legacy Hindi font rendering")
                 .setMessage(
-                        "Writer toolbar में Unicode चुनकर Kruti Dev 010 text को Unicode Hindi में convert करने का preview बना सकते हैं। "
-                                + "कई DevLys 010 files similar map use करती हैं, लेकिन special glyphs अलग हो सकते हैं। "
-                                + "Chanakya, Shusha, Shree Lipi और दूसरे versions के converters अभी शामिल नहीं हैं। "
-                                + "Conversion के बाद output proofread करें; original file Save करने तक नहीं बदलती।"
+                        "Legacy DOCX के लिए सबसे सही तरीका उसी exact font family/version को load करना है। "
+                                + "DevLys 010, Kruti Dev और Mangal ZIP packs को Import ZIP font pack से private storage में जोड़ें। "
+                                + "Viewer document में declared family को match करके original encoded characters को उसी font से render करेगा। "
+                                + "Unicode conversion अलग tool है और document open होने पर automatic नहीं चलेगा।"
                 )
                 .setPositiveButton("OK", null)
                 .show());
@@ -151,10 +192,33 @@ public class FontCenterActivity extends Activity {
         if (fontList == null) return;
         fontList.removeAllViews();
         String current = FontManager.getDefaultFont(this);
-        selectedStatus.setText("Default Writer font: " + current);
+        selectedStatus.setText("Default font: " + current + " · App-private native font folder");
 
-        List<FontManager.FontRecord> fonts = FontManager.getAvailableFonts(this);
-        for (FontManager.FontRecord record : fonts) {
+        List<FontManager.FontRecord> allFonts = FontManager.getAvailableFonts(this);
+        String query = searchInput == null ? "" : searchInput.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+        List<FontManager.FontRecord> filtered = new java.util.ArrayList<>();
+        for (FontManager.FontRecord record : allFonts) {
+            String haystack = (record.name + " " + record.category + " "
+                    + record.cssFamily + " " + record.description).toLowerCase(java.util.Locale.ROOT);
+            if (query.isEmpty() || haystack.contains(query)) filtered.add(record);
+        }
+
+        if (countInfo == null) {
+            countInfo = text("", 11, MUTED, false);
+            LinearLayout.LayoutParams countParams = wrapMatch();
+            countParams.bottomMargin = dp(8);
+            fontList.addView(countInfo, countParams);
+        } else {
+            fontList.addView(countInfo, wrapMatch());
+        }
+        int bundledCount = FontManager.getBundledFonts().size();
+        countInfo.setText(filtered.size() + " matching fonts · " + bundledCount
+                + " bundled Unicode · " + Math.max(0, allFonts.size() - bundledCount)
+                + " imported locally");
+
+        int limit = Math.min(filtered.size(), visibleFontLimit);
+        for (int index = 0; index < limit; index++) {
+            FontManager.FontRecord record = filtered.get(index);
             LinearLayout card = new LinearLayout(this);
             card.setOrientation(LinearLayout.VERTICAL);
             card.setPadding(dp(14), dp(13), dp(14), dp(13));
@@ -169,7 +233,7 @@ public class FontCenterActivity extends Activity {
             category.setPadding(0, dp(2), 0, dp(7));
             card.addView(category);
 
-            TextView sample = text(previewSample(), 16, INK, false);
+            TextView sample = text(previewSample(record), 16, INK, false);
             sample.setTypeface(FontManager.loadTypeface(this, record));
             sample.setLineSpacing(dp(2), 1f);
             sample.setPadding(0, 0, 0, dp(9));
@@ -184,15 +248,15 @@ public class FontCenterActivity extends Activity {
             card.addView(actions, wrapMatch());
 
             boolean isDefault = record.cssFamily.equals(current);
-            Button use = button(isDefault ? "Selected default" : "Use in Writer",
+            Button use = button(isDefault ? "Selected family" : "Use as display font",
                     isDefault ? 0xFFE3EFE9 : PRIMARY,
                     isDefault ? PRIMARY : Color.WHITE);
             actions.addView(use, new LinearLayout.LayoutParams(0, dp(42), 1f));
             use.setEnabled(!isDefault);
             use.setOnClickListener(v -> {
                 FontManager.setDefaultFont(this, record);
-                selectedStatus.setText("Default Writer font: " + record.cssFamily);
-                Toast.makeText(this, record.name + " selected for Writer.", Toast.LENGTH_SHORT).show();
+                selectedStatus.setText("Default display font: " + record.cssFamily);
+                Toast.makeText(this, record.name + " selected.", Toast.LENGTH_SHORT).show();
                 renderFonts();
             });
 
@@ -204,11 +268,39 @@ public class FontCenterActivity extends Activity {
                 remove.setOnClickListener(v -> confirmRemove(record));
             }
         }
+
+        if (loadMoreButton != null) {
+            boolean more = filtered.size() > visibleFontLimit;
+            loadMoreButton.setVisibility(more ? View.VISIBLE : View.GONE);
+            loadMoreButton.setText("Show " + Math.min(INITIAL_FONT_LIMIT, filtered.size() - visibleFontLimit)
+                    + " more fonts");
+        }
     }
 
-    private String previewSample() {
+    private String previewSample(FontManager.FontRecord record) {
+        String family = record.cssFamily.toLowerCase(java.util.Locale.ROOT);
+        if (family.contains("devlys")) {
+            return "Jheku 'kklu lfpo\nHkkjr jktLFkku\nfoHkkx vkSj izLrko";
+        }
+        if (family.contains("kruti dev") || family.contains("krutidev")) {
+            return "Jheku 'kklu lfpo\nHkkjr jktLFkku\nfoHkkx vkSj izLrko";
+        }
         return previewInput == null ? FontManager.HINDI_SAMPLE + "\n" + FontManager.SHAPING_SAMPLE
                 : previewInput.getText().toString();
+    }
+
+    private void chooseFontArchive() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES,
+                new String[] {"application/zip", "application/x-zip-compressed", "application/octet-stream"});
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivityForResult(intent, REQUEST_IMPORT_ARCHIVE);
+        } catch (Exception exception) {
+            Toast.makeText(this, "No file picker is available.", Toast.LENGTH_LONG).show();
+        }
     }
 
     private void chooseFontFile() {
@@ -228,25 +320,46 @@ public class FontCenterActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQUEST_IMPORT_FONT || resultCode != RESULT_OK
-                || data == null || data.getData() == null) return;
+        if ((requestCode != REQUEST_IMPORT_FONT && requestCode != REQUEST_IMPORT_ARCHIVE)
+                || resultCode != RESULT_OK || data == null || data.getData() == null) return;
 
         Uri uri = data.getData();
         String name = queryDisplayName(uri);
-        selectedStatus.setText("Validating " + name + "…");
+        boolean archive = requestCode == REQUEST_IMPORT_ARCHIVE;
+        selectedStatus.setText(archive ? "Scanning ZIP font pack " + name + "…" : "Validating " + name + "…");
         importer.execute(() -> {
             try {
-                File imported = FontManager.importFont(this, uri, name);
-                runOnUiThread(() -> {
-                    renderFonts();
-                    Toast.makeText(this, "Font imported: " + imported.getName(),
-                            Toast.LENGTH_LONG).show();
-                });
+                if (archive) {
+                    FontManager.ImportResult result = FontManager.importFontArchive(this, uri);
+                    runOnUiThread(() -> {
+                        visibleFontLimit = INITIAL_FONT_LIMIT;
+                        renderFonts();
+                        selectedStatus.setText("Imported " + result.imported + " fonts · "
+                                + result.duplicates + " duplicates · " + result.invalid + " invalid");
+                        new AlertDialog.Builder(this)
+                                .setTitle("Font pack processed")
+                                .setMessage("Imported: " + result.imported
+                                        + "\nAlready present: " + result.duplicates
+                                        + "\nInvalid/unreadable: " + result.invalid
+                                        + "\nOther archive files ignored: " + result.ignored
+                                        + "\n\nAll fonts are stored only in this app's private storage. "
+                                        + "No files were uploaded or added to the public repository.")
+                                .setPositiveButton("OK", null)
+                                .show();
+                    });
+                } else {
+                    File imported = FontManager.importFont(this, uri, name);
+                    runOnUiThread(() -> {
+                        renderFonts();
+                        Toast.makeText(this, "Font imported: " + imported.getName(),
+                                Toast.LENGTH_LONG).show();
+                    });
+                }
             } catch (Exception exception) {
                 runOnUiThread(() -> {
                     selectedStatus.setText("Font import failed.");
                     new AlertDialog.Builder(this)
-                            .setTitle("Could not import font")
+                            .setTitle("Could not import font pack")
                             .setMessage(exception.getMessage() == null
                                     ? "The font file is invalid or unsupported." : exception.getMessage())
                             .setPositiveButton("OK", null)

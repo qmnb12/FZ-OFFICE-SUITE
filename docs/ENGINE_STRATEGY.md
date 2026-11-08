@@ -81,4 +81,4 @@ The first native validation target is arm64-v8a to limit build scope. Additional
 8. Save/reopen and export regression tests pass before editing mode is promoted.
 9. No APK is labelled Collabora-backed until these CI gates pass.
 
-The current v0.5.x APK remains a limited transitional viewer; it is not the target engine.
+The current v0.6.0 APK remains a limited transitional viewer. The native patches are committed but the Collabora engine build has not yet passed CI.

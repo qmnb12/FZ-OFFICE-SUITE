@@ -25,7 +25,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -51,6 +55,9 @@ public class WriterActivity extends Activity {
     private String pendingLegacyProfile = "";
     private String pendingLegacyFontName = "";
     private boolean pendingLegacyTextHint;
+    private boolean pendingLegacyFontLoaded;
+    private final Set<String> registeredDocumentFonts = new HashSet<>();
+    private List<String> pendingDocumentFonts = new ArrayList<>();
 
     private WebView viewer;
     private TextView titleView;
@@ -164,6 +171,7 @@ public class WriterActivity extends Activity {
                 String legacyProfile = "";
                 String legacyFontName = "";
                 boolean legacyTextHint = false;
+                List<String> documentFonts = new ArrayList<>();
 
                 if (plainText) {
                     String text = new String(data, StandardCharsets.UTF_8);
@@ -176,6 +184,7 @@ public class WriterActivity extends Activity {
                     legacyProfile = loaded.legacyProfile;
                     legacyFontName = loaded.legacyFontName;
                     legacyTextHint = DocxCodec.looksLikeLegacyHindi(html);
+                    documentFonts.addAll(loaded.fontNames);
                 } else {
                     throw new IOException("This viewer currently supports DOCX and TXT files.");
                 }
@@ -184,12 +193,14 @@ public class WriterActivity extends Activity {
                 final String loadedProfile = legacyProfile;
                 final String loadedFontName = legacyFontName;
                 final boolean loadedHint = legacyTextHint;
+                final List<String> loadedFonts = new ArrayList<>(documentFonts);
 
                 runOnUiThread(() -> {
                     pendingHtml = loadedHtml;
                     pendingLegacyProfile = loadedProfile;
                     pendingLegacyFontName = loadedFontName;
                     pendingLegacyTextHint = loadedHint;
+                    pendingDocumentFonts = loadedFonts;
                     if (titleView != null) titleView.setText(documentName);
                     updateStatus();
                     applyPendingDocument();
@@ -220,31 +231,69 @@ public class WriterActivity extends Activity {
                             + JSONObject.quote(customCss) + ");", null);
                 }
             }
+
+            // Prepare the private Fontconfig path for the future LibreOfficeKit bridge.
+            FontManager.prepareEngineFontConfig(this);
+            registerDocumentFonts();
             applyPendingDocument();
         } catch (Exception exception) {
-            statusView.setText("Using Android fallback font · View only");
+            statusView.setText("Some fonts could not be registered · View only");
             applyPendingDocument();
         }
     }
 
+    private void registerDocumentFonts() {
+        if (!pageReady || viewer == null) return;
+        pendingLegacyFontLoaded = false;
+        List<String> requested = new ArrayList<>(pendingDocumentFonts);
+        if (pendingLegacyFontName != null && !pendingLegacyFontName.isEmpty()) {
+            requested.add(pendingLegacyFontName);
+        }
+        for (String documentFont : requested) {
+            String key = documentFont.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+            if (key.isEmpty() || registeredDocumentFonts.contains(key)) continue;
+            try {
+                String customCss = FontManager.getCustomFontCssForFamily(this, documentFont);
+                if (!customCss.isEmpty()) {
+                    viewer.evaluateJavascript("FZViewer.registerFonts("
+                            + JSONObject.quote(customCss) + ");", null);
+                    registeredDocumentFonts.add(key);
+                    if (sameFontFamily(documentFont, pendingLegacyFontName)) {
+                        pendingLegacyFontLoaded = true;
+                    }
+                }
+            } catch (Exception ignored) { }
+        }
+    }
+
+    private boolean sameFontFamily(String first, String second) {
+        if (first == null || second == null) return false;
+        return first.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "")
+                .equals(second.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", ""));
+    }
+
     private void applyPendingDocument() {
         if (!pageReady || viewer == null) return;
+        registerDocumentFonts();
+        updateStatus();
         String script = "FZViewer.setDocument("
                 + JSONObject.quote(pendingHtml == null ? "<p></p>" : pendingHtml) + ","
                 + JSONObject.quote(pendingLegacyProfile == null ? "" : pendingLegacyProfile) + ","
                 + JSONObject.quote(pendingLegacyFontName == null ? "" : pendingLegacyFontName) + ","
-                + pendingLegacyTextHint + ");";
+                + pendingLegacyTextHint + ","
+                + pendingLegacyFontLoaded + ");";
         viewer.evaluateJavascript(script, null);
     }
 
     private void updateStatus() {
-        if (pendingLegacyProfile.equals("krutidev010")
-                || pendingLegacyProfile.equals("devlys010")) {
-            statusView.setText("Hindi auto-converted for viewing · Original DOCX unchanged");
+        if (pendingLegacyFontLoaded && !pendingLegacyFontName.isEmpty()) {
+            statusView.setText("Matching font loaded: " + pendingLegacyFontName
+                    + " · Original DOCX text preserved");
         } else if (!pendingLegacyFontName.isEmpty()) {
-            statusView.setText("Legacy font: " + pendingLegacyFontName + " · No verified viewer mapping");
+            statusView.setText("Missing font: " + pendingLegacyFontName
+                    + " · Import it in Hindi Font Center");
         } else if (pendingLegacyTextHint) {
-            statusView.setText("Possible legacy Hindi text · No confirmed font profile");
+            statusView.setText("Possible legacy Hindi text · No verified font name");
         } else if (plainText) {
             statusView.setText("UTF-8 text · View only · Original file unchanged");
         } else {

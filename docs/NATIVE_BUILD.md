@@ -37,6 +37,8 @@ After installing the SDK, NDK 29.0.14206865, CMake 3.22.1, JDK 21, Gradle 9.6.1 
 
 The script:
 - verifies the checked-out submodule matches the gitlink pin;
+- applies 0001 Fontconfig user-font directory, 0002 bundled Devanagari fonts and stable package-name patches, and 0003 native Hindi ZIP import menu;
+
 - generates the Devanagari assets from pinned Google Fonts binaries and verifies hashes;
 - applies the FZ Fontconfig, bundled-font and native Font Center patches;
 - builds the Android LibreOffice engine;

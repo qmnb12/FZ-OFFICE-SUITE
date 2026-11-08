@@ -84,23 +84,25 @@ function convertLegacyFontRuns(root){
   return converted;
 }
 function showNotice(title,message){notice.textContent="";var strong=document.createElement("strong"),body=document.createElement("span");strong.textContent=title;body.textContent=message;notice.appendChild(strong);notice.appendChild(body);notice.style.display="block"}
-function setDocument(html,profile,fontName,legacyHint){
+function setDocument(html,profile,fontName,legacyHint,fontAvailable){
   page.innerHTML=html||"<p></p>";
   notice.style.display="none";
-  if(profile==="krutidev010"||profile==="devlys010"){
-    var count=convertLegacyFontRuns(page);
-    if(count>0){
-      var fontLabel=profile==="devlys010"?"DevLys 010":"Kruti Dev 010";
-      showNotice("Verified "+fontLabel+" text converted for viewing",
-        "Only runs explicitly tagged with "+fontLabel+" were converted. Other Hindi, English, dates, references and images are left untouched. Original DOCX is unchanged.");
-    }else{
-      showNotice("Legacy font is declared, but no tagged text runs were found",
-        "No text was changed. The document may store its font in a paragraph style that this reader has not resolved yet. Please share the original DOCX for exact compatibility work.");
-    }
+  if(fontName&&fontAvailable){
+    var safeFamily=String(fontName).replace(/["\\]/g,"");
+    // Use the document's own font family. The encoded characters remain untouched;
+    // the font's glyph map performs the legacy Hindi rendering.
+    page.style.fontFamily='"'+safeFamily+'","Noto Sans Devanagari",Arial,sans-serif';
+    showNotice("Document font loaded: "+fontName,
+      "This document is being rendered with its matching local font. Text encoding and the original DOCX file are unchanged.");
   }else if(fontName){
-    showNotice("Legacy font: "+fontName,"This font's exact encoding profile is not verified in this version. Text is shown unchanged.");
+    showNotice("Font missing: "+fontName,
+      "Import the exact TTF/OTF family from Hindi Font Center. Text is shown unchanged; no guessed conversion has been applied.");
+  }else if(profile==="krutidev010"||profile==="devlys010"){
+    showNotice("Legacy font profile detected",
+      "The document's font is not available in this device's font library. Import the exact font to render its original Hindi glyph mapping. Nothing was converted.");
   }else if(legacyHint){
-    showNotice("Possible legacy Hindi encoding","Text resembles an older Hindi keyboard-font encoding, but the font profile is unconfirmed. Nothing was converted.");
+    showNotice("Possible legacy Hindi encoding",
+      "Text resembles an older Hindi keyboard-font encoding, but the exact font is unconfirmed. Nothing was converted.");
   }
 }
 function zoom(direction){baseSize=Math.max(12,Math.min(30,baseSize+(direction>0?1:-1)));page.style.fontSize=baseSize+"px"}
