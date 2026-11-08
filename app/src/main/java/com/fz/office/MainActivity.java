@@ -20,282 +20,99 @@ import com.fz.office.writer.WriterActivity;
 import com.fz.office.fonts.FontCenterActivity;
 
 public class MainActivity extends Activity {
-
     private static final int REQUEST_OPEN_DOCUMENT = 101;
-    private static final int COLOR_BACKGROUND = Color.rgb(244, 247, 245);
-    private static final int COLOR_TEXT = Color.rgb(25, 42, 37);
-    private static final int COLOR_MUTED = Color.rgb(100, 117, 109);
-    private static final int COLOR_PRIMARY = Color.rgb(23, 107, 91);
-    private static final int COLOR_CARD = Color.WHITE;
+    private static final int BG = Color.rgb(15, 18, 20);
+    private static final int SURFACE = Color.rgb(29, 34, 37);
+    private static final int TEXT = Color.WHITE;
+    private static final int MUTED = Color.rgb(169, 179, 183);
+    private static final int ACCENT = Color.rgb(31, 190, 174);
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (openIncomingDocument(getIntent())) {
-            finish();
-            return;
-        }
-        getWindow().setStatusBarColor(COLOR_BACKGROUND);
-        getWindow().setNavigationBarColor(COLOR_BACKGROUND);
-        getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                        | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
-        );
-        buildDashboard();
+    @Override protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        if (openIncomingDocument(getIntent())) { finish(); return; }
+        getWindow().setStatusBarColor(BG);
+        getWindow().setNavigationBarColor(BG);
+        getWindow().getDecorView().setSystemUiVisibility(0);
+        buildHome();
     }
 
-    /**
-     * Handles DOCX files launched from external file managers using ACTION_VIEW.
-     * The URI grant is forwarded to the internal viewer activity.
-     */
-    private boolean openIncomingDocument(Intent incoming) {
-        if (incoming == null || !Intent.ACTION_VIEW.equals(incoming.getAction())) {
-            return false;
-        }
-        Uri uri = incoming.getData();
-        if (uri == null) return false;
-
-        String name = queryDisplayName(uri);
-        String mime = incoming.getType();
-        boolean isDocx = name.toLowerCase(java.util.Locale.ROOT).endsWith(".docx")
-                || "application/vnd.openxmlformats-officedocument.wordprocessingml.document".equals(mime);
-        if (!isDocx) {
-            Toast.makeText(this, "This build currently supports DOCX files from file managers.",
-                    Toast.LENGTH_LONG).show();
-            return true;
-        }
-
-        Intent open = new Intent(this, WriterActivity.class);
-        open.putExtra(WriterActivity.EXTRA_DOCUMENT_URI, uri.toString());
-        open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        try {
-            startActivity(open);
-        } catch (Exception exception) {
-            Toast.makeText(this, "Could not open this DOCX file.", Toast.LENGTH_LONG).show();
-        }
-        return true;
-    }
-
-    private void buildDashboard() {
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setFillViewport(true);
-        scrollView.setBackgroundColor(COLOR_BACKGROUND);
-
+    private void buildHome() {
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(BG);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        page.setPadding(dp(22), dp(28), dp(22), dp(30));
-        scrollView.addView(page, new ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.WRAP_CONTENT
-        ));
-        setContentView(scrollView);
+        page.setGravity(Gravity.CENTER_HORIZONTAL);
+        page.setPadding(dp(24), dp(34), dp(24), dp(28));
+        scroll.addView(page, new ScrollView.LayoutParams(-1, -1));
+        setContentView(scroll);
 
-        TextView brand = text("FZ  /  OFFICE SUITE", 12, COLOR_PRIMARY, true);
+        TextView brand = label("FZ WORK SUITE", 18, TEXT, true);
         brand.setLetterSpacing(0.08f);
-        page.addView(brand, matchWrap());
+        page.addView(brand, match());
+        TextView subtitle = label("Documents · Hindi-first viewer", 12, MUTED, false);
+        subtitle.setPadding(0, dp(6), 0, dp(34));
+        page.addView(subtitle, match());
 
-        TextView title = text("आपके documents, आपकी भाषा।", 27, COLOR_TEXT, true);
-        title.setPadding(0, dp(12), 0, dp(5));
-        page.addView(title, matchWrap());
+        TextView headline = label("Take a look at any document.", 23, TEXT, true);
+        headline.setGravity(Gravity.CENTER);
+        headline.setPadding(0, 0, 0, dp(30));
+        page.addView(headline, match());
 
-        TextView subtitle = text(
-                "A Hindi-first office suite, built for Android.",
-                14, COLOR_MUTED, false
-        );
-        page.addView(subtitle, matchWrap());
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.HORIZONTAL);
+        page.addView(grid, match());
+        addTypeTile(grid, "DOC", "Word", 0xff2588df, true);
+        addTypeTile(grid, "TXT", "Text", 0xff647d8d, true);
 
-        View gap = new View(this);
-        page.addView(gap, new LinearLayout.LayoutParams(1, dp(22)));
+        TextView status = label("Supported now: DOCX and TXT", 12, MUTED, false);
+        status.setGravity(Gravity.CENTER);
+        status.setPadding(0, dp(24), 0, dp(18));
+        page.addView(status, match());
 
-        LinearLayout hero = new LinearLayout(this);
-        hero.setOrientation(LinearLayout.VERTICAL);
-        hero.setPadding(dp(19), dp(19), dp(19), dp(19));
-        hero.setBackground(roundRect(Color.rgb(21, 65, 56), dp(20)));
-        page.addView(hero, matchWrap());
+        TextView open = actionButton("Open a file", true);
+        page.addView(open, match());
+        open.setOnClickListener(v -> openDocumentPicker());
 
-        TextView heroTag = text("DOCUMENT VIEWER  ·  v0.6.0", 10,
-                Color.rgb(190, 224, 211), true);
-        hero.addView(heroTag, matchWrap());
+        TextView fonts = actionButton("अ   Hindi Font Center", false);
+        LinearLayout.LayoutParams fp = match();
+        fp.topMargin = dp(12);
+        page.addView(fonts, fp);
+        fonts.setOnClickListener(v -> startActivity(new Intent(this, FontCenterActivity.class)));
 
-        TextView heroTitle = text("Hindi documents, easy to read.", 22,
-                Color.WHITE, true);
-        heroTitle.setPadding(0, dp(13), 0, dp(7));
-        hero.addView(heroTitle, matchWrap());
-
-        TextView heroBody = text(
-                "DOCX और TXT read-only खुलेंगे। DevLys, Kruti Dev और Mangal जैसे legacy fonts के ZIP packs import करें; matching font से original text बिना conversion render होगा।",
-                13, Color.rgb(222, 237, 231), false
-        );
-        heroBody.setLineSpacing(dp(3), 1.0f);
-        hero.addView(heroBody, matchWrap());
-
-        addSectionTitle(page, "Your workspace", "WORKSPACE");
-        LinearLayout firstRow = new LinearLayout(this);
-        firstRow.setOrientation(LinearLayout.HORIZONTAL);
-        page.addView(firstRow, matchWrap());
-
-        addModuleCard(firstRow, "D", "Documents", "DOCX · TXT", "View only", 0);
-        addModuleCard(firstRow, "▦", "Sheets", "Spreadsheets", "Engine pending", 1);
-
-        LinearLayout secondRow = new LinearLayout(this);
-        secondRow.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout.LayoutParams secondRowParams = matchWrap();
-        secondRowParams.topMargin = dp(10);
-        page.addView(secondRow, secondRowParams);
-
-        addModuleCard(secondRow, "P", "Slides", "Presentations", "Engine pending", 2);
-        addModuleCard(secondRow, "PDF", "PDF tools", "View & export", "Not connected", 3);
-
-        addSectionTitle(page, "Quick actions", "GET STARTED");
-        LinearLayout openFile = actionCard(
-                "Open a document",
-                "Choose a DOCX or TXT file to view",
-                "↗"
-        );
-        openFile.setOnClickListener(v -> openDocumentPicker());
-        LinearLayout.LayoutParams openParams = matchWrap();
-        openParams.topMargin = dp(10);
-        page.addView(openFile, openParams);
-
-        LinearLayout fontCenter = actionCard(
-                "Hindi Font Center",
-                "12 Unicode fonts · automatic legacy font setup · family matching",
-                "अ"
-        );
-        LinearLayout.LayoutParams fontParams = matchWrap();
-        fontParams.topMargin = dp(10);
-        page.addView(fontCenter, fontParams);
-        fontCenter.setOnClickListener(v -> startActivity(new Intent(this, FontCenterActivity.class)));
-
-        LinearLayout note = new LinearLayout(this);
-        note.setOrientation(LinearLayout.VERTICAL);
-        note.setPadding(dp(15), dp(14), dp(15), dp(14));
-        note.setBackground(roundRect(Color.rgb(231, 239, 235), dp(15)));
-        LinearLayout.LayoutParams noteParams = matchWrap();
-        noteParams.topMargin = dp(20);
-        page.addView(note, noteParams);
-
-        TextView noteTitle = text("What works in this build?", 14, COLOR_TEXT, true);
-        note.addView(noteTitle, matchWrap());
-        TextView noteBody = text(
-                "Viewer-only mode सुरक्षित है। Custom fonts app-private user/fonts folder में store होते हैं; DOCX के declared family से match करके वही font load होता है। "
-                        + "Unknown legacy family पर text convert नहीं किया जाता। Full desktop-layout rendering के लिए native Collabora engine build जारी है.",
-                12, COLOR_MUTED, false
-        );
-        noteBody.setPadding(0, dp(5), 0, 0);
-        noteBody.setLineSpacing(dp(2), 1.0f);
-        note.addView(noteBody, matchWrap());
-
-        TextView footer = text(
-                "OFFLINE-FIRST  ·  NO ADS  ·  OPEN-SOURCE PROJECT",
-                10, COLOR_MUTED, true
-        );
-        footer.setGravity(Gravity.CENTER);
-        footer.setPadding(0, dp(23), 0, 0);
-        page.addView(footer, matchWrap());
+        TextView tip = label("Choose a DOCX or TXT file to view. No ads. Works offline.", 11, MUTED, false);
+        tip.setGravity(Gravity.CENTER);
+        tip.setPadding(dp(12), dp(28), dp(12), 0);
+        page.addView(tip, match());
     }
 
-    private void addSectionTitle(LinearLayout parent, String title, String eyebrow) {
-        LinearLayout wrapper = new LinearLayout(this);
-        wrapper.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams params = matchWrap();
-        params.topMargin = dp(24);
-        params.bottomMargin = dp(11);
-        parent.addView(wrapper, params);
-
-        TextView small = text(eyebrow, 9, COLOR_PRIMARY, true);
-        small.setLetterSpacing(0.12f);
-        wrapper.addView(small, matchWrap());
-
-        TextView heading = text(title, 19, COLOR_TEXT, true);
-        heading.setPadding(0, dp(3), 0, 0);
-        wrapper.addView(heading, matchWrap());
+    private void addTypeTile(LinearLayout row, String type, String name, int color, boolean enabled) {
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setGravity(Gravity.CENTER);
+        tile.setPadding(dp(12), dp(18), dp(12), dp(18));
+        tile.setBackground(round(SURFACE, 18));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(116), 1f);
+        if (row.getChildCount() > 0) p.leftMargin = dp(10);
+        row.addView(tile, p);
+        TextView badge = label(type, 18, Color.WHITE, true);
+        badge.setGravity(Gravity.CENTER);
+        badge.setBackground(round(color, 13));
+        tile.addView(badge, new LinearLayout.LayoutParams(dp(58), dp(58)));
+        TextView title = label(name, 13, TEXT, true);
+        title.setPadding(0, dp(9), 0, 0);
+        tile.addView(title);
+        tile.setOnClickListener(v -> openDocumentPicker());
     }
 
-    private void addModuleCard(
-            LinearLayout row,
-            String symbol,
-            String title,
-            String detail,
-            String status,
-            int index
-    ) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(14), dp(14), dp(12), dp(13));
-        card.setBackground(roundRect(COLOR_CARD, dp(16)));
-        card.setElevation(dp(1));
-
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
-        );
-        if (index % 2 == 0) {
-            params.rightMargin = dp(5);
-        } else {
-            params.leftMargin = dp(5);
-        }
-        row.addView(card, params);
-
-        TextView icon = text(symbol, 20, COLOR_PRIMARY, true);
-        icon.setGravity(Gravity.CENTER);
-        icon.setBackground(roundRect(Color.rgb(231, 241, 236), dp(12)));
-        card.addView(icon, new LinearLayout.LayoutParams(dp(42), dp(42)));
-
-        TextView name = text(title, 16, COLOR_TEXT, true);
-        name.setPadding(0, dp(12), 0, dp(2));
-        card.addView(name, matchWrap());
-
-        card.addView(text(detail, 11, COLOR_MUTED, false), matchWrap());
-
-        TextView badge = text(status, 9, COLOR_PRIMARY, true);
-        badge.setPadding(0, dp(10), 0, 0);
-        card.addView(badge, matchWrap());
-
-        card.setClickable(true);
-        card.setFocusable(true);
-        card.setOnClickListener(v -> {
-            if (index == 0) {
-                openDocumentPicker();
-            } else {
-                Toast.makeText(
-                        this,
-                        title + " is not connected yet.",
-                        Toast.LENGTH_SHORT
-                ).show();
-            }
-        });
-    }
-
-    private LinearLayout actionCard(String title, String subtitle, String symbol) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.HORIZONTAL);
-        card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setPadding(dp(15), dp(14), dp(15), dp(14));
-        card.setBackground(roundRect(COLOR_CARD, dp(15)));
-        card.setElevation(dp(1));
-        card.setClickable(true);
-        card.setFocusable(true);
-
-        TextView icon = text(symbol, 20, COLOR_PRIMARY, true);
-        icon.setGravity(Gravity.CENTER);
-        card.addView(icon, new LinearLayout.LayoutParams(dp(42), dp(42)));
-
-        LinearLayout copy = new LinearLayout(this);
-        copy.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
-        );
-        copyParams.leftMargin = dp(12);
-        card.addView(copy, copyParams);
-
-        copy.addView(text(title, 14, COLOR_TEXT, true), matchWrap());
-        TextView detail = text(subtitle, 11, COLOR_MUTED, false);
-        detail.setPadding(0, dp(3), 0, 0);
-        copy.addView(detail, matchWrap());
-
-        TextView arrow = text("›", 25, COLOR_MUTED, false);
-        card.addView(arrow, wrapWrap());
-        return card;
+    private TextView actionButton(String value, boolean primary) {
+        TextView button = label(value, 15, primary ? Color.rgb(8, 28, 27) : TEXT, true);
+        button.setGravity(Gravity.CENTER);
+        button.setPadding(dp(16), dp(16), dp(16), dp(16));
+        button.setBackground(round(primary ? ACCENT : SURFACE, 15));
+        button.setClickable(true);
+        button.setFocusable(true);
+        return button;
     }
 
     private void openDocumentPicker() {
@@ -303,88 +120,69 @@ public class MainActivity extends Activity {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
         intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                "text/plain"
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/plain"
         });
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
-                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-        try {
-            startActivityForResult(intent, REQUEST_OPEN_DOCUMENT);
-        } catch (Exception exception) {
-            Toast.makeText(this, "No compatible file picker was found.", Toast.LENGTH_LONG).show();
-        }
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try { startActivityForResult(intent, REQUEST_OPEN_DOCUMENT); }
+        catch (Exception e) { Toast.makeText(this, "No compatible file picker was found.", Toast.LENGTH_LONG).show(); }
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_OPEN_DOCUMENT && resultCode == RESULT_OK && data != null) {
-            Uri selectedFile = data.getData();
-            if (selectedFile == null) return;
-
-            String name = queryDisplayName(selectedFile).toLowerCase();
-            if (!name.endsWith(".docx") && !name.endsWith(".txt")) {
-                Toast.makeText(this, "This Writer build supports DOCX and TXT files only.",
-                        Toast.LENGTH_LONG).show();
-                return;
-            }
-            int flags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
-            try {
-                getContentResolver().takePersistableUriPermission(selectedFile, flags);
-            } catch (Exception ignored) { }
-
-            Intent open = new Intent(this, WriterActivity.class);
-            open.putExtra(WriterActivity.EXTRA_DOCUMENT_URI, selectedFile.toString());
-            startActivity(open);
+    private boolean openIncomingDocument(Intent incoming) {
+        if (incoming == null || !Intent.ACTION_VIEW.equals(incoming.getAction())) return false;
+        Uri uri = incoming.getData();
+        if (uri == null) return false;
+        String name = queryDisplayName(uri);
+        String mime = incoming.getType();
+        boolean docx = name.toLowerCase(java.util.Locale.ROOT).endsWith(".docx")
+                || "application/vnd.openxmlformats-officedocument.wordprocessingml.document".equals(mime);
+        boolean txt = name.toLowerCase(java.util.Locale.ROOT).endsWith(".txt") || "text/plain".equals(mime);
+        if (!docx && !txt) {
+            Toast.makeText(this, "This build supports DOCX and TXT files only.", Toast.LENGTH_LONG).show();
+            return true;
         }
+        Intent open = new Intent(this, WriterActivity.class);
+        open.putExtra(WriterActivity.EXTRA_DOCUMENT_URI, uri.toString());
+        open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try { startActivity(open); }
+        catch (Exception e) { Toast.makeText(this, "Could not open this document.", Toast.LENGTH_LONG).show(); }
+        return true;
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_OPEN_DOCUMENT || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+        String name = queryDisplayName(uri).toLowerCase(java.util.Locale.ROOT);
+        if (!name.endsWith(".docx") && !name.endsWith(".txt")) {
+            Toast.makeText(this, "Only DOCX and TXT are supported right now.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        int flags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+        try { getContentResolver().takePersistableUriPermission(uri, flags); } catch (Exception ignored) { }
+        Intent open = new Intent(this, WriterActivity.class);
+        open.putExtra(WriterActivity.EXTRA_DOCUMENT_URI, uri.toString());
+        startActivity(open);
     }
 
     private String queryDisplayName(Uri uri) {
-        try (Cursor cursor = getContentResolver().query(uri,
-                new String[] {OpenableColumns.DISPLAY_NAME}, null, null, null)) {
-            if (cursor != null && cursor.moveToFirst()) {
-                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
-                if (index >= 0) {
-                    String name = cursor.getString(index);
-                    if (name != null) return name;
-                }
+        try (Cursor c = getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (c != null && c.moveToFirst()) {
+                int i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (i >= 0 && c.getString(i) != null) return c.getString(i);
             }
         } catch (Exception ignored) { }
         return uri.getLastPathSegment() == null ? "" : uri.getLastPathSegment();
     }
 
-    private TextView text(String value, int sp, int color, boolean bold) {
-        TextView view = new TextView(this);
-        view.setText(value);
-        view.setTextSize(sp);
-        view.setTextColor(color);
-        view.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
-        view.setIncludeFontPadding(true);
-        return view;
+    private TextView label(String value, int size, int color, boolean bold) {
+        TextView t = new TextView(this);
+        t.setText(value); t.setTextSize(size); t.setTextColor(color);
+        t.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
+        return t;
     }
-
-    private GradientDrawable roundRect(int color, int radiusDp) {
-        GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(color);
-        drawable.setCornerRadius(dp(radiusDp));
-        return drawable;
+    private GradientDrawable round(int color, int radius) {
+        GradientDrawable d = new GradientDrawable(); d.setColor(color); d.setCornerRadius(dp(radius)); return d;
     }
-
-    private LinearLayout.LayoutParams matchWrap() {
-        return new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-    }
-
-    private LinearLayout.LayoutParams wrapWrap() {
-        return new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-    }
-
-    private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
-    }
+    private LinearLayout.LayoutParams match() { return new LinearLayout.LayoutParams(-1, -2); }
+    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 }

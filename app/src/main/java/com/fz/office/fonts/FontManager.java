@@ -131,10 +131,17 @@ public final class FontManager {
                 String family = metadata.family.isEmpty() ? customCssFamily(file) : metadata.family;
                 String style = metadata.subfamily.isEmpty() ? "Regular" : metadata.subfamily;
                 String full = metadata.fullName.isEmpty() ? family + " " + style : metadata.fullName;
+                Set<String> bundledFiles = preferences(context).getStringSet(
+                        "bundled_legacy_pack_files", java.util.Collections.<String>emptySet());
+                boolean bundledLegacy = bundledFiles.contains(file.getName());
                 result.add(new FontRecord(
-                        full + "  ·  " + file.getName(), "Imported · " + style,
-                        "Font family: " + family + ". Stored privately on this device; redistribution rights are your responsibility.",
-                        family, null, file, false, metadata.weight, metadata.italic ? "italic" : "normal", full
+                        full + "  ·  " + file.getName(),
+                        (bundledLegacy ? "Bundled · " : "Imported · ") + style,
+                        bundledLegacy
+                                ? "Bundled legacy Hindi font. Installed and maintained by FZ Work Suite."
+                                : "Font family: " + family + ". Stored privately on this device; redistribution rights are your responsibility.",
+                        family, null, file, bundledLegacy, metadata.weight,
+                        metadata.italic ? "italic" : "normal", full
                 ));
             }
         }
