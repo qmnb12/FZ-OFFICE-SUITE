@@ -31,6 +31,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (openIncomingDocument(getIntent())) {
+            finish();
+            return;
+        }
         getWindow().setStatusBarColor(COLOR_BACKGROUND);
         getWindow().setNavigationBarColor(COLOR_BACKGROUND);
         getWindow().getDecorView().setSystemUiVisibility(
@@ -38,6 +42,38 @@ public class MainActivity extends Activity {
                         | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         );
         buildDashboard();
+    }
+
+    /**
+     * Handles DOCX files launched from external file managers using ACTION_VIEW.
+     * The URI grant is forwarded to the internal viewer activity.
+     */
+    private boolean openIncomingDocument(Intent incoming) {
+        if (incoming == null || !Intent.ACTION_VIEW.equals(incoming.getAction())) {
+            return false;
+        }
+        Uri uri = incoming.getData();
+        if (uri == null) return false;
+
+        String name = queryDisplayName(uri);
+        String mime = incoming.getType();
+        boolean isDocx = name.toLowerCase(java.util.Locale.ROOT).endsWith(".docx")
+                || "application/vnd.openxmlformats-officedocument.wordprocessingml.document".equals(mime);
+        if (!isDocx) {
+            Toast.makeText(this, "This build currently supports DOCX files from file managers.",
+                    Toast.LENGTH_LONG).show();
+            return true;
+        }
+
+        Intent open = new Intent(this, WriterActivity.class);
+        open.putExtra(WriterActivity.EXTRA_DOCUMENT_URI, uri.toString());
+        open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try {
+            startActivity(open);
+        } catch (Exception exception) {
+            Toast.makeText(this, "Could not open this DOCX file.", Toast.LENGTH_LONG).show();
+        }
+        return true;
     }
 
     private void buildDashboard() {
