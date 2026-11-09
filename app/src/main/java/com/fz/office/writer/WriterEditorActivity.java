@@ -172,7 +172,7 @@ public class WriterEditorActivity extends Activity {
                 layout = doc.pageLayout;
                 runOnUiThread(() -> {
                     documentFonts = loadedFonts;
-                    status.setText("Editing a copy · Source document fonts loaded");
+                    status.setText("Document read · Preparing editor…");
                     initialize();
                 });
             } catch (Exception e) {
@@ -216,7 +216,11 @@ public class WriterEditorActivity extends Activity {
                 + marginTop + "," + marginRight + "," + marginBottom + "," + marginLeft + ");"
                 + "FZWriter.setFont(" + org.json.JSONObject.quote(family) + ",false);"
                 + "FZWriter.setHtml(" + org.json.JSONObject.quote(html) + ");";
-        web.evaluateJavascript(js, null);
+        web.evaluateJavascript(js, value -> {
+            if (!isFinishing() && status != null) {
+                status.setText("Editing a copy · Ready");
+            }
+        });
     }
 
     private void run(String js) {
