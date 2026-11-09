@@ -16,7 +16,7 @@ assert(viewer.includes('contains("<img")'), "Image-bearing documents must be pro
 assert(html.includes('contenteditable="true"'), "Writer editor page must be editable");
 assert(html.includes("function paginate(compactInitialLayout, onComplete)"),
   "Initial pagination must support skipping the expensive page-compaction pass");
-assert(html.includes("compactInitialLayout !== false"),
+assert(html.includes("compactInitialLayout === false ? \"cleanup\" : \"compact\""),
   "Normal edits may compact pages, but the initial load can skip the redundant repack pass");
 const setHtmlBlock = html.slice(html.indexOf("function setHtml(html)"), html.indexOf("function registerFonts(css)"));
 assert(!setHtmlBlock.includes("paginate();"),
