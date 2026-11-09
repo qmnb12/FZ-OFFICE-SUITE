@@ -8,7 +8,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 const main = read("app/src/main/java/com/fz/office/MainActivity.java");
 const viewer = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity.java");
-const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.java");
+const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.kt");
 const fontManager = read("app/src/main/java/com/fz/office/fonts/FontManager.java");
 const fontCenter = read("app/src/main/java/com/fz/office/fonts/FontCenterActivity.java");
 const docxCodec = read("app/src/main/java/com/fz/office/writer/DocxCodec.java");

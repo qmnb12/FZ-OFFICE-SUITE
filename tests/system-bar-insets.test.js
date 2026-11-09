@@ -6,7 +6,7 @@ const root = path.resolve(__dirname, "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 const home = read("app/src/main/java/com/fz/office/MainActivity.java");
-const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.java");
+const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.kt");
 const office = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity.java");
 const docxViewer = read("app/src/main/assets/writer/viewer.html");
 
@@ -16,9 +16,9 @@ assert(office.includes("applySafeAreaInsets(root)"), "XLSX/PPTX screen must appl
 
 for (const source of [home, writer, office]) {
   assert(source.includes("setOnApplyWindowInsetsListener"), "Missing Android edge-to-edge inset listener");
-  assert(source.includes("getSystemWindowInsetTop()"), "Top status-bar inset is not applied");
-  assert(source.includes("getSystemWindowInsetBottom()"), "Bottom navigation inset is not applied");
-  assert(source.includes("consumeSystemWindowInsets()"), "Insets should not be applied twice by child views");
+  assert(source.includes("systemWindowInsetTop"), "Top status-bar inset is not applied");
+  assert(source.includes("systemWindowInsetBottom"), "Bottom navigation inset is not applied");
+  assert(source.includes("consumeSystemWindowInsets"), "Insets should not be applied twice by child views");
 }
 
 assert(docxViewer.includes('page.style.width=width+"px"'), "DOCX page must retain its real paper width before scaling");

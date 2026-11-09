@@ -2,7 +2,7 @@
 const assert = require("assert");
 const fs = require("fs");
 const read = (p) => fs.readFileSync(p, "utf8");
-const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.java");
+const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.kt");
 const manifest = read("app/src/main/AndroidManifest.xml");
 const main = read("app/src/main/java/com/fz/office/MainActivity.java");
 

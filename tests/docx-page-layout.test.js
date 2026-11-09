@@ -1,7 +1,7 @@
 const fs = require("fs");
 const assert = require("assert");
 const codec = fs.readFileSync("app/src/main/java/com/fz/office/writer/DocxCodec.java", "utf8");
-const activity = fs.readFileSync("app/src/main/java/com/fz/office/writer/WriterActivity.java", "utf8");
+const activity = fs.readFileSync("app/src/main/java/com/fz/office/writer/WriterActivity.kt", "utf8");
 const viewer = fs.readFileSync("app/src/main/assets/writer/viewer.html", "utf8");
 assert(codec.includes("readPageLayout(documentXml)"), "DOCX load must read section page geometry");
 assert(codec.includes("htmlToDocumentXml(html, pageLayout)"), "DOCX save must retain page geometry and margins");

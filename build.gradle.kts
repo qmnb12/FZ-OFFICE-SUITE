@@ -1,6 +1,6 @@
-// Code On The Go (COTG) currently pins Kotlin's Gradle plugin in its
-// on-device Maven repository. Keeping this classpath available also satisfies
-// COTG's injected build tooling, even though this starter app is Java-only.
+// Code On The Go keeps Kotlin's Gradle plugin available in its on-device
+// Maven repository. AGP 9.x provides built-in Kotlin compilation, so the
+// application module does not apply the legacy org.jetbrains.kotlin.android plugin.
 buildscript {
     repositories {
         google()

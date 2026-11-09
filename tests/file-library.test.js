@@ -6,7 +6,7 @@ const root = path.resolve(__dirname, "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 const main = read("app/src/main/java/com/fz/office/MainActivity.java");
-const store = read("app/src/main/java/com/fz/office/library/RecentDocumentsStore.java");
+const store = read("app/src/main/java/com/fz/office/library/RecentDocumentsStore.kt");
 assert(main.includes("addLibrarySection(page)"), "Home screen must include the local library");
 assert(main.includes("Search recent documents"), "Recent documents must be searchable");
 assert(main.includes('libraryTabButton("Recent files"'), "Recent files tab is missing");
@@ -20,7 +20,9 @@ assert(main.includes("RecentDocumentsStore.clearUnstarred"), "History cleanup is
 assert(store.includes("MAX_ENTRIES = 60"), "History must be bounded");
 assert(store.includes("getSharedPreferences(PREFS, Context.MODE_PRIVATE)"), "History must be stored privately");
 assert(store.includes("wasStarred"), "Reopening a document must preserve its starred state");
-assert(store.includes("Does not delete original documents"), "Library must not delete source files");
+assert(store.includes("Source documents are never deleted"), "Library must not delete source files");
 assert(!store.includes("Environment.getExternalStorageDirectory"), "Library must not scan shared storage");
+assert(store.includes("@JvmStatic"), "Java callers must retain static method compatibility");
+assert(store.includes("@JvmField"), "Java callers must retain direct Entry field compatibility");
 
 console.log("FZ Office local library checks passed.");

@@ -2,19 +2,19 @@
 const assert = require("assert");
 const fs = require("fs");
 const read = (p) => fs.readFileSync(p, "utf8");
-const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.java");
+const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.kt");
 const fonts = read("app/src/main/java/com/fz/office/fonts/FontManager.java");
 const codec = read("app/src/main/java/com/fz/office/writer/DocxCodec.java");
 
-const load = writer.slice(writer.indexOf("private void loadDocument()"), writer.indexOf("private void initializeViewer()"));
+const load = writer.slice(writer.indexOf("private fun loadDocument()"), writer.indexOf("private fun initializeViewer()"));
 assert(!load.includes("FontManager.importBundledFontArchives"),
   "Large legacy Hindi font archive import must not block DOCX first paint");
 
-const init = writer.slice(writer.indexOf("private void initializeViewer()"), writer.indexOf("private void registerDocumentFontsAsync()"));
+const init = writer.slice(writer.indexOf("private fun initializeViewer()"), writer.indexOf("private fun registerDocumentFontsAsync()"));
 assert(!init.includes("FontManager.findByFamily") && !init.includes("getCustomFontCss"),
   "Viewer first paint must not scan or Base64-encode custom fonts on the UI thread");
 
-const fontLoad = writer.slice(writer.indexOf("private void registerDocumentFontsAsync()"), writer.indexOf("private void applyPendingDocument()"));
+const fontLoad = writer.slice(writer.indexOf("private fun registerDocumentFontsAsync()"), writer.indexOf("private fun applyPendingDocument()"));
 assert(fontLoad.includes("ioExecutor.execute"), "Document font scan must run off the UI thread");
 assert(fontLoad.includes("getCustomFontCssForFamilies"),
   "DOCX fonts must be resolved in one bulk scan");
@@ -30,4 +30,4 @@ const inspect = codec.slice(codec.indexOf("private static List<String> inspectFo
   codec.indexOf("private static void addFontName"));
 assert(inspect.includes('if (!(path.equals("word/document.xml") || path.equals("word/styles.xml"))) continue;'),
   "Font discovery must stay limited to DOCX body and styles");
-console.log("FZ DOCX viewer startup and font-loading performance checks passed.");
+console.log("FZ DOCX viewer startup and font-loading performance checks passed");
