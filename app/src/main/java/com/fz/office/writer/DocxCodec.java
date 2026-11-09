@@ -804,7 +804,7 @@ public final class DocxCodec {
         if (style.color != null) css.append("color:").append(style.color).append(";");
         if (style.highlight != null) css.append("background-color:").append(style.highlight).append(";");
         if (style.fontFamily != null) {
-            String safeFamily = style.fontFamily.replace("\\", "\\\\").replace("'", "\\'");
+            String safeFamily = style.fontFamily.replace("\", "\\\").replace("'", "\\'");
             css.append("font-family:'").append(safeFamily)
                     .append("','Noto Sans Devanagari','Noto Serif Devanagari',sans-serif;");
         }
@@ -902,7 +902,7 @@ public final class DocxCodec {
         if ("div".equals(tag) && (element.hasClass("fz-manual-break")
                 || "true".equals(element.attr("data-fz-page-break")))) {
             // Keep explicit page breaks when the edited HTML is exported back to DOCX.
-            xml.append("<w:p><w:r><w:br w:type=\\"page\\"/></w:r></w:p>");
+            xml.append("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>");
         } else if ("table".equals(tag)) {
             appendTable(element, xml);
         } else if ("ul".equals(tag) || "ol".equals(tag)) {
