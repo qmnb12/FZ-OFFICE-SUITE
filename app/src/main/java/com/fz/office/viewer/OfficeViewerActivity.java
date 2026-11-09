@@ -2,6 +2,7 @@ package com.fz.office.viewer;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -50,6 +51,7 @@ public class OfficeViewerActivity extends Activity {
     private String pageName = "xlsx.html";
     private String documentPath = "";
     private boolean presentation;
+    private boolean editableXlsx;
     private WebView webView;
     private ProgressBar progress;
     private TextView status;
@@ -63,6 +65,7 @@ public class OfficeViewerActivity extends Activity {
                 ? (documentUri == null ? "Office document" : queryDisplayName(documentUri))
                 : suppliedName;
         extension = extensionOf(documentName);
+        editableXlsx = "xlsx".equals(extension);
         String mime = documentUri == null ? null : getContentResolver().getType(documentUri);
         if (extension.isEmpty()) {
             String type = mime == null ? "" : mime.toLowerCase(Locale.ROOT);
@@ -114,10 +117,23 @@ public class OfficeViewerActivity extends Activity {
         title.setSingleLine(true);
         title.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
         titleColumn.addView(title);
-        TextView format = control(presentation ? "POWERPOINT · VIEW ONLY" : "SPREADSHEET · VIEW ONLY",
+        TextView format = control(presentation ? "POWERPOINT · VIEW ONLY"
+                : (editableXlsx ? "SPREADSHEET · EDITABLE COPY" : "SPREADSHEET · VIEW ONLY"),
                 9, 0xff60776e);
         format.setLetterSpacing(0.07f);
         titleColumn.addView(format);
+
+        if (editableXlsx && !presentation) {
+            TextView edit = toolbarControl("Edit");
+            toolbar.addView(edit, new LinearLayout.LayoutParams(dp(48), dp(40)));
+            edit.setOnClickListener(v -> {
+                Intent intent = new Intent(OfficeViewerActivity.this, SpreadsheetEditorActivity.class);
+                intent.putExtra(SpreadsheetEditorActivity.EXTRA_DOCUMENT_URI, documentUri.toString());
+                intent.putExtra(SpreadsheetEditorActivity.EXTRA_DOCUMENT_NAME, documentName);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivity(intent);
+            });
+        }
 
         TextView find = toolbarControl("Find");
         toolbar.addView(find, new LinearLayout.LayoutParams(dp(48), dp(40)));

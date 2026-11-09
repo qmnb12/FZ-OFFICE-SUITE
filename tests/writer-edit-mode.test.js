@@ -16,6 +16,10 @@ for (const command of ["bold", "italic", "underline", "insertUnorderedList", "in
 }
 assert(html.includes("function insertTable()"), "Writer must support inserting tables");
 assert(editor.includes("ACTION_CREATE_DOCUMENT"), "Save must create a separate copy");
+assert(editor.includes("documentFonts") && editor.includes("getCustomFontCssForFamily"),
+  "Writer edit mode must register the fonts declared by the source DOCX");
+assert(editor.includes("FontManager.importBundledFontArchives"),
+  "Writer edit mode must import the same bundled Hindi fonts as the reader");
 assert(!editor.includes("FLAG_GRANT_WRITE_URI_PERMISSION"), "Editor must not request source write permission");
 assert(editor.includes("DocxCodec.writeDocx(editedHtml, packageEntries, layout)"), "Save must preserve page geometry");
 assert(codec.includes("entries.putAll(originalEntries)"), "Original DOCX package parts must be retained");

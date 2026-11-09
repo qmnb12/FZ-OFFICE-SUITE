@@ -31,8 +31,11 @@ assert(!main.includes("launchNativeOfficeDocument"), "No native fallback should 
 assert(!main.includes("OfficeEditorLauncher"), "Main activity must not expose an editor route");
 assert(!writer.includes("OfficeEditorLauncher") && writer.includes('control("Edit"'),
   "DOCX reader must expose an explicit Edit action while retaining the viewer");
-assert(!viewer.includes("OfficeEditorLauncher") && !viewer.includes('toolbarControl("Edit"'),
-  "Spreadsheet/slide reader must remain view-only");
+assert(!viewer.includes("OfficeEditorLauncher"), "No external office editor launcher should be used");
+assert(viewer.includes('toolbarControl("Edit")') && viewer.includes("SpreadsheetEditorActivity.class"),
+  "XLSX viewer must expose the custom FZ Sheets editor");
+assert(viewer.includes("editableXlsx && !presentation"),
+  "Only .xlsx workbooks may expose the editing action");
 assert(writer.includes("VIEW ONLY"), "Writer reader must show view-only status");
 const writerEditor = read("app/src/main/java/com/fz/office/writer/WriterEditorActivity.java");
 assert(writerEditor.includes("ACTION_CREATE_DOCUMENT"), "Writer must save a new copy rather than overwrite the source");
@@ -62,6 +65,7 @@ assert(viewer.includes("connect-src 'self'"), "Viewer CSP must remain same-origi
 assert(manifest.includes('android:icon="@mipmap/ic_launcher"'), "Launcher icon is not assigned");
 assert(manifest.includes('android:roundIcon="@mipmap/ic_launcher_round"'), "Round icon is not assigned");
 assert(manifest.includes(".viewer.OfficeViewerActivity"), "Office reader missing from manifest");
+assert(manifest.includes(".viewer.SpreadsheetEditorActivity"), "Spreadsheet editor missing from manifest");
 assert(manifest.includes(".pdf.PdfViewerActivity"), "PDF reader missing from manifest");
 assert(!manifest.includes('android.permission.INTERNET'), "Offline app must not request INTERNET");
 assert(gradle.includes("downloadGanderViewerAssets"), "Pinned Gander assets are missing from build");

@@ -22,8 +22,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -38,6 +42,7 @@ public class WriterEditorActivity extends Activity {
     private String name = "Document.docx";
     private String html = "<p></p>";
     private Map<String, byte[]> packageEntries;
+    private List<String> documentFonts = new ArrayList<>();
     private DocxCodec.PageLayout layout;
     private byte[] pendingBytes;
     private WebView web;
@@ -149,10 +154,12 @@ public class WriterEditorActivity extends Activity {
 
     private void load() {
         io.execute(() -> {
+            try { FontManager.importBundledFontArchives(this); } catch (Exception ignored) { }
             try (InputStream in = getContentResolver().openInputStream(source)) {
                 if (in == null) throw new IOException("Could not read selected document.");
                 DocxCodec.LoadedDocument doc = DocxCodec.readDocx(
                         new java.io.ByteArrayInputStream(readLimited(in)));
+                List<String> loadedFonts = new ArrayList<>(doc.fontNames);
                 if (doc.html != null && doc.html.toLowerCase(Locale.ROOT).contains("<img")) {
                     throw new IOException("This document contains embedded images. Editing is disabled to protect them from being lost.");
                 }
@@ -160,7 +167,8 @@ public class WriterEditorActivity extends Activity {
                 packageEntries = doc.packageEntries;
                 layout = doc.pageLayout;
                 runOnUiThread(() -> {
-                    status.setText("Editing a copy · Original file stays unchanged");
+                    documentFonts = loadedFonts;
+                    status.setText("Editing a copy · Source document fonts loaded");
                     initialize();
                 });
             } catch (Exception e) {
@@ -177,8 +185,20 @@ public class WriterEditorActivity extends Activity {
         String family = FontManager.getDefaultFont(this);
         String css = FontManager.getBundledCss();
         try {
-            css += FontManager.getCustomFontCss(FontManager.findByFamily(this, family));
+            FontManager.FontRecord selected = FontManager.findByFamily(this, family);
+            if (selected != null && !selected.bundled) {
+                css += FontManager.getCustomFontCss(selected);
+            }
         } catch (Exception ignored) { }
+        Set<String> registered = new HashSet<>();
+        for (String documentFont : documentFonts) {
+            if (documentFont == null || documentFont.trim().isEmpty()) continue;
+            String key = documentFont.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+            if (key.isEmpty() || !registered.add(key)) continue;
+            try {
+                css += FontManager.getCustomFontCssForFamily(this, documentFont);
+            } catch (Exception ignored) { }
+        }
 
         int pageWidth = layout == null ? 11906 : layout.widthTwips;
         int pageHeight = layout == null ? 16838 : layout.heightTwips;

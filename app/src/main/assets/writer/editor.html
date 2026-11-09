@@ -63,8 +63,9 @@ body { min-height:100vh; overflow-x:hidden; }
   function getPages() { return Array.prototype.slice.call(pagesRoot.querySelectorAll(":scope > .page-shell > .fz-page")); }
   function shellOf(page) { return page && page.parentElement; }
   function pageScale() {
-    var available = Math.max(260, (scrollRoot.clientWidth || window.innerWidth) - 28);
-    return Math.min(1, available / Math.max(1, twipsToPx(layout.width)));
+    var available = Math.max(240, (scrollRoot.clientWidth || window.innerWidth) - 36);
+    // Open with a comfortable screen-fit view instead of filling the whole display edge-to-edge.
+    return Math.min(0.92, available / Math.max(1, twipsToPx(layout.width)));
   }
   function applyLayout() {
     var width = twipsToPx(layout.width), height = twipsToPx(layout.height);
@@ -75,7 +76,7 @@ body { min-height:100vh; overflow-x:hidden; }
       var shell = shellOf(page);
       shell.style.width = (width * scale) + "px";
       shell.style.height = (height * scale) + "px";
-      shell.style.marginBottom = (22 * scale) + "px";
+      shell.style.marginBottom = (28 * scale) + "px";
       page.style.width = width + "px";
       page.style.height = height + "px";
       page.style.padding = top + "px " + right + "px " + bottom + "px " + left + "px";

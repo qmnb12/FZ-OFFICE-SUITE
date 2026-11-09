@@ -2,83 +2,171 @@
 <html lang="hi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=4">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="color-scheme" content="light">
 <title>FZ Office Document Viewer</title>
 <style>
-:root{color-scheme:light;--ink:#1b342d;--muted:#718078;--paper:#fff;--canvas:#eef3f0;--line:#e3eae6}
+:root{color-scheme:light;--ink:#1b342d;--muted:#718078;--paper:#fff;--canvas:#e9efeb;--line:#d9e2dc}
 *{box-sizing:border-box}
-html,body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);font-family:"Noto Sans Devanagari",Arial,sans-serif;font-kerning:normal;text-rendering:optimizeLegibility}
-body{padding:12px 8px 28px}
-#legacyNotice{display:none;max-width:900px;margin:0 auto 10px;padding:12px 14px;border-radius:12px;background:#fff4dc;color:#6c4c12;font-size:12px;line-height:1.55;border:1px solid #f0dfb9}
+html,body{margin:0;width:100%;height:100%;background:var(--canvas);color:var(--ink);font-family:"Noto Sans Devanagari",Arial,sans-serif;font-kerning:normal;text-rendering:optimizeLegibility}
+body{display:flex;flex-direction:column;overflow:hidden}
+#legacyNotice{display:none;flex:0 0 auto;max-width:900px;margin:10px auto 0;padding:10px 13px;border-radius:10px;background:#fff4dc;color:#6c4c12;font-size:12px;line-height:1.5;border:1px solid #f0dfb9;width:calc(100% - 20px)}
 #legacyNotice strong{display:block;margin-bottom:3px}
-#page{width:100%;min-height:calc(100vh - 70px);margin:0 auto;padding:26px 20px 42px;background:var(--paper);border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 10px rgba(23,55,43,.06);font-size:16px;line-height:1.75;overflow-wrap:break-word;word-break:normal;font-family:"Noto Sans Devanagari",Arial,sans-serif;font-feature-settings:"kern" 1,"liga" 1;user-select:text;-webkit-user-select:text}
-#page p,#page div{margin:0 0 12px;min-height:1.4em}
-#page h1{font-size:1.65em;line-height:1.3;margin:0 0 14px}
-#page h2{font-size:1.35em;line-height:1.35;margin:0 0 12px}
-#page h3{font-size:1.15em;margin:0 0 10px}
-#page ul,#page ol{padding-left:25px;margin:0 0 12px}
-#page table{width:100%;border-collapse:collapse;table-layout:fixed;margin:12px 0}
-#page td,#page th{border:1px solid #9eafa7;padding:7px;min-width:35px;vertical-align:top}
-#page blockquote{border-left:3px solid #9ab8a9;margin:12px 0;padding:5px 12px;color:#52655c}
-#page img{max-width:100%;height:auto}
-#page a{color:#176b5b;text-decoration:underline}
-@media(min-width:700px){body{padding:20px}#page{max-width:900px;min-height:100vh;padding:42px 54px}}
-@media print{html,body{background:#fff;padding:0}#legacyNotice{display:none!important}#page{border:0;box-shadow:none;max-width:none;padding:0}}
+#viewer-scroll{width:100%;min-height:0;flex:1 1 auto;overflow:auto;overscroll-behavior:contain;padding:16px 8px 30px}
+#pages{display:flex;flex-direction:column;align-items:center;width:100%}
+.page-shell{position:relative;flex:0 0 auto;margin:0 auto}
+.fz-page{position:absolute;left:0;top:0;transform-origin:top left;overflow:hidden;background:var(--paper);border:1px solid var(--line);border-radius:2px;box-shadow:0 2px 12px rgba(23,55,43,.11);color:#202b26;font-size:16px;line-height:1.75;overflow-wrap:break-word;word-break:normal;user-select:text;-webkit-user-select:text;font-family:"Noto Sans Devanagari",Arial,sans-serif;font-feature-settings:"kern" 1,"liga" 1}
+.fz-page p,.fz-page div{margin:0 0 12px;min-height:1.4em}
+.fz-page h1{font-size:1.65em;line-height:1.3;margin:0 0 14px}
+.fz-page h2{font-size:1.35em;line-height:1.35;margin:0 0 12px}
+.fz-page h3{font-size:1.15em;margin:0 0 10px}
+.fz-page ul,.fz-page ol{padding-left:25px;margin:0 0 12px}
+.fz-page table{width:100%;border-collapse:collapse;table-layout:fixed;margin:12px 0}
+.fz-page td,.fz-page th{border:1px solid #9eafa7;padding:7px;min-width:35px;vertical-align:top}
+.fz-page blockquote{border-left:3px solid #9ab8a9;margin:12px 0;padding:5px 12px;color:#52655c}
+.fz-page img{max-width:100%;height:auto}
+.fz-page a{color:#176b5b;text-decoration:underline}
+.page-number{position:absolute;right:8px;bottom:4px;color:#738078;font:10px Arial,sans-serif;pointer-events:none;transform-origin:bottom right}
+.fz-measure{position:fixed!important;left:-100000px!important;top:0!important;transform:none!important;visibility:hidden!important;box-shadow:none!important;border:0!important}
+.page-shell[data-overflow="true"] .fz-page{outline:2px solid #c96f38}
+@media print{html,body{height:auto;overflow:visible;background:#fff}#legacyNotice{display:none!important}#viewer-scroll{overflow:visible;padding:0}#pages{display:block}.page-shell{break-after:page;margin:0!important}.fz-page{border:0;box-shadow:none;transform:none!important}}
 </style>
 </head>
 <body>
 <div id="legacyNotice" role="status"></div>
-<main id="page" aria-label="Document content"></main>
+<main id="viewer-scroll" aria-label="Document pages"><div id="pages"></div></main>
 <script>
 (function(){
 "use strict";
-var page=document.getElementById("page"),notice=document.getElementById("legacyNotice"),defaultFont="Noto Sans Devanagari",pageScale=1,zoomLevel=1,lastLayout=null;
-function registerFonts(css){if(!css)return;var style=document.getElementById("fz-font-face-rules");if(!style){style=document.createElement("style");style.id="fz-font-face-rules";document.head.appendChild(style)}style.textContent+=css}
-function setDefaultFont(family){if(!family)return;defaultFont=String(family);var safe=defaultFont.replace(/["\\]/g,"");page.style.fontFamily='"'+safe+'","Noto Sans Devanagari",Arial,sans-serif'}
-function showNotice(title,message){notice.textContent="";var strong=document.createElement("strong"),body=document.createElement("span");strong.textContent=title;body.textContent=message;notice.appendChild(strong);notice.appendChild(body);notice.style.display="block"}
-function applyPageLayout(layout){
-  lastLayout=layout||{};
-  var widthTwips=Number(lastLayout.widthTwips)||11906;
-  var heightTwips=Number(lastLayout.heightTwips)||16838;
-  var topTwips=Number(lastLayout.topTwips),rightTwips=Number(lastLayout.rightTwips);
-  var bottomTwips=Number(lastLayout.bottomTwips),leftTwips=Number(lastLayout.leftTwips);
-  if(!Number.isFinite(topTwips))topTwips=1440;
-  if(!Number.isFinite(rightTwips))rightTwips=1440;
-  if(!Number.isFinite(bottomTwips))bottomTwips=1440;
-  if(!Number.isFinite(leftTwips))leftTwips=1440;
-  var widthPx=widthTwips/15,heightPx=heightTwips/15;
-  var available=Math.max(260,window.innerWidth-(window.innerWidth<700?16:40));
-  var renderedWidth=Math.min(widthPx,available,900);
-  pageScale=renderedWidth/widthPx;
-  page.style.width=widthPx+"px";
-  page.style.maxWidth="none";
-  page.style.minHeight=heightPx+"px";
-  page.style.padding=[topTwips/15,rightTwips/15,bottomTwips/15,leftTwips/15].map(function(v){return Math.max(0,v)+"px"}).join(" ");
-  page.style.fontSize="16px";
-  page.style.zoom=(pageScale*zoomLevel);
+var root=document.getElementById("pages"),scroll=document.getElementById("viewer-scroll"),notice=document.getElementById("legacyNotice");
+var defaultFont="Noto Sans Devanagari",layout={widthTwips:11906,heightTwips:16838,topTwips:1440,rightTwips:1440,bottomTwips:1440,leftTwips:1440};
+var zoomLevel=1,ready=false,paginationBusy=false;
+function px(twips){return Math.max(0,Number(twips)||0)/15}
+function pages(){return Array.prototype.slice.call(root.querySelectorAll(".page-shell > .fz-page"))}
+function shellOf(page){return page&&page.parentElement}
+function widthScale(){
+ var width=px(layout.widthTwips),available=Math.max(240,(scroll.clientWidth||window.innerWidth)-36);
+ return Math.min(.92,available/Math.max(1,width))*zoomLevel;
 }
-function setDocument(html,profile,fontName,legacyHint,fontAvailable,layout){
-  page.innerHTML=html||"<p></p>";
-  applyPageLayout(layout);
-  notice.style.display="none";
-  page.style.fontFamily='"'+defaultFont.replace(/["\\]/g,"")+'","Noto Sans Devanagari",Arial,sans-serif';
-  if(fontName&&fontAvailable){
-    showNotice("Matching font loaded: "+fontName,
-      "The original DOCX characters are rendered using their declared font. No conversion has been applied; the source file is unchanged.");
-  }else if(fontName){
-    showNotice("Legacy font missing: "+fontName,
-      "Import this exact TTF/OTF family in Hindi Font Center. The original text and font declaration are unchanged.");
-  }else if(profile==="krutidev010"||profile==="devlys010"){
-    showNotice("Legacy font profile detected",
-      "Import the exact font family to render this document. Automatic conversion is disabled.");
-  }else if(legacyHint){
-    showNotice("Possible legacy Hindi encoding",
-      "No exact font family is declared. Text remains unchanged; automatic conversion is disabled.");
+function applyPageLayout(){
+ var width=px(layout.widthTwips),height=px(layout.heightTwips),top=px(layout.topTwips),right=px(layout.rightTwips);
+ var bottom=px(layout.bottomTwips),left=px(layout.leftTwips),scale=widthScale();
+ pages().forEach(function(page,index){
+  var shell=shellOf(page);
+  shell.style.width=(width*scale)+"px";
+  shell.style.height=(height*scale)+"px";
+  shell.style.marginBottom=(28*scale)+"px";
+  page.style.width=width+"px";page.style.height=height+"px";
+  page.style.padding=top+"px "+right+"px "+bottom+"px "+left+"px";
+  page.style.fontFamily='"'+defaultFont.replace(/["\\]/g,"")+'",Arial,sans-serif';
+  page.style.transform="scale("+scale+")";
+  var number=shell.querySelector(".page-number");
+  if(number){number.textContent="Page "+(index+1);number.style.transform="scale("+scale+")"}
+ });
+}
+function makePage(after){
+ var shell=document.createElement("section");shell.className="page-shell";
+ var page=document.createElement("article");page.className="fz-page";page.setAttribute("aria-label","Document page");
+ var number=document.createElement("div");number.className="page-number";
+ shell.appendChild(page);shell.appendChild(number);
+ if(after&&shellOf(after))root.insertBefore(shell,shellOf(after).nextSibling);else root.appendChild(shell);
+ applyPageLayout();return page;
+}
+function addPageAfter(page){return makePage(page)}
+function registerFonts(css){
+ if(!css)return;var style=document.getElementById("fz-font-face-rules");
+ if(!style){style=document.createElement("style");style.id="fz-font-face-rules";document.head.appendChild(style)}
+ style.textContent+=css;
+}
+function setDefaultFont(family){
+ if(!family)return;defaultFont=String(family);
+ pages().forEach(function(page){page.style.fontFamily='"'+defaultFont.replace(/["\\]/g,"")+'",Arial,sans-serif'});
+}
+function showNotice(title,message){
+ notice.textContent="";var strong=document.createElement("strong"),body=document.createElement("span");
+ strong.textContent=title;body.textContent=message;notice.appendChild(strong);notice.appendChild(body);notice.style.display="block";
+}
+function overflows(page){return page.scrollHeight>page.clientHeight+2}
+function textMap(block){
+ var walker=document.createTreeWalker(block,NodeFilter.SHOW_TEXT,{acceptNode:function(node){
+  var parent=node.parentElement;return parent&&parent.closest("script,style,code,pre,[contenteditable='false']")?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;
+ }});
+ var nodes=[],total=0,all="";
+ while(walker.nextNode()){var node=walker.currentNode;nodes.push({node:node,start:total,end:total+node.nodeValue.length});total+=node.nodeValue.length;all+=node.nodeValue}
+ return{nodes:nodes,total:total,text:all};
+}
+function locate(map,offset){
+ offset=Math.max(0,Math.min(map.total,offset));
+ for(var i=0;i<map.nodes.length;i++){var item=map.nodes[i];if(offset<=item.end)return{node:item.node,offset:offset-item.start}}
+ var last=map.nodes[map.nodes.length-1];return last?{node:last.node,offset:last.node.nodeValue.length}:null;
+}
+function fragment(block,map,start,end){
+ if(!map.nodes.length)return document.createDocumentFragment();
+ var a=locate(map,start),b=locate(map,end);if(!a||!b)return document.createDocumentFragment();
+ var range=document.createRange();range.setStart(a.node,a.offset);range.setEnd(b.node,b.offset);return range.cloneContents();
+}
+function prefixFits(page,block,map,count){
+ var temp=document.createElement("article");temp.className="fz-page fz-measure";
+ temp.style.width=px(layout.widthTwips)+"px";temp.style.height=px(layout.heightTwips)+"px";
+ temp.style.padding=px(layout.topTwips)+"px "+px(layout.rightTwips)+"px "+px(layout.bottomTwips)+"px "+px(layout.leftTwips)+"px";
+ temp.style.fontFamily=page.style.fontFamily||'"'+defaultFont+'",Arial,sans-serif';
+ var clone=block.cloneNode(false);clone.appendChild(fragment(block,map,0,count));temp.appendChild(clone);document.body.appendChild(temp);
+ var fits=temp.scrollHeight<=temp.clientHeight+2;temp.remove();return fits;
+}
+function splitLongBlock(page,block){
+ if(!/^(p|h1|h2|h3|h4|blockquote)$/i.test(block.tagName||""))return null;
+ var map=textMap(block);if(map.total<80||!map.nodes.length)return null;
+ var low=1,high=map.total-1,best=0;
+ for(var n=0;n<18&&low<=high;n++){var mid=Math.floor((low+high)/2);if(prefixFits(page,block,map,mid)){best=mid;low=mid+1}else high=mid-1}
+ if(best<24||best>=map.total-8)return null;
+ while(best>24&&!/\s/.test(map.text.charAt(best-1)))best--;
+ if(best<24)return null;
+ var first=fragment(block,map,0,best),second=fragment(block,map,best,map.total);
+ var continuation=block.cloneNode(false);continuation.appendChild(second);
+ block.innerHTML="";block.appendChild(first);
+ var list=pages(),index=list.indexOf(page),next=list[index+1]||addPageAfter(page);
+ next.insertBefore(continuation,next.firstChild);
+ return continuation;
+}
+function paginate(){
+ if(!ready||paginationBusy)return;paginationBusy=true;
+ try{
+  if(!pages().length)makePage();
+  var i=0;
+  while(i<pages().length&&i<500){
+   var page=pages()[i],guard=0;
+   while(overflows(page)&&guard++<300){
+    var children=Array.prototype.slice.call(page.children);
+    if(!children.length)break;
+    var next=pages()[i+1]||addPageAfter(page);
+    if(children.length===1){
+     if(!splitLongBlock(page,children[0])){shellOf(page).setAttribute("data-overflow","true");break}
+    }else next.insertBefore(children[children.length-1],next.firstChild);
+   }
+   if(!overflows(page))shellOf(page).removeAttribute("data-overflow");
+   i++;
   }
+  applyPageLayout();
+ }finally{paginationBusy=false}
 }
-function zoom(direction){zoomLevel=Math.max(.75,Math.min(2,zoomLevel+(direction>0?.1:-.1)));page.style.zoom=(pageScale*zoomLevel)}
-window.addEventListener("resize",function(){applyPageLayout(lastLayout)});
+function setDocument(html,profile,fontName,legacyHint,fontAvailable,pageLayout){
+ layout=pageLayout||{widthTwips:11906,heightTwips:16838,topTwips:1440,rightTwips:1440,bottomTwips:1440,leftTwips:1440};
+ layout.widthTwips=Number(layout.widthTwips)||11906;layout.heightTwips=Number(layout.heightTwips)||16838;
+ ["topTwips","rightTwips","bottomTwips","leftTwips"].forEach(function(key){layout[key]=Number(layout[key]);if(!Number.isFinite(layout[key]))layout[key]=1440});
+ root.innerHTML="";var page=makePage();
+ var source=document.createElement("div");source.innerHTML=html||"<p></p>";
+ while(source.firstChild)page.appendChild(source.firstChild);
+ if(!page.childNodes.length)page.innerHTML="<p></p>";
+ ready=true;notice.style.display="none";
+ if(fontName&&fontAvailable)showNotice("Matching font loaded: "+fontName,"The original DOCX characters are displayed using the declared font. The source file is unchanged.");
+ else if(fontName)showNotice("Legacy font missing: "+fontName,"Import this exact TTF/OTF family in Hindi Font Center. The original text remains unchanged.");
+ else if(profile==="krutidev010"||profile==="devlys010")showNotice("Legacy font profile detected","Import the exact font family to render this document. Automatic conversion is disabled.");
+ else if(legacyHint)showNotice("Possible legacy Hindi encoding","No exact font family is declared. Text remains unchanged; automatic conversion is disabled.");
+ paginate();
+ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){paginate()});
+}
+function zoom(direction){zoomLevel=Math.max(.7,Math.min(1.5,zoomLevel+(direction>0?.1:-.1)));applyPageLayout()}
+window.addEventListener("resize",applyPageLayout);
 window.FZViewer={registerFonts:registerFonts,setDefaultFont:setDefaultFont,setDocument:setDocument,zoom:zoom};
 })();
 </script>
