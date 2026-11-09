@@ -67,7 +67,30 @@ jobs:
       - name: Verify offline PDF reader
         run: node tests/pdf-viewer.test.js
 
+      - name: Restore persistent testing signing key
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+        run: |
+          if [ -z "$SIGNING_KEY_BASE64" ]; then
+            echo "Signing secrets unavailable; using the runner's default debug key."
+            exit 0
+          fi
+          if [ -z "$SIGNING_KEY_ALIAS" ] || [ -z "$SIGNING_KEY_PASSWORD" ] || [ -z "$SIGNING_STORE_PASSWORD" ]; then
+            echo "One or more signing secrets are missing." >&2
+            exit 1
+          fi
+          printf '%s' "$SIGNING_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/fz-testing.jks"
+          keytool -list -keystore "$RUNNER_TEMP/fz-testing.jks" -storepass "$SIGNING_STORE_PASSWORD" -alias "$SIGNING_KEY_ALIAS" >/dev/null
+          echo "FZ_TESTING_KEYSTORE=$RUNNER_TEMP/fz-testing.jks" >> "$GITHUB_ENV"
+
       - name: Build debug APK
+        env:
+          FZ_TESTING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          FZ_TESTING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          FZ_TESTING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
         run: gradle --no-daemon :app:assembleDebug
 
       - name: Upload debug APK
