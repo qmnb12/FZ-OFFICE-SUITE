@@ -137,6 +137,6 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: FZ-Office-Collabora-arm64
-          path: build/collabora/FZ-Office-Collabora-arm64-debug.apk
+          path: build/collabora/FZ-Office-Collabora-arm64-v8a-debug.apk
           if-no-files-found: error
           retention-days: 30
