@@ -462,6 +462,7 @@ public final class DocxCodec {
                                         Map<String, String> styleFonts) throws Exception {
         String alignment = "left";
         String paragraphStyleId = null;
+        boolean pageBreakBefore = false;
         StringBuilder content = new StringBuilder();
 
         while (true) {
@@ -475,6 +476,7 @@ public final class DocxCodec {
                 ParagraphProperties properties = readParagraphProperties(parser);
                 alignment = properties.alignment;
                 paragraphStyleId = properties.styleId;
+                pageBreakBefore = properties.pageBreakBefore;
             } else if ("r".equals(name)) {
                 content.append(readRun(parser, imageRelationships,
                         resolveParagraphFont(styleFonts, paragraphStyleId)));
@@ -490,6 +492,9 @@ public final class DocxCodec {
             }
         }
 
+        if (pageBreakBefore) {
+            html.append("<div class=\\"fz-manual-break\\" data-fz-page-break=\\"true\\"></div>");
+        }
         html.append("<p");
         if (!"left".equals(alignment)) {
             html.append(" style=\"text-align:").append(alignment).append("\"");
@@ -537,6 +542,9 @@ public final class DocxCodec {
                 skipElement(parser);
             } else if ("pStyle".equals(name)) {
                 properties.styleId = attribute(parser, "val");
+                skipElement(parser);
+            } else if ("pageBreakBefore".equals(name)) {
+                properties.pageBreakBefore = enabled(attribute(parser, "val"));
                 skipElement(parser);
             } else {
                 skipElement(parser);
@@ -609,6 +617,7 @@ public final class DocxCodec {
     private static final class ParagraphProperties {
         String alignment = "left";
         String styleId;
+        boolean pageBreakBefore;
     }
 
     private static String readRun(XmlPullParser parser, Map<String, String> imageRelationships,
@@ -631,7 +640,18 @@ public final class DocxCodec {
             } else if ("tab".equals(name)) {
                 text.append('\t');
                 skipElement(parser);
-            } else if ("br".equals(name) || "cr".equals(name)) {
+            } else if ("br".equals(name)) {
+                if ("page".equalsIgnoreCase(attribute(parser, "type"))) {
+                    if (text.length() > 0) {
+                        output.append(runToHtml(text.toString(), style));
+                        text.setLength(0);
+                    }
+                    output.append("<div class=\\"fz-manual-break\\" data-fz-page-break=\\"true\\"></div>");
+                } else {
+                    text.append('\n');
+                }
+                skipElement(parser);
+            } else if ("cr".equals(name)) {
                 text.append('\n');
                 skipElement(parser);
             } else if ("drawing".equals(name) || "pict".equals(name)) {
