@@ -65,7 +65,7 @@ body { min-height:100vh; overflow-x:hidden; }
   function pageScale() {
     var available = Math.max(240, (scrollRoot.clientWidth || window.innerWidth) - 36);
     // Open with a comfortable screen-fit view instead of filling the whole display edge-to-edge.
-    return Math.min(0.92, available / Math.max(1, twipsToPx(layout.width)));
+    return Math.min(0.86, Math.max(0.32, (available - 12) / Math.max(1, twipsToPx(layout.width)));
   }
   function applyLayout() {
     var width = twipsToPx(layout.width), height = twipsToPx(layout.height);
@@ -455,6 +455,11 @@ body { min-height:100vh; overflow-x:hidden; }
       ready = true;
     } finally { internalMutation = false; }
     paginate();
+    // Reflow once WebView has loaded every registered DOCX/custom font.
+    // Font metrics can change line wrapping and therefore page boundaries.
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () { paginate(); });
+    }
   }
 
   function registerFonts(css) {
