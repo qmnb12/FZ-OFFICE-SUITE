@@ -16,7 +16,9 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.Arrays;
 import java.util.Collections;
@@ -146,7 +148,7 @@ public final class FontManager {
             for (File file : files) {
                 if (!file.isFile() || !isSupportedExtension(file.getName())
                         || isBundledFontAssetCopy(file.getName())) continue;
-                FontMetadata metadata = readFontMetadata(file);
+                FontMetadata metadata = readFontMetadataCached(file);
                 String family = metadata.family.isEmpty() ? customCssFamily(file) : metadata.family;
                 String style = metadata.subfamily.isEmpty() ? "Regular" : metadata.subfamily;
                 String full = metadata.fullName.isEmpty() ? family + " " + style : metadata.fullName;
@@ -179,10 +181,17 @@ public final class FontManager {
 
     public static FontRecord findByFamily(Context context, String family) {
         String wanted = normalizeFamily(family);
+        if (wanted.isEmpty()) return BUILT_IN.get(0);
+
+        // Most documents use one of the APK fonts. Resolve those without scanning
+        // every user-imported TTF/OTF in the private font directory.
+        for (FontRecord record : BUILT_IN) {
+            if (normalizeFamily(record.cssFamily).equals(wanted)) return record;
+        }
         for (FontRecord record : getAvailableFonts(context)) {
             if (normalizeFamily(record.cssFamily).equals(wanted)) return record;
         }
-        return getBundledFonts().get(0);
+        return BUILT_IN.get(0);
     }
 
     public static String getBundledCss() {
@@ -323,6 +332,21 @@ public final class FontManager {
         }
     }
 
+    private static final class CachedFontMetadata {
+        final long lastModified;
+        final long length;
+        final FontMetadata metadata;
+
+        CachedFontMetadata(long lastModified, long length, FontMetadata metadata) {
+            this.lastModified = lastModified;
+            this.length = length;
+            this.metadata = metadata;
+        }
+    }
+
+    private static final Object FONT_METADATA_CACHE_LOCK = new Object();
+    private static final Map<String, CachedFontMetadata> FONT_METADATA_CACHE = new HashMap<>();
+
     /**
      * Imports every valid TTF/OTF in a user-selected ZIP into app-private storage.
      * ZIP paths are discarded; no archive entry can write outside the font folder.
@@ -462,6 +486,10 @@ public final class FontManager {
     public static String getCustomFontCssForFamily(Context context, String family) throws IOException {
         String wanted = normalizeFamily(family);
         if (wanted.isEmpty()) return "";
+        // Bundled faces are already registered through getBundledCss().
+        for (FontRecord record : BUILT_IN) {
+            if (normalizeFamily(record.cssFamily).equals(wanted)) return "";
+        }
         File directory = customDirectory(context);
         File[] files = directory.listFiles();
         if (files == null) return "";
@@ -470,7 +498,7 @@ public final class FontManager {
         StringBuilder css = new StringBuilder();
         for (File file : files) {
             if (!file.isFile() || !isSupportedExtension(file.getName())) continue;
-            FontMetadata metadata = readFontMetadata(file);
+            FontMetadata metadata = readFontMetadataCached(file);
             if (!normalizeFamily(metadata.family).equals(wanted)) continue;
             byte[] bytes = readFile(file);
             String encoded = Base64.encodeToString(bytes, Base64.NO_WRAP);
@@ -554,6 +582,35 @@ public final class FontManager {
 
     private static String normalizeFamily(String value) {
         return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    }
+
+    private static FontMetadata readFontMetadataCached(File file) {
+        String path = file.getAbsolutePath();
+        long lastModified = file.lastModified();
+        long length = file.length();
+        synchronized (FONT_METADATA_CACHE_LOCK) {
+            CachedFontMetadata cached = FONT_METADATA_CACHE.get(path);
+            if (cached != null && cached.lastModified == lastModified && cached.length == length) {
+                return cached.metadata;
+            }
+        }
+
+        FontMetadata metadata = readFontMetadata(file);
+        synchronized (FONT_METADATA_CACHE_LOCK) {
+            if (FONT_METADATA_CACHE.size() >= MAX_ARCHIVE_FONTS * 4) {
+                FONT_METADATA_CACHE.clear();
+            }
+            FONT_METADATA_CACHE.put(path,
+                    new CachedFontMetadata(lastModified, length, metadata));
+        }
+        return metadata;
+    }
+
+    private static void invalidateFontMetadata(File file) {
+        if (file == null) return;
+        synchronized (FONT_METADATA_CACHE_LOCK) {
+            FONT_METADATA_CACHE.remove(file.getAbsolutePath());
+        }
     }
 
     private static FontMetadata readFontMetadata(File file) {
@@ -647,6 +704,7 @@ public final class FontManager {
     public static void removeCustomFont(FontRecord record) {
         if (record != null && !record.bundled && record.customFile != null) {
             record.customFile.delete();
+            invalidateFontMetadata(record.customFile);
         }
     }
 
