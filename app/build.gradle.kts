@@ -9,6 +9,17 @@ plugins {
 val googleFontsCommit = "86aced91de05cd4f96a06838124cca45be337b2b"
 val hindiFontAssets = layout.buildDirectory.dir("generated/assets/hindiFonts")
 
+val testingKeystorePath = System.getenv("FZ_TESTING_KEYSTORE")
+val testingKeyAlias = System.getenv("FZ_TESTING_KEY_ALIAS")
+val testingStorePassword = System.getenv("FZ_TESTING_STORE_PASSWORD")
+val testingKeyPassword = System.getenv("FZ_TESTING_KEY_PASSWORD")
+val hasTestingSigning = listOf(
+    testingKeystorePath,
+    testingKeyAlias,
+    testingStorePassword,
+    testingKeyPassword
+).all { !it.isNullOrBlank() }
+
 val bundledHindiFonts = listOf(
     mapOf("family" to "notosansdevanagari", "file" to "NotoSansDevanagari[wdth,wght].ttf", "output" to "NotoSansDevanagari-VF.ttf", "size" to "641944", "sha" to "163f04bddc5a96fc523e4080466cac5c588f6594"),
     mapOf("family" to "notoserifdevanagari", "file" to "NotoSerifDevanagari[wdth,wght].ttf", "output" to "NotoSerifDevanagari-VF.ttf", "size" to "757692", "sha" to "3d90da279fe70b5017d9b51f58772f0c9ea4146e"),
@@ -221,6 +232,24 @@ android {
         targetSdk = 35
         versionCode = 18
         versionName = "0.6.9"
+    }
+
+    // Use the persistent GitHub Actions testing certificate when its secrets are available.
+    // Local builds and forked PRs without secrets continue using Android's default debug key.
+    if (hasTestingSigning) {
+        signingConfigs {
+            create("testing") {
+                storeFile = file(testingKeystorePath!!)
+                storePassword = testingStorePassword
+                keyAlias = testingKeyAlias
+                keyPassword = testingKeyPassword
+            }
+        }
+        buildTypes {
+            getByName("debug") {
+                signingConfig = signingConfigs.getByName("testing")
+            }
+        }
     }
 
     compileOptions {
