@@ -51,13 +51,14 @@ public class WriterActivity extends Activity {
     private boolean pageReady;
     private boolean viewerInitialized;
     private boolean documentLoaded;
+    private boolean documentFontsLoading;
+    private boolean documentFontsResolved;
 
     private String pendingHtml = "<p></p>";
     private String pendingLegacyProfile = "";
     private String pendingLegacyFontName = "";
     private boolean pendingLegacyTextHint;
     private boolean pendingLegacyFontLoaded;
-    private final Set<String> registeredDocumentFonts = new HashSet<>();
     private List<String> pendingDocumentFonts = new ArrayList<>();
     private DocxCodec.PageLayout pendingPageLayout;
     // Keep the parsed DOCX package while the read-only viewer is open so Edit
@@ -210,12 +211,8 @@ public class WriterActivity extends Activity {
                     throw new IOException("This viewer currently supports DOCX and TXT files.");
                 }
 
-                // The legacy font archive is large; ordinary Unicode DOCX files never need it.
-                // Install it only when this document explicitly declares a legacy Hindi family.
-                if (!legacyFontName.isEmpty()) {
-                    try { FontManager.importBundledFontArchives(WriterActivity.this); }
-                    catch (Exception ignored) { }
-                }
+                // Legacy fonts are installed asynchronously after the viewer has displayed
+                // the first layout, so a large ZIP import never blocks the document's first render.
 
                 final String loadedHtml = html;
                 final String loadedProfile = legacyProfile;
@@ -272,39 +269,51 @@ public class WriterActivity extends Activity {
         }
     }
 
-    private void registerDocumentFonts() {
-        if (!pageReady || viewer == null) return;
-        pendingLegacyFontLoaded = false;
-        List<String> requested = new ArrayList<>(pendingDocumentFonts);
-        if (pendingLegacyFontName != null && !pendingLegacyFontName.isEmpty()) {
-            requested.add(pendingLegacyFontName);
-        }
-        for (String documentFont : requested) {
-            String key = documentFont.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
-            if (key.isEmpty() || registeredDocumentFonts.contains(key)) continue;
+    private void registerDocumentFontsAsync() {
+        if (!pageReady || viewer == null || !documentLoaded
+                || documentFontsLoading || documentFontsResolved) return;
+        documentFontsLoading = true;
+
+        final List<String> requested = new ArrayList<>(pendingDocumentFonts);
+        final String legacyName = pendingLegacyFontName;
+        if (legacyName != null && !legacyName.trim().isEmpty()) requested.add(legacyName);
+
+        ioExecutor.execute(() -> {
+            String customCss = "";
+            boolean legacyLoaded = false;
             try {
-                String customCss = FontManager.getCustomFontCssForFamily(this, documentFont);
-                if (!customCss.isEmpty()) {
-                    viewer.evaluateJavascript("FZViewer.registerFonts("
-                            + JSONObject.quote(customCss) + ");", null);
-                    registeredDocumentFonts.add(key);
-                    if (sameFontFamily(documentFont, pendingLegacyFontName)) {
-                        pendingLegacyFontLoaded = true;
-                    }
+                if (legacyName != null && !legacyName.trim().isEmpty()) {
+                    FontManager.importBundledFontArchives(WriterActivity.this);
+                }
+                customCss = FontManager.getCustomFontCssForFamilies(WriterActivity.this, requested);
+                if (legacyName != null && !legacyName.trim().isEmpty()) {
+                    String declaration = "font-family:" + JSONObject.quote(legacyName) + ";";
+                    legacyLoaded = customCss.contains(declaration);
                 }
             } catch (Exception ignored) { }
-        }
-    }
 
-    private boolean sameFontFamily(String first, String second) {
-        if (first == null || second == null) return false;
-        return first.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "")
-                .equals(second.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", ""));
+            final String loadedCss = customCss;
+            final boolean loadedLegacy = legacyLoaded;
+            runOnUiThread(() -> {
+                documentFontsLoading = false;
+                documentFontsResolved = true;
+                pendingLegacyFontLoaded = loadedLegacy;
+                if (isFinishing() || viewer == null) return;
+                if (!loadedCss.isEmpty()) {
+                    viewer.evaluateJavascript("FZViewer.registerFonts("
+                            + JSONObject.quote(loadedCss) + ");", null);
+                }
+                // Reapply once after fonts are registered so the viewer uses the exact
+                // document font instead of keeping the fallback face from first paint.
+                applyPendingDocument();
+                updateStatus();
+            });
+        });
     }
 
     private void applyPendingDocument() {
         if (!pageReady || viewer == null || !documentLoaded) return;
-        registerDocumentFonts();
+        registerDocumentFontsAsync();
         updateStatus();
         JSONObject pageLayout = new JSONObject();
         try {
