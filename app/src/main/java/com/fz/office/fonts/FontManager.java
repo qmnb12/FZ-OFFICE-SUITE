@@ -485,35 +485,23 @@ public final class FontManager {
         return result;
     }
 
-    /**
-     * Builds CSS for several requested families using one directory scan.
-     * DOCX font tables can declare many unused fonts; scanning the same folder
-     * once per declaration made document opening increasingly expensive.
-     */
-    public static String getCustomFontCssForFamilies(Context context, Iterable<String> families)
-            throws IOException {
-        Set<String> wanted = new HashSet<>();
-        if (families != null) {
-            for (String family : families) {
-                String normalized = normalizeFamily(family);
-                if (!normalized.isEmpty()) wanted.add(normalized);
-            }
+    public static String getCustomFontCssForFamily(Context context, String family) throws IOException {
+        String wanted = normalizeFamily(family);
+        if (wanted.isEmpty()) return "";
+        // Bundled faces are already registered through getBundledCss().
+        for (FontRecord record : BUILT_IN) {
+            if (normalizeFamily(record.cssFamily).equals(wanted)) return "";
         }
-        if (wanted.isEmpty()) return "";
-
-        for (FontRecord record : BUILT_IN) wanted.remove(normalizeFamily(record.cssFamily));
-        if (wanted.isEmpty()) return "";
-
         File directory = customDirectory(context);
         File[] files = directory.listFiles();
-        if (files == null || files.length == 0) return "";
+        if (files == null) return "";
         Arrays.sort(files, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
 
         StringBuilder css = new StringBuilder();
         for (File file : files) {
             if (!file.isFile() || !isSupportedExtension(file.getName())) continue;
             FontMetadata metadata = readFontMetadataCached(file);
-            if (!wanted.contains(normalizeFamily(metadata.family))) continue;
+            if (!normalizeFamily(metadata.family).equals(wanted)) continue;
             byte[] bytes = readFile(file);
             String encoded = Base64.encodeToString(bytes, Base64.NO_WRAP);
             String format = extension(file.getName()).equals(".otf") ? "opentype" : "truetype";
@@ -526,10 +514,6 @@ public final class FontManager {
                     .append(";font-display:swap;}");
         }
         return css.toString();
-    }
-
-    public static String getCustomFontCssForFamily(Context context, String family) throws IOException {
-        return getCustomFontCssForFamilies(context, Collections.singletonList(family));
     }
 
     /**

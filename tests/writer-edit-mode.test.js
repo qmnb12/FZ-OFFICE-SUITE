@@ -14,7 +14,7 @@ assert(editor.includes("takePreloadedDocument(source)"),
   "Editor must consume the viewer's parsed DOCX package before opening the source again");
 assert(viewer.includes('contains("<img")'), "Image-bearing documents must be protected from lossy editing");
 assert(html.includes('contenteditable="true"'), "Writer editor page must be editable");
-assert(html.includes("function paginate(compactInitialLayout)"),
+assert(html.includes("function paginate(compactInitialLayout, onComplete)"),
   "Initial pagination must support skipping the expensive page-compaction pass");
 assert(html.includes("compactInitialLayout !== false"),
   "Normal edits may compact pages, but the initial load can skip the redundant repack pass");
@@ -23,7 +23,7 @@ assert(!setHtmlBlock.includes("paginate();"),
   "Initial DOCX load must not synchronously paginate twice");
 assert(setHtmlBlock.includes("document.fonts.ready.then(layoutInitialDocument, layoutInitialDocument)"),
   "Initial pagination must wait for document fonts and run once");
-assert(setHtmlBlock.includes("paginate(false)"), "Initial pagination must skip page repacking");
+assert(setHtmlBlock.includes("paginate(false, function"), "Initial pagination must complete asynchronously without page repacking");
 assert(editor.includes("@JavascriptInterface public void onLayoutReady()"),
   "Editor must report ready only after initial page layout completes");
 assert(editor.includes("initializationStarted"),

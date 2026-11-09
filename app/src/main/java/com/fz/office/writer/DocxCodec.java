@@ -159,10 +159,11 @@ public final class DocxCodec {
         for (Map.Entry<String, byte[]> item : entries.entrySet()) {
             String path = item.getKey();
             if (!path.startsWith("word/") || !path.endsWith(".xml")) continue;
-            // Only fonts referenced by the document body and its styles affect
-            // the editor surface. fontTable.xml lists unused installed fonts too,
-            // and header/footer parts are not currently rendered by this editor.
-            if (!(path.equals("word/document.xml") || path.equals("word/styles.xml"))) continue;
+            if (!(path.equals("word/document.xml") || path.equals("word/styles.xml")
+                    || path.startsWith("word/header") || path.startsWith("word/footer")
+                    || path.equals("word/fontTable.xml"))) {
+                continue;
+            }
             XmlPullParser parser = Xml.newPullParser();
             parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true);
             parser.setInput(new ByteArrayInputStream(item.getValue()), "UTF-8");
