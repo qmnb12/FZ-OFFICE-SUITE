@@ -176,7 +176,20 @@ public class WriterEditorActivity extends Activity {
         if (!ready || web == null || packageEntries == null) return;
         String family = FontManager.getDefaultFont(this);
         String css = FontManager.getBundledCss();
+        try {
+            css += FontManager.getCustomFontCss(FontManager.findByFamily(this, family));
+        } catch (Exception ignored) { }
+
+        int pageWidth = layout == null ? 11906 : layout.widthTwips;
+        int pageHeight = layout == null ? 16838 : layout.heightTwips;
+        int marginTop = layout == null ? 1440 : layout.topTwips;
+        int marginRight = layout == null ? 1440 : layout.rightTwips;
+        int marginBottom = layout == null ? 1440 : layout.bottomTwips;
+        int marginLeft = layout == null ? 1440 : layout.leftTwips;
+
         String js = "FZWriter.registerFonts(" + org.json.JSONObject.quote(css) + ");"
+                + "FZWriter.setPageLayout(" + pageWidth + "," + pageHeight + ","
+                + marginTop + "," + marginRight + "," + marginBottom + "," + marginLeft + ");"
                 + "FZWriter.setFont(" + org.json.JSONObject.quote(family) + ",false);"
                 + "FZWriter.setHtml(" + org.json.JSONObject.quote(html) + ");";
         web.evaluateJavascript(js, null);
