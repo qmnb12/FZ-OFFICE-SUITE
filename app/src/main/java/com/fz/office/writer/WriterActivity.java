@@ -60,6 +60,9 @@ public class WriterActivity extends Activity {
     private final Set<String> registeredDocumentFonts = new HashSet<>();
     private List<String> pendingDocumentFonts = new ArrayList<>();
     private DocxCodec.PageLayout pendingPageLayout;
+    // Keep the parsed DOCX package while the read-only viewer is open so Edit
+    // can reuse it instead of reading and parsing the same source a second time.
+    private DocxCodec.LoadedDocument loadedDocumentForEdit;
 
     private WebView viewer;
     private TextView titleView;
@@ -186,6 +189,7 @@ public class WriterActivity extends Activity {
                 String legacyFontName = "";
                 boolean legacyTextHint = false;
                 DocxCodec.PageLayout pageLayout = null;
+                DocxCodec.LoadedDocument parsedDocument = null;
                 List<String> documentFonts = new ArrayList<>();
 
                 if (plainText) {
@@ -195,6 +199,7 @@ public class WriterActivity extends Activity {
                 } else if (documentName.toLowerCase(Locale.ROOT).endsWith(".docx")) {
                     DocxCodec.LoadedDocument loaded =
                             DocxCodec.readDocx(new ByteArrayInputStream(data));
+                    parsedDocument = loaded;
                     html = loaded.html;
                     legacyProfile = loaded.legacyProfile;
                     legacyFontName = loaded.legacyFontName;
@@ -217,6 +222,7 @@ public class WriterActivity extends Activity {
                 final String loadedFontName = legacyFontName;
                 final boolean loadedHint = legacyTextHint;
                 final DocxCodec.PageLayout loadedPageLayout = pageLayout;
+                final DocxCodec.LoadedDocument loadedDocx = parsedDocument;
                 final List<String> loadedFonts = new ArrayList<>(documentFonts);
 
                 runOnUiThread(() -> {
@@ -226,6 +232,7 @@ public class WriterActivity extends Activity {
                     pendingLegacyFontName = loadedFontName;
                     pendingLegacyTextHint = loadedHint;
                     pendingPageLayout = loadedPageLayout;
+                    loadedDocumentForEdit = loadedDocx;
                     pendingDocumentFonts = loadedFonts;
                     if (titleView != null) titleView.setText(documentName);
                     updateStatus();
@@ -349,6 +356,11 @@ public class WriterActivity extends Activity {
                     .setPositiveButton("OK", null).show();
             return;
         }
+        if (loadedDocumentForEdit == null) {
+            Toast.makeText(this, "The document is not ready for editing yet.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        WriterEditorActivity.setPreloadedDocument(sourceUri, loadedDocumentForEdit);
         Intent intent = new Intent(this, WriterEditorActivity.class);
         intent.putExtra(WriterEditorActivity.EXTRA_DOCUMENT_URI, sourceUri.toString());
         intent.putExtra(WriterEditorActivity.EXTRA_DOCUMENT_NAME, documentName);
