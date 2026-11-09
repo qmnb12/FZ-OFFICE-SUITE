@@ -27,6 +27,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".viewer.SpreadsheetEditorActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".pdf.PdfViewerActivity"
             android:exported="false" />
 

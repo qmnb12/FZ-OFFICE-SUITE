@@ -21,9 +21,10 @@ for (const source of [home, writer, office]) {
   assert(source.includes("consumeSystemWindowInsets()"), "Insets should not be applied twice by child views");
 }
 
-assert(docxViewer.includes('page.style.width=widthPx+"px"'), "DOCX page must retain its real paper width before scaling");
-assert(docxViewer.includes('page.style.zoom=(pageScale*zoomLevel)'), "Whole DOCX page must scale to fit the viewport");
-assert(docxViewer.includes('page.style.fontSize="16px"'), "Base font size must not be scaled separately");
-assert(!docxViewer.includes("16*pageScale*zoomLevel"), "Font-only scaling would leave explicit runs inconsistent");
+assert(docxViewer.includes('page.style.width=width+"px"'), "DOCX page must retain its real paper width before scaling");
+assert(docxViewer.includes('page.style.height=height+"px"'), "DOCX page must retain its real paper height before scaling");
+assert(docxViewer.includes('page.style.transform="scale("+scale+")"'), "Whole DOCX page must scale uniformly to fit the viewport");
+assert(docxViewer.includes('Math.min(.92,available/Math.max(1,width))*zoomLevel'), "Viewer must start with screen-fit zoom while retaining page dimensions");
+assert(docxViewer.includes('shell.style.marginBottom=(28*scale)+"px"'), "Physical pages must have a visible gap");
 
 console.log("System-bar safe areas and DOCX whole-page zoom checks passed.");

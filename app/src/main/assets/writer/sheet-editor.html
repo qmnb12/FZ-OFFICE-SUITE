@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="light">
+<title>FZ Sheets</title>
+<style>
+:root{color-scheme:light;--ink:#20332c;--muted:#718078;--line:#dce5df;--surface:#fff;--canvas:#edf2ef;--accent:#176b5b}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--canvas);color:var(--ink);font:14px Arial,sans-serif}
+body{display:flex;flex-direction:column}
+#toolbar{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:8px;background:#fff;border-bottom:1px solid var(--line);flex:0 0 auto}
+button{border:1px solid var(--line);background:#f4f7f5;color:#24463d;border-radius:8px;padding:8px 10px;font-weight:600;white-space:nowrap}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.45}
+#formula{display:flex;align-items:center;gap:7px;padding:8px;background:#fff;border-bottom:1px solid var(--line);flex:0 0 auto}
+#address{width:72px;min-width:72px;text-align:center;padding:8px 5px;border:1px solid var(--line);border-radius:6px;background:#f7f9f7;font-weight:700}
+#formulaInput{width:100%;min-width:0;border:1px solid var(--line);border-radius:6px;padding:8px;font:14px Arial,sans-serif;outline:none}
+#formulaInput:focus{border-color:#5a9d88}
+#tabs{display:flex;gap:5px;overflow-x:auto;white-space:nowrap;padding:7px 8px;background:#f7f9f7;border-bottom:1px solid var(--line);flex:0 0 auto}
+#tabs button{border-radius:7px 7px 0 0;background:#edf2ef}
+#tabs button.active{background:#fff;border-bottom-color:#fff;color:var(--accent)}
+#gridWrap{flex:1 1 auto;min-height:0;overflow:auto;background:#fff;overscroll-behavior:contain}
+table{border-collapse:separate;border-spacing:0;table-layout:fixed;min-width:100%;font:13px Arial,sans-serif}
+th,td{height:32px;border-right:1px solid #e4eae6;border-bottom:1px solid #e4eae6;padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+thead th{position:sticky;top:0;z-index:3;background:#f1f5f2;color:#52645b;text-align:center;font-weight:700}
+th.rowhead{position:sticky;left:0;z-index:2;width:48px;min-width:48px;background:#f1f5f2;text-align:center;color:#607269;font-weight:600}
+thead th.corner{left:0;z-index:4}
+td.cell{min-width:110px;width:110px;max-width:220px;background:#fff}
+td.cell.selected{outline:2px solid #16806a;outline-offset:-2px;background:#f6fffa}
+#loading{padding:24px;color:var(--muted);text-align:center}
+#footer{font-size:11px;color:var(--muted);background:#fff;padding:7px 10px;border-top:1px solid var(--line);flex:0 0 auto;min-height:30px}
+</style>
+</head>
+<body>
+<div id="toolbar">
+ <button id="save" class="primary">Save copy</button>
+ <button id="addRow">+ Row</button>
+ <button id="addColumn">+ Column</button>
+ <button id="newSheet">+ Sheet</button>
+</div>
+<div id="formula">
+ <div id="address">A1</div>
+ <input id="formulaInput" type="text" autocomplete="off" spellcheck="false" placeholder="Cell value or formula (start with =)">
+</div>
+<div id="tabs"></div>
+<div id="gridWrap"><div id="loading">Loading workbook…</div></div>
+<div id="footer">Edit a cell using the formula/value field. Save copy keeps the source workbook unchanged.</div>
+<script src="/assets/viewer/lib/xlsx.full.min.js"></script>
+<script src="/assets/writer/sheet-editor.js"></script>
+</body>
+</html>

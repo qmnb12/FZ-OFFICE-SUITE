@@ -22,8 +22,12 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -33,16 +37,35 @@ public class WriterEditorActivity extends Activity {
     public static final String EXTRA_DOCUMENT_NAME = "document_name";
     private static final int REQUEST_CREATE_COPY = 4101;
     private static final int MAX_DOCX_BYTES = 80 * 1024 * 1024;
+    private static String preloadedUri;
+    private static DocxCodec.LoadedDocument preloadedDocument;
     private final ExecutorService io = Executors.newSingleThreadExecutor();
+
+    /** Transfers the already-parsed viewer document into Edit without a second ZIP read. */
+    public static synchronized void setPreloadedDocument(
+            Uri uri, DocxCodec.LoadedDocument document) {
+        preloadedUri = uri == null ? null : uri.toString();
+        preloadedDocument = document;
+    }
+
+    private static synchronized DocxCodec.LoadedDocument takePreloadedDocument(Uri uri) {
+        String requested = uri == null ? null : uri.toString();
+        if (requested == null || !requested.equals(preloadedUri)) return null;
+        DocxCodec.LoadedDocument document = preloadedDocument;
+        preloadedUri = null;
+        preloadedDocument = null;
+        return document;
+    }
     private Uri source;
     private String name = "Document.docx";
     private String html = "<p></p>";
     private Map<String, byte[]> packageEntries;
+    private List<String> documentFonts = new ArrayList<>();
     private DocxCodec.PageLayout layout;
     private byte[] pendingBytes;
     private WebView web;
     private TextView status;
-    private boolean ready, dirty, saving;
+    private boolean ready, dirty, saving, initializationStarted, customFontsStarted;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -149,10 +172,24 @@ public class WriterEditorActivity extends Activity {
 
     private void load() {
         io.execute(() -> {
-            try (InputStream in = getContentResolver().openInputStream(source)) {
-                if (in == null) throw new IOException("Could not read selected document.");
-                DocxCodec.LoadedDocument doc = DocxCodec.readDocx(
-                        new java.io.ByteArrayInputStream(readLimited(in)));
+            try {
+                // The Viewer already parsed this exact DOCX before the user tapped Edit.
+                // Reuse its package entries and parsed HTML instead of opening and parsing it twice.
+                DocxCodec.LoadedDocument doc = takePreloadedDocument(source);
+                if (doc == null) {
+                    try (InputStream in = getContentResolver().openInputStream(source)) {
+                        if (in == null) throw new IOException("Could not read selected document.");
+                        doc = DocxCodec.readDocx(
+                                new java.io.ByteArrayInputStream(readLimited(in)));
+                    }
+                }
+                if (doc == null) throw new IOException("Could not read selected document.");
+                // Unicode DOCX files use the APK-bundled fonts directly. Import the
+                // larger legacy pack only when the document declares a legacy Hindi font.
+                if (doc.legacyFontName != null && !doc.legacyFontName.trim().isEmpty()) {
+                    try { FontManager.importBundledFontArchives(this); } catch (Exception ignored) { }
+                }
+                List<String> loadedFonts = new ArrayList<>(doc.fontNames);
                 if (doc.html != null && doc.html.toLowerCase(Locale.ROOT).contains("<img")) {
                     throw new IOException("This document contains embedded images. Editing is disabled to protect them from being lost.");
                 }
@@ -160,7 +197,8 @@ public class WriterEditorActivity extends Activity {
                 packageEntries = doc.packageEntries;
                 layout = doc.pageLayout;
                 runOnUiThread(() -> {
-                    status.setText("Editing a copy · Original file stays unchanged");
+                    documentFonts = loadedFonts;
+                    status.setText("Document read · Preparing editor…");
                     initialize();
                 });
             } catch (Exception e) {
@@ -173,13 +211,123 @@ public class WriterEditorActivity extends Activity {
     }
 
     private void initialize() {
-        if (!ready || web == null || packageEntries == null) return;
-        String family = FontManager.getDefaultFont(this);
-        String css = FontManager.getBundledCss();
-        String js = "FZWriter.registerFonts(" + org.json.JSONObject.quote(css) + ");"
-                + "FZWriter.setFont(" + org.json.JSONObject.quote(family) + ",false);"
-                + "FZWriter.setHtml(" + org.json.JSONObject.quote(html) + ");";
-        web.evaluateJavascript(js, null);
+        if (!ready || web == null || packageEntries == null || initializationStarted) return;
+        // onPageFinished and the JS-ready bridge can both reach this method.
+        // Initialize the document only once to avoid rebuilding its full DOM twice.
+        initializationStarted = true;
+
+        // Put the document on screen with bundled fonts first. Imported/document
+        // fonts are discovered and encoded only after the initial page is visible.
+        final String sourceHtml = html;
+        final DocxCodec.PageLayout sourceLayout = layout;
+        if (status != null) status.setText("Document read · Opening editor…");
+
+        io.execute(() -> {
+            try {
+                String family = FontManager.getDefaultFont(this);
+                String bundledCss = FontManager.getBundledCss();
+
+                int pageWidth = sourceLayout == null ? 11906 : sourceLayout.widthTwips;
+                int pageHeight = sourceLayout == null ? 16838 : sourceLayout.heightTwips;
+                int marginTop = sourceLayout == null ? 1440 : sourceLayout.topTwips;
+                int marginRight = sourceLayout == null ? 1440 : sourceLayout.rightTwips;
+                int marginBottom = sourceLayout == null ? 1440 : sourceLayout.bottomTwips;
+                int marginLeft = sourceLayout == null ? 1440 : sourceLayout.leftTwips;
+
+                // Quote the potentially large HTML away from the UI thread.
+                String js = "FZWriter.registerFonts(" + org.json.JSONObject.quote(bundledCss) + ");"
+                        + "FZWriter.setPageLayout(" + pageWidth + "," + pageHeight + ","
+                        + marginTop + "," + marginRight + "," + marginBottom + "," + marginLeft + ");"
+                        + "FZWriter.setFont(" + org.json.JSONObject.quote(family) + ",false);"
+                        + "FZWriter.setHtml(" + org.json.JSONObject.quote(sourceHtml) + ");";
+
+                runOnUiThread(() -> {
+                    if (isFinishing() || web == null) return;
+                    web.evaluateJavascript(js, null);
+                });
+            } catch (Exception exception) {
+                runOnUiThread(() -> {
+                    if (isFinishing()) return;
+                    initializationStarted = false;
+                    if (status != null) status.setText("Could not prepare editor");
+                    new AlertDialog.Builder(this)
+                            .setTitle("Cannot prepare editor")
+                            .setMessage(exception.getMessage() == null
+                                    ? "The document could not be prepared for editing."
+                                    : exception.getMessage())
+                            .setPositiveButton("OK", (dialog, which) -> finish())
+                            .show();
+                });
+            }
+        });
+    }
+
+    /**
+     * Load non-bundled fonts after the document has appeared. This keeps a large
+     * imported-font directory or Base64 font payload from delaying the first screen.
+     */
+    private void loadDocumentFontsAsync() {
+        if (customFontsStarted || packageEntries == null || isFinishing()) return;
+        customFontsStarted = true;
+
+        final String family = FontManager.getDefaultFont(this);
+        final List<String> sourceFonts = new ArrayList<>(documentFonts);
+        final DocxCodec.PageLayout sourceLayout = layout;
+        io.execute(() -> {
+            try {
+                StringBuilder css = new StringBuilder();
+                try {
+                    FontManager.FontRecord selected = FontManager.findByFamily(this, family);
+                    if (selected != null && !selected.bundled) {
+                        css.append(FontManager.getCustomFontCss(selected));
+                    }
+                } catch (Exception ignored) { }
+
+                Set<String> registered = new HashSet<>();
+                String defaultKey = family.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+                if (!defaultKey.isEmpty()) registered.add(defaultKey);
+                for (String documentFont : sourceFonts) {
+                    if (documentFont == null || documentFont.trim().isEmpty()) continue;
+                    String key = documentFont.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+                    if (key.isEmpty() || !registered.add(key)) continue;
+                    try {
+                        css.append(FontManager.getCustomFontCssForFamily(this, documentFont));
+                    } catch (Exception ignored) { }
+                }
+
+                String customCss = css.toString();
+                if (customCss.isEmpty()) {
+                    runOnUiThread(() -> {
+                        if (!isFinishing() && status != null) status.setText("Editing a copy · Ready");
+                    });
+                    return;
+                }
+
+                int pageWidth = sourceLayout == null ? 11906 : sourceLayout.widthTwips;
+                int pageHeight = sourceLayout == null ? 16838 : sourceLayout.heightTwips;
+                int marginTop = sourceLayout == null ? 1440 : sourceLayout.topTwips;
+                int marginRight = sourceLayout == null ? 1440 : sourceLayout.rightTwips;
+                int marginBottom = sourceLayout == null ? 1440 : sourceLayout.bottomTwips;
+                int marginLeft = sourceLayout == null ? 1440 : sourceLayout.leftTwips;
+
+                String js = "FZWriter.registerFonts(" + org.json.JSONObject.quote(customCss) + ");"
+                        + "var fzFinishFonts=function(){FZWriter.setPageLayout("
+                        + pageWidth + "," + pageHeight + "," + marginTop + "," + marginRight
+                        + "," + marginBottom + "," + marginLeft + ");"
+                        + "if(window.AndroidBridge&&AndroidBridge.onFontsReady)AndroidBridge.onFontsReady();};"
+                        + "if(document.fonts&&document.fonts.ready){document.fonts.ready.then(fzFinishFonts,fzFinishFonts);}"
+                        + "else{fzFinishFonts();}";
+
+                runOnUiThread(() -> {
+                    if (isFinishing() || web == null) return;
+                    web.evaluateJavascript(js, null);
+                });
+            } catch (Exception ignored) {
+                runOnUiThread(() -> {
+                    if (!isFinishing() && status != null) status.setText("Editing a copy · Ready");
+                });
+            }
+        });
     }
 
     private void run(String js) {
@@ -301,6 +449,18 @@ public class WriterEditorActivity extends Activity {
 
     private final class Bridge {
         @JavascriptInterface public void onEditorReady() { runOnUiThread(() -> initialize()); }
+        @JavascriptInterface public void onLayoutReady() {
+            runOnUiThread(() -> {
+                if (isFinishing()) return;
+                if (status != null) status.setText("Editor ready · Loading document fonts…");
+                loadDocumentFontsAsync();
+            });
+        }
+        @JavascriptInterface public void onFontsReady() {
+            runOnUiThread(() -> {
+                if (!isFinishing() && status != null) status.setText("Editing a copy · Ready");
+            });
+        }
         @JavascriptInterface public void onDirty() {
             runOnUiThread(() -> { dirty = true; if (status != null) status.setText("Unsaved changes · Save copy to keep them"); });
         }

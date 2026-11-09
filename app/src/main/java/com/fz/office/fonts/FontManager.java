@@ -14,9 +14,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.Arrays;
 import java.util.Collections;
@@ -36,6 +39,7 @@ public final class FontManager {
     private static final int MAX_CUSTOM_FONT_BYTES = 12 * 1024 * 1024;
     private static final int MAX_ARCHIVE_FONTS = 1200;
     private static final long MAX_ARCHIVE_EXPANDED_BYTES = 180L * 1024L * 1024L;
+    private static final int MAX_FONT_NAME_TABLE_BYTES = 1024 * 1024;
 
     public static final String HINDI_SAMPLE =
             "हिन्दी भाषा — क्षत्रिय, प्रार्थना, दृष्टि, विद्यालय, श्रेय, कृपा, "
@@ -146,7 +150,7 @@ public final class FontManager {
             for (File file : files) {
                 if (!file.isFile() || !isSupportedExtension(file.getName())
                         || isBundledFontAssetCopy(file.getName())) continue;
-                FontMetadata metadata = readFontMetadata(file);
+                FontMetadata metadata = readFontMetadataCached(file);
                 String family = metadata.family.isEmpty() ? customCssFamily(file) : metadata.family;
                 String style = metadata.subfamily.isEmpty() ? "Regular" : metadata.subfamily;
                 String full = metadata.fullName.isEmpty() ? family + " " + style : metadata.fullName;
@@ -179,10 +183,17 @@ public final class FontManager {
 
     public static FontRecord findByFamily(Context context, String family) {
         String wanted = normalizeFamily(family);
+        if (wanted.isEmpty()) return BUILT_IN.get(0);
+
+        // Most documents use one of the APK fonts. Resolve those without scanning
+        // every user-imported TTF/OTF in the private font directory.
+        for (FontRecord record : BUILT_IN) {
+            if (normalizeFamily(record.cssFamily).equals(wanted)) return record;
+        }
         for (FontRecord record : getAvailableFonts(context)) {
             if (normalizeFamily(record.cssFamily).equals(wanted)) return record;
         }
-        return getBundledFonts().get(0);
+        return BUILT_IN.get(0);
     }
 
     public static String getBundledCss() {
@@ -323,6 +334,21 @@ public final class FontManager {
         }
     }
 
+    private static final class CachedFontMetadata {
+        final long lastModified;
+        final long length;
+        final FontMetadata metadata;
+
+        CachedFontMetadata(long lastModified, long length, FontMetadata metadata) {
+            this.lastModified = lastModified;
+            this.length = length;
+            this.metadata = metadata;
+        }
+    }
+
+    private static final Object FONT_METADATA_CACHE_LOCK = new Object();
+    private static final Map<String, CachedFontMetadata> FONT_METADATA_CACHE = new HashMap<>();
+
     /**
      * Imports every valid TTF/OTF in a user-selected ZIP into app-private storage.
      * ZIP paths are discarded; no archive entry can write outside the font folder.
@@ -462,6 +488,10 @@ public final class FontManager {
     public static String getCustomFontCssForFamily(Context context, String family) throws IOException {
         String wanted = normalizeFamily(family);
         if (wanted.isEmpty()) return "";
+        // Bundled faces are already registered through getBundledCss().
+        for (FontRecord record : BUILT_IN) {
+            if (normalizeFamily(record.cssFamily).equals(wanted)) return "";
+        }
         File directory = customDirectory(context);
         File[] files = directory.listFiles();
         if (files == null) return "";
@@ -470,7 +500,7 @@ public final class FontManager {
         StringBuilder css = new StringBuilder();
         for (File file : files) {
             if (!file.isFile() || !isSupportedExtension(file.getName())) continue;
-            FontMetadata metadata = readFontMetadata(file);
+            FontMetadata metadata = readFontMetadataCached(file);
             if (!normalizeFamily(metadata.family).equals(wanted)) continue;
             byte[] bytes = readFile(file);
             String encoded = Base64.encodeToString(bytes, Base64.NO_WRAP);
@@ -556,44 +586,91 @@ public final class FontManager {
         return value == null ? "" : value.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
     }
 
+    private static FontMetadata readFontMetadataCached(File file) {
+        String path = file.getAbsolutePath();
+        long lastModified = file.lastModified();
+        long length = file.length();
+        synchronized (FONT_METADATA_CACHE_LOCK) {
+            CachedFontMetadata cached = FONT_METADATA_CACHE.get(path);
+            if (cached != null && cached.lastModified == lastModified && cached.length == length) {
+                return cached.metadata;
+            }
+        }
+
+        FontMetadata metadata = readFontMetadata(file);
+        synchronized (FONT_METADATA_CACHE_LOCK) {
+            if (FONT_METADATA_CACHE.size() >= MAX_ARCHIVE_FONTS * 4) {
+                FONT_METADATA_CACHE.clear();
+            }
+            FONT_METADATA_CACHE.put(path,
+                    new CachedFontMetadata(lastModified, length, metadata));
+        }
+        return metadata;
+    }
+
+    private static void invalidateFontMetadata(File file) {
+        if (file == null) return;
+        synchronized (FONT_METADATA_CACHE_LOCK) {
+            FONT_METADATA_CACHE.remove(file.getAbsolutePath());
+        }
+    }
+
     private static FontMetadata readFontMetadata(File file) {
-        try {
-            byte[] bytes = readFile(file);
-            ByteBuffer data = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);
-            if (bytes.length < 12) return emptyMetadata(file);
-            int tables = unsignedShort(data, 4);
-            int nameOffset = -1;
-            int nameLength = 0;
+        // A font's family/style names live in the small OpenType "name" table.
+        // Do not read the entire TTF/OTF file just to inspect that table.
+        try (RandomAccessFile input = new RandomAccessFile(file, "r")) {
+            long fileLength = input.length();
+            if (fileLength < 12) return emptyMetadata(file);
+
+            byte[] header = new byte[12];
+            input.readFully(header);
+            ByteBuffer headerData = ByteBuffer.wrap(header).order(ByteOrder.BIG_ENDIAN);
+            int tables = unsignedShort(headerData, 4);
+            if (tables <= 0 || tables > 4096 || 12L + tables * 16L > fileLength) {
+                return emptyMetadata(file);
+            }
+
+            long nameOffset = -1L;
+            long nameLength = 0L;
+            byte[] tableRecord = new byte[16];
             for (int i = 0; i < tables; i++) {
-                int record = 12 + i * 16;
-                if (record + 16 > bytes.length) break;
-                String tag = new String(bytes, record, 4, java.nio.charset.StandardCharsets.US_ASCII);
+                input.seek(12L + i * 16L);
+                input.readFully(tableRecord);
+                String tag = new String(tableRecord, 0, 4,
+                        java.nio.charset.StandardCharsets.US_ASCII);
                 if ("name".equals(tag)) {
-                    long offset = unsignedInt(data, record + 8);
-                    long length = unsignedInt(data, record + 12);
-                    if (offset <= bytes.length && length <= bytes.length - offset) {
-                        nameOffset = (int) offset;
-                        nameLength = (int) length;
-                    }
+                    ByteBuffer recordData = ByteBuffer.wrap(tableRecord).order(ByteOrder.BIG_ENDIAN);
+                    nameOffset = unsignedInt(recordData, 8);
+                    nameLength = unsignedInt(recordData, 12);
                     break;
                 }
             }
-            if (nameOffset < 0 || nameLength < 6) return emptyMetadata(file);
-            int count = unsignedShort(data, nameOffset + 2);
-            int stringOffset = unsignedShort(data, nameOffset + 4);
-            int recordsStart = nameOffset + 6;
+
+            if (nameOffset < 0 || nameLength < 6
+                    || nameLength > MAX_FONT_NAME_TABLE_BYTES
+                    || nameOffset > fileLength - nameLength) {
+                return emptyMetadata(file);
+            }
+
+            byte[] bytes = new byte[(int) nameLength];
+            input.seek(nameOffset);
+            input.readFully(bytes);
+            ByteBuffer data = ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN);
+            int count = unsignedShort(data, 2);
+            int stringOffset = unsignedShort(data, 4);
+            int recordsStart = 6;
             String family16 = "", family1 = "", sub17 = "", sub2 = "", full4 = "";
             for (int i = 0; i < count; i++) {
                 int at = recordsStart + i * 12;
-                if (at + 12 > nameOffset + nameLength || at + 12 > bytes.length) break;
+                if (at + 12 > bytes.length) break;
                 int platform = unsignedShort(data, at);
                 int language = unsignedShort(data, at + 4);
                 int nameId = unsignedShort(data, at + 6);
                 int length = unsignedShort(data, at + 8);
                 int offset = unsignedShort(data, at + 10);
-                int start = nameOffset + stringOffset + offset;
-                if (start < nameOffset || start + length > nameOffset + nameLength || start + length > bytes.length) continue;
-                String decoded = decodeName(bytes, start, length, platform).trim();
+                long valueStart = (long) stringOffset + offset;
+                if (valueStart < stringOffset || valueStart + length > bytes.length) continue;
+                String decoded = decodeName(bytes, (int) valueStart, length, platform).trim();
                 if (decoded.isEmpty()) continue;
                 boolean preferred = platform == 3 && (language == 0x0409 || language == 0);
                 if (nameId == 16 && (family16.isEmpty() || preferred)) family16 = decoded;
@@ -602,6 +679,7 @@ public final class FontManager {
                 else if (nameId == 2 && (sub2.isEmpty() || preferred)) sub2 = decoded;
                 else if (nameId == 4 && (full4.isEmpty() || preferred)) full4 = decoded;
             }
+
             String family = !family16.isEmpty() ? family16 : family1;
             String style = !sub17.isEmpty() ? sub17 : sub2;
             if (family.isEmpty()) family = customCssFamily(file);
@@ -647,6 +725,7 @@ public final class FontManager {
     public static void removeCustomFont(FontRecord record) {
         if (record != null && !record.bundled && record.customFile != null) {
             record.customFile.delete();
+            invalidateFontMetadata(record.customFile);
         }
     }
 
