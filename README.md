@@ -1,6 +1,6 @@
 # FZ Office Suite
 
-**Offline-first Android document reader with Hindi-first typography.**
+**Offline-first Android document viewer with Hindi-first typography and a lightweight XLSX editor.**
 
 ## Current build
 
@@ -13,7 +13,7 @@ FZ Office is deliberately **view-only**. The native Collabora/LibreOffice engine
 - **PPTX, PPSX, PPTM and POTX:** offline Gander/PPTXjs presentation preview.
 - **PDF:** built-in offline PDF reader with page navigation and bounded zoom.
 
-All document screens are read-only. There is no Edit button, no save-back path and no write permission requested from document providers. Original files remain unchanged.
+DOCX, TXT, PPTX and PDF screens are read-only. The spreadsheet reader is also read-only by default; only `.xlsx` files offer an optional **Edit a copy** screen. Edited workbooks are saved as a separate new file through Save As. The original file is never overwritten and the app does not request write permission for the source document.
 
 ## Current limitations
 

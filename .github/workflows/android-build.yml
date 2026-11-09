@@ -53,11 +53,11 @@ jobs:
       - name: Verify Office viewer routing and local asset pinning
         run: node tests/office-viewer-routing.test.js
 
-      - name: Verify Writer edit mode and safe Save As
-        run: node tests/writer-edit-mode.test.js
+      - name: Verify DOCX and TXT remain view-only
+        run: node tests/writer-view-only.test.js
 
-      - name: Verify Writer pagination and font startup performance
-        run: node tests/editor-performance.test.js
+      - name: Verify DOCX viewer startup performance
+        run: node tests/viewer-performance.test.js
 
       - name: Verify custom XLSX edit mode
         run: |
