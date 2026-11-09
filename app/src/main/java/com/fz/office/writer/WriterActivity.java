@@ -177,7 +177,6 @@ public class WriterActivity extends Activity {
         }
         statusView.setText("Opening document…");
         ioExecutor.execute(() -> {
-            try { FontManager.importBundledFontArchives(WriterActivity.this); } catch (Exception ignored) { }
             try (InputStream input = getContentResolver().openInputStream(sourceUri)) {
                 if (input == null) throw new IOException("Could not read the selected document.");
                 byte[] data = readLimited(input, plainText ? MAX_TEXT_BYTES : MAX_DOCX_BYTES);
@@ -204,6 +203,13 @@ public class WriterActivity extends Activity {
                     documentFonts.addAll(loaded.fontNames);
                 } else {
                     throw new IOException("This viewer currently supports DOCX and TXT files.");
+                }
+
+                // The legacy font archive is large; ordinary Unicode DOCX files never need it.
+                // Install it only when this document explicitly declares a legacy Hindi family.
+                if (!legacyFontName.isEmpty()) {
+                    try { FontManager.importBundledFontArchives(WriterActivity.this); }
+                    catch (Exception ignored) { }
                 }
 
                 final String loadedHtml = html;
@@ -252,7 +258,6 @@ public class WriterActivity extends Activity {
                 }
             }
 
-            registerDocumentFonts();
             applyPendingDocument();
         } catch (Exception exception) {
             statusView.setText("Some fonts could not be registered · View only");
@@ -291,7 +296,7 @@ public class WriterActivity extends Activity {
     }
 
     private void applyPendingDocument() {
-        if (!pageReady || viewer == null) return;
+        if (!pageReady || viewer == null || !documentLoaded) return;
         registerDocumentFonts();
         updateStatus();
         JSONObject pageLayout = new JSONObject();
