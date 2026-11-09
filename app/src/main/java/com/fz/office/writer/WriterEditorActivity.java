@@ -154,11 +154,15 @@ public class WriterEditorActivity extends Activity {
 
     private void load() {
         io.execute(() -> {
-            try { FontManager.importBundledFontArchives(this); } catch (Exception ignored) { }
             try (InputStream in = getContentResolver().openInputStream(source)) {
                 if (in == null) throw new IOException("Could not read selected document.");
                 DocxCodec.LoadedDocument doc = DocxCodec.readDocx(
                         new java.io.ByteArrayInputStream(readLimited(in)));
+                // Unicode DOCX files use the APK-bundled fonts directly. Import the
+                // larger legacy pack only when the document declares a legacy Hindi font.
+                if (doc.legacyFontName != null && !doc.legacyFontName.trim().isEmpty()) {
+                    try { FontManager.importBundledFontArchives(this); } catch (Exception ignored) { }
+                }
                 List<String> loadedFonts = new ArrayList<>(doc.fontNames);
                 if (doc.html != null && doc.html.toLowerCase(Locale.ROOT).contains("<img")) {
                     throw new IOException("This document contains embedded images. Editing is disabled to protect them from being lost.");
