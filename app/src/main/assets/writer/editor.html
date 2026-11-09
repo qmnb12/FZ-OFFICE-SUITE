@@ -360,6 +360,9 @@ body { min-height:100vh; overflow-x:hidden; }
     if (!pages.length) pages.push(makePage());
 
     var pageIndex = 0;
+    // A page can overflow after its manual break has been handled. Do not move
+    // the same break again on every flow iteration in this pagination pass.
+    var manualBreakHandled = [];
     var compactIndex = 0;
     var cleanupIndex = -1;
     var phase = "flow";
@@ -386,7 +389,10 @@ body { min-height:100vh; overflow-x:hidden; }
         while (phase === "flow" && pageIndex < pages.length && pageIndex < 500
             && operations < 8 && paginationNow() - started < 7) {
           var page = pages[pageIndex];
-          if (handleManualBreak(page, pages, pageIndex)) operations++;
+          if (manualBreakHandled.indexOf(page) < 0) {
+            manualBreakHandled.push(page);
+            if (handleManualBreak(page, pages, pageIndex)) operations++;
+          }
           if (pageOverflows(page)) {
             var children = Array.prototype.slice.call(page.children).filter(function (node) {
               return !node.classList || !node.classList.contains("fz-measure");

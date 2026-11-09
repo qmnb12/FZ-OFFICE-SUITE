@@ -25,6 +25,8 @@ assert(pagination.includes("requestAnimationFrame(runSlice)"),
 assert(pagination.includes("operations < 8") && pagination.includes("paginationNow() - started < 7"),
   "Pagination slices must have a bounded operation/time budget");
 assert(pagination.includes("pages.splice"), "Pagination must maintain its page index without repeated full DOM queries");
+assert(pagination.includes("manualBreakHandled.indexOf(page) < 0"),
+  "A manual page break must be processed once per page per pagination pass");
 assert(html.includes('pagesRoot.setAttribute("aria-busy", "true")'),
   "Initial pagination must expose a preparation state and prevent edits during DOM moves");
 
@@ -44,8 +46,10 @@ assert(bulkFonts.split("directory.listFiles()").length === 2,
 
 const inspect = codec.slice(codec.indexOf("private static List<String> inspectFontNames"),
   codec.indexOf("private static void addFontName"));
-assert(!inspect.includes("fontTable.xml") && !inspect.includes("word/header") && !inspect.includes("word/footer"),
-  "Unused font table, header and footer families must not be loaded into the editor's font scan");
+assert(inspect.includes('if (!(path.equals("word/document.xml") || path.equals("word/styles.xml"))) continue;'),
+  "Only font declarations used by the document body and styles should be scanned");
+assert(!inspect.includes('path.startsWith("word/header")') && !inspect.includes('path.startsWith("word/footer")'),
+  "Unused header/footer font declarations must not be loaded into the editor's font scan");
 
 assert(writer.includes("getCustomFontCssForFamilies") || writer.includes("registerDocumentFonts"),
   "The DOCX viewer must retain document-font registration support");

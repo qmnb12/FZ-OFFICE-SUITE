@@ -899,7 +899,11 @@ public final class DocxCodec {
         Element element = (Element) node;
         String tag = element.tagName().toLowerCase(Locale.ROOT);
 
-        if ("table".equals(tag)) {
+        if ("div".equals(tag) && (element.hasClass("fz-manual-break")
+                || "true".equals(element.attr("data-fz-page-break")))) {
+            // Keep explicit page breaks when the edited HTML is exported back to DOCX.
+            xml.append("<w:p><w:r><w:br w:type=\\"page\\"/></w:r></w:p>");
+        } else if ("table".equals(tag)) {
             appendTable(element, xml);
         } else if ("ul".equals(tag) || "ol".equals(tag)) {
             int index = 1;

@@ -43,6 +43,10 @@ assert(editor.includes("DocxCodec.writeDocx(editedHtml, packageEntries, layout)"
 assert(codec.includes("entries.putAll(originalEntries)"), "Original DOCX package parts must be retained");
 assert(codec.includes("private static String firstCssFontFamily("),
   "DOCX export must reduce CSS fallback stacks to one real font family");
+assert(html.includes('data-fz-page-break="true"'),
+  "Writer page-break insertion must retain an explicit page-break marker");
+assert(codec.includes("fz-manual-break") && codec.includes("w:type"),
+  "Explicit Writer page breaks must be serialized as real DOCX page breaks");
 assert(codec.includes('String family = firstCssFontFamily(cssValue(css, "font-family"));'),
   "Inline Hindi font-family fallback stacks must not be stored as one invalid Word font name");
 assert(codec.includes('String defaultFamily = firstCssFontFamily('),
