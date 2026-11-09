@@ -73,16 +73,23 @@ jobs:
           SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          ALLOW_UNSIGNED_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
         run: |
-          if [ -z "$SIGNING_KEY_BASE64" ]; then
-            echo "Signing secrets unavailable; using the runner's default debug key."
-            exit 0
+          set -euo pipefail
+          if [ -z "${SIGNING_KEY_BASE64:-}" ]; then
+            if [ "${ALLOW_UNSIGNED_PR:-false}" = "true" ]; then
+              echo "Fork pull request: repository secrets are unavailable; using the temporary debug key."
+              exit 0
+            fi
+            echo "::error::Persistent signing secrets are missing. Refusing to publish an APK signed with a temporary debug key."
+            exit 1
           fi
-          if [ -z "$SIGNING_KEY_ALIAS" ] || [ -z "$SIGNING_KEY_PASSWORD" ] || [ -z "$SIGNING_STORE_PASSWORD" ]; then
-            echo "One or more signing secrets are missing." >&2
+          if [ -z "${SIGNING_KEY_ALIAS:-}" ] || [ -z "${SIGNING_KEY_PASSWORD:-}" ] || [ -z "${SIGNING_STORE_PASSWORD:-}" ]; then
+            echo "::error::One or more persistent signing secrets are missing."
             exit 1
           fi
           printf '%s' "$SIGNING_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/fz-testing.jks"
+          test -s "$RUNNER_TEMP/fz-testing.jks"
           keytool -list -keystore "$RUNNER_TEMP/fz-testing.jks" -storepass "$SIGNING_STORE_PASSWORD" -alias "$SIGNING_KEY_ALIAS" >/dev/null
           echo "FZ_TESTING_KEYSTORE=$RUNNER_TEMP/fz-testing.jks" >> "$GITHUB_ENV"
 
@@ -92,6 +99,36 @@ jobs:
           FZ_TESTING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
           FZ_TESTING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
         run: gradle --no-daemon :app:assembleDebug
+
+      - name: Verify APK signing certificate
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          ALLOW_UNSIGNED_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          if [ -z "$APK" ]; then
+            echo "::error::Debug APK was not found."
+            exit 1
+          fi
+          if [ -n "${SIGNING_KEY_BASE64:-}" ]; then
+            EXPECTED_CERT="$(keytool -list -v -keystore "$RUNNER_TEMP/fz-testing.jks" -storepass "$SIGNING_STORE_PASSWORD" -alias "$SIGNING_KEY_ALIAS" 2>/dev/null | awk -F': ' '/SHA256:/{print $2; exit}' | tr -d ':\r\n' | tr '[:upper:]' '[:lower:]')"
+            ACTUAL_CERT="$("${ANDROID_HOME}/build-tools/36.0.0/apksigner" verify --print-certs "$APK" | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print $2; exit}' | tr -d ':\r\n' | tr '[:upper:]' '[:lower:]')"
+            if [ -z "$EXPECTED_CERT" ] || [ -z "$ACTUAL_CERT" ] || [ "$EXPECTED_CERT" != "$ACTUAL_CERT" ]; then
+              echo "::error::APK signing certificate does not match the persistent testing keystore."
+              echo "Expected SHA-256: $EXPECTED_CERT"
+              echo "Actual SHA-256:   $ACTUAL_CERT"
+              exit 1
+            fi
+            echo "Verified persistent testing certificate: $ACTUAL_CERT"
+          elif [ "${ALLOW_UNSIGNED_PR:-false}" = "true" ]; then
+            echo "Temporary debug certificate allowed only for fork pull-request validation."
+          else
+            echo "::error::Persistent signing key unavailable; refusing to upload this APK."
+            exit 1
+          fi
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v5
