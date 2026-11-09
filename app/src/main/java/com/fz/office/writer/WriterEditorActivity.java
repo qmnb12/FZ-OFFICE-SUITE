@@ -117,6 +117,7 @@ public class WriterEditorActivity extends Activity {
         add(bar,"• List","insertUnorderedList",null); add(bar,"1. List","insertOrderedList",null);
         add(bar,"Left","justifyLeft",null); add(bar,"Center","justifyCenter",null);
         add(bar,"Right","justifyRight",null); add(bar,"Table","insertTable",null);
+        add(bar,"Page Break","insertPageBreak",null);
         add(bar,"Undo","undo",null); add(bar,"Redo","redo",null);
 
         web = new WebView(this);
@@ -163,6 +164,7 @@ public class WriterEditorActivity extends Activity {
         lp.rightMargin = dp(6); bar.addView(b, lp);
         b.setOnClickListener(v -> {
             String js = "insertTable".equals(command) ? "FZWriter.insertTable()"
+                    : "insertPageBreak".equals(command) ? "FZWriter.insertPageBreak()"
                     : "FZWriter.command(" + org.json.JSONObject.quote(command) + ","
                     + (value == null ? "null" : org.json.JSONObject.quote(value)) + ")";
             run(js);

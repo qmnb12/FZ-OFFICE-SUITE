@@ -33,6 +33,8 @@ for (const command of ["bold", "italic", "underline", "insertUnorderedList", "in
   assert(editor.includes('"'+command+'"'), "Missing Writer command: " + command);
 }
 assert(html.includes("function insertTable()"), "Writer must support inserting tables");
+assert(editor.includes('add(bar,"Page Break","insertPageBreak",null)') && editor.includes("FZWriter.insertPageBreak()"),
+  "Writer toolbar must expose an explicit page-break action");
 assert(editor.includes("ACTION_CREATE_DOCUMENT"), "Save must create a separate copy");
 assert(editor.includes("documentFonts") && editor.includes("getCustomFontCssForFamilies"),
   "Writer edit mode must register DOCX fonts using the single-pass bulk loader");
