@@ -1,6 +1,7 @@
 package com.fz.office.writer;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
