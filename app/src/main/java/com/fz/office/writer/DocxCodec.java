@@ -804,7 +804,7 @@ public final class DocxCodec {
         if (style.color != null) css.append("color:").append(style.color).append(";");
         if (style.highlight != null) css.append("background-color:").append(style.highlight).append(";");
         if (style.fontFamily != null) {
-            String safeFamily = style.fontFamily.replace("\", "\\\").replace("'", "\\'");
+            String safeFamily = style.fontFamily.replace("\\", "\\\\").replace("'", "\\'");
             css.append("font-family:'").append(safeFamily)
                     .append("','Noto Sans Devanagari','Noto Serif Devanagari',sans-serif;");
         }
