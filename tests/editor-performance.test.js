@@ -51,6 +51,12 @@ assert(inspect.includes('if (!(path.equals("word/document.xml") || path.equals("
 assert(!inspect.includes('path.startsWith("word/header")') && !inspect.includes('path.startsWith("word/footer")'),
   "Unused header/footer font declarations must not be loaded into the editor's font scan");
 
+assert(!writer.slice(writer.indexOf("private void loadDocument()"), writer.indexOf("private void initializeViewer()"))
+    .includes("FontManager.importBundledFontArchives"),
+  "Viewer must not import a large legacy font archive before first document paint");
+assert(writer.includes("private void registerDocumentFontsAsync()")
+    && writer.includes("FontManager.getCustomFontCssForFamilies"),
+  "Viewer document fonts must be scanned and encoded asynchronously in one pass");
 assert(writer.includes("getCustomFontCssForFamilies") || writer.includes("registerDocumentFonts"),
   "The DOCX viewer must retain document-font registration support");
 console.log("Writer startup, pagination and font-scan performance checks passed.");

@@ -40,6 +40,9 @@ assert(editor.includes("FontManager.importBundledFontArchives"),
   "Writer edit mode must import the same bundled Hindi fonts as the reader");
 assert(!editor.includes("FLAG_GRANT_WRITE_URI_PERMISSION"), "Editor must not request source write permission");
 assert(editor.includes("DocxCodec.writeDocx(editedHtml, packageEntries, layout)"), "Save must preserve page geometry");
+assert(codec.includes("element.hasClass(\"fz-manual-break\")")
+    && codec.includes("w:br w:type="),
+  "Manual page breaks must be exported as real WordprocessingML page breaks");
 assert(codec.includes("entries.putAll(originalEntries)"), "Original DOCX package parts must be retained");
 assert(codec.includes("private static String firstCssFontFamily("),
   "DOCX export must reduce CSS fallback stacks to one real font family");
