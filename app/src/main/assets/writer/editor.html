@@ -2,84 +2,460 @@
 <html lang="hi">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=3">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <meta name="color-scheme" content="light">
 <title>FZ Office Writer</title>
 <style>
-:root { color-scheme: light; --ink:#1b342d; --muted:#718078; --paper:#ffffff; --canvas:#eef3f0; --line:#e3eae6; }
+:root {
+  color-scheme: light;
+  --ink:#1b342d; --muted:#718078; --paper:#fff; --canvas:#e9efeb;
+  --line:#d9e2dc; --page-gap:22px;
+}
 * { box-sizing:border-box; }
-html,body { margin:0; min-height:100%; background:var(--canvas); color:var(--ink); font-family:"Noto Sans Devanagari",Arial,sans-serif; font-kerning:normal; text-rendering:optimizeLegibility; }
-body { padding:14px 10px 30px; }
-#page {
-  width:100%; min-height:calc(100vh - 44px); margin:0 auto; padding:28px 22px 40px;
-  background:var(--paper); border:1px solid var(--line); border-radius:8px;
-  box-shadow:0 2px 10px rgba(23,55,43,.06); outline:none;
-  font-size:16px; line-height:1.75; overflow-wrap:anywhere; font-family:"Noto Sans Devanagari",Arial,sans-serif; font-feature-settings:"kern" 1,"liga" 1;
+html,body { margin:0; width:100%; min-height:100%; background:var(--canvas); color:var(--ink);
+  font-family:"Noto Sans Devanagari",Arial,sans-serif; font-kerning:normal; text-rendering:optimizeLegibility; }
+body { min-height:100vh; overflow-x:hidden; }
+#editor-scroll { width:100%; height:100%; overflow:auto; overscroll-behavior:contain; padding:14px 8px 30px; }
+#pages { display:flex; flex-direction:column; align-items:center; width:100%; gap:0; }
+.page-shell { position:relative; flex:0 0 auto; margin:0 auto; }
+.fz-page {
+  position:absolute; left:0; top:0; transform-origin:top left; overflow:hidden;
+  background:var(--paper); border:1px solid var(--line); border-radius:2px;
+  box-shadow:0 2px 12px rgba(23,55,43,.11); outline:none;
+  color:#202b26; font-size:16px; line-height:1.55; overflow-wrap:anywhere;
+  font-family:"Noto Sans Devanagari",Arial,sans-serif; font-feature-settings:"kern" 1,"liga" 1;
+  white-space:normal;
 }
-#page:focus { border-color:#c8d9d0; }
-#page p, #page div { margin:0 0 12px; min-height:1.55em; }
-#page h1 { font-size:1.65em; line-height:1.3; margin:0 0 14px; }
-#page h2 { font-size:1.35em; line-height:1.35; margin:0 0 12px; }
-#page h3 { font-size:1.15em; margin:0 0 10px; }
-#page ul,#page ol { padding-left:25px; margin:0 0 12px; }
-#page table { width:100%; border-collapse:collapse; table-layout:fixed; margin:12px 0; }
-#page td,#page th { border:1px solid #9eafa7; padding:7px; min-width:35px; vertical-align:top; }
-#page blockquote { border-left:3px solid #9ab8a9; margin:12px 0; padding:5px 12px; color:#52655c; }
-#page:empty:before { content:"यहाँ लिखना शुरू करें…"; color:#9aa7a0; pointer-events:none; }
-@media (min-width:700px) {
-  body { padding:24px; }
-  #page { max-width:760px; min-height:100vh; padding:48px 58px; }
-}
+.fz-page:focus { border-color:#b8cfc2; }
+.fz-page p,.fz-page div:not(.fz-manual-break) { margin:0 0 10px; min-height:1.3em; }
+.fz-page h1 { font-size:1.65em; line-height:1.25; margin:0 0 14px; }
+.fz-page h2 { font-size:1.35em; line-height:1.3; margin:0 0 12px; }
+.fz-page h3 { font-size:1.15em; margin:0 0 10px; }
+.fz-page ul,.fz-page ol { padding-left:25px; margin:0 0 12px; }
+.fz-page li { margin:0 0 5px; }
+.fz-page table { width:100%; border-collapse:collapse; table-layout:fixed; margin:10px 0; }
+.fz-page td,.fz-page th { border:1px solid #9eafa7; padding:7px; min-width:30px; vertical-align:top; }
+.fz-page blockquote { border-left:3px solid #9ab8a9; margin:12px 0; padding:5px 12px; color:#52655c; }
+.fz-page img { max-width:100%; height:auto; }
+.fz-page:empty:before { content:"यहाँ लिखना शुरू करें…"; color:#9aa7a0; pointer-events:none; }
+.fz-manual-break { display:block; height:0; margin:0; padding:0; border:0; break-after:page; }
+.page-number { position:absolute; right:8px; bottom:3px; color:#738078; font:10px Arial,sans-serif; pointer-events:none; }
+.fz-measure { position:fixed!important; left:-100000px!important; top:0!important; transform:none!important;
+  visibility:hidden!important; box-shadow:none!important; border:0!important; }
+.page-shell[data-overflow="true"] .fz-page { outline:2px solid #c96f38; }
 </style>
 <script src="legacy-converter.js"></script>
 </head>
 <body>
-<main id="page" contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true">
-<p></p>
-</main>
+<div id="editor-scroll"><div id="pages"></div></div>
+<!-- Each generated page sets contenteditable="true" to keep page boundaries independent. -->
 <script>
 (function () {
   "use strict";
-  var page = document.getElementById("page");
+  var pagesRoot = document.getElementById("pages");
+  var scrollRoot = document.getElementById("editor-scroll");
+  var layout = { width:11906, height:16838, top:1440, right:1440, bottom:1440, left:1440 };
+  var defaultFont = "Noto Sans Devanagari";
+  var ready = false, composing = false, paginationQueued = false, internalMutation = false;
+  var activePage = null, lastRange = null;
+
+  function twipsToPx(value) { return Math.max(0, Number(value) || 0) / 15; }
+  function getPages() { return Array.prototype.slice.call(pagesRoot.querySelectorAll(":scope > .page-shell > .fz-page")); }
+  function shellOf(page) { return page && page.parentElement; }
+  function pageScale() {
+    var available = Math.max(260, (scrollRoot.clientWidth || window.innerWidth) - 28);
+    return Math.min(1, available / Math.max(1, twipsToPx(layout.width)));
+  }
+  function applyLayout() {
+    var width = twipsToPx(layout.width), height = twipsToPx(layout.height);
+    var top = twipsToPx(layout.top), right = twipsToPx(layout.right);
+    var bottom = twipsToPx(layout.bottom), left = twipsToPx(layout.left);
+    var scale = pageScale();
+    getPages().forEach(function (page, index) {
+      var shell = shellOf(page);
+      shell.style.width = (width * scale) + "px";
+      shell.style.height = (height * scale) + "px";
+      shell.style.marginBottom = (22 * scale) + "px";
+      page.style.width = width + "px";
+      page.style.height = height + "px";
+      page.style.padding = top + "px " + right + "px " + bottom + "px " + left + "px";
+      page.style.transform = "scale(" + scale + ")";
+      var number = shell.querySelector(".page-number");
+      if (number) {
+        number.textContent = "Page " + (index + 1);
+        number.style.transform = "scale(" + scale + ")";
+        number.style.transformOrigin = "bottom right";
+      }
+    });
+  }
+
+  function makePage() {
+    var shell = document.createElement("section");
+    shell.className = "page-shell";
+    var page = document.createElement("article");
+    page.className = "fz-page";
+    page.contentEditable = "true";
+    page.spellcheck = true;
+    page.setAttribute("role", "textbox");
+    page.setAttribute("aria-multiline", "true");
+    page.style.fontFamily = '"' + defaultFont.replace(/["\\]/g, "") + '", "Noto Sans Devanagari", Arial, sans-serif';
+    var number = document.createElement("div");
+    number.className = "page-number";
+    shell.appendChild(page);
+    shell.appendChild(number);
+    pagesRoot.appendChild(shell);
+    wirePage(page);
+    applyLayout();
+    return page;
+  }
+
+  function addPageAfter(page) {
+    var shell = shellOf(page);
+    var next = document.createElement("section");
+    next.className = "page-shell";
+    var editor = document.createElement("article");
+    editor.className = "fz-page";
+    editor.contentEditable = "true";
+    editor.spellcheck = true;
+    editor.setAttribute("role", "textbox");
+    editor.setAttribute("aria-multiline", "true");
+    editor.style.fontFamily = page.style.fontFamily || '"' + defaultFont + '", Arial, sans-serif';
+    var number = document.createElement("div");
+    number.className = "page-number";
+    next.appendChild(editor);
+    next.appendChild(number);
+    shell.parentNode.insertBefore(next, shell.nextSibling);
+    wirePage(editor);
+    applyLayout();
+    return editor;
+  }
+
+  function wirePage(page) {
+    page.addEventListener("focus", function () { activePage = page; rememberSelection(); });
+    page.addEventListener("input", function () { activePage = page; changed(); schedulePagination(); });
+    page.addEventListener("paste", function () { activePage = page; setTimeout(function () { changed(); schedulePagination(); }, 0); });
+    page.addEventListener("compositionstart", function () { composing = true; });
+    page.addEventListener("compositionend", function () { composing = false; changed(); schedulePagination(); });
+    page.addEventListener("keydown", handleBoundaryKey);
+    page.addEventListener("keyup", rememberSelection);
+    page.addEventListener("mouseup", rememberSelection);
+  }
+
+  function rememberSelection() {
+    var selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    var range = selection.getRangeAt(0);
+    var node = range.commonAncestorContainer.nodeType === 1
+      ? range.commonAncestorContainer : range.commonAncestorContainer.parentNode;
+    var page = node && node.closest ? node.closest(".fz-page") : null;
+    if (page) { activePage = page; lastRange = range.cloneRange(); }
+  }
+
+  document.addEventListener("selectionchange", rememberSelection);
+
+  function restoreSelection() {
+    if (lastRange) {
+      try {
+        var selection = window.getSelection();
+        selection.removeAllRanges(); selection.addRange(lastRange);
+        return;
+      } catch (_) { }
+    }
+    if (activePage) activePage.focus();
+  }
+
   function changed() {
-    if (window.AndroidBridge && window.AndroidBridge.onDirty) {
-      window.AndroidBridge.onDirty();
+    if (internalMutation) return;
+    if (window.AndroidBridge && window.AndroidBridge.onDirty) window.AndroidBridge.onDirty();
+  }
+
+  function notifyPageCount() {
+    var count = getPages().length;
+    if (window.AndroidBridge && window.AndroidBridge.onPageCount) window.AndroidBridge.onPageCount(count);
+  }
+
+  function schedulePagination() {
+    if (paginationQueued || composing) return;
+    paginationQueued = true;
+    requestAnimationFrame(function () {
+      paginationQueued = false;
+      paginate();
+    });
+  }
+
+  function pageOverflows(page) {
+    return page.scrollHeight > page.clientHeight + 2;
+  }
+
+  function isManualBreak(node) {
+    return node && node.nodeType === 1 &&
+      (node.classList.contains("fz-manual-break") || node.getAttribute("data-fz-page-break") === "true");
+  }
+
+  function handleManualBreak(page) {
+    var children = Array.prototype.slice.call(page.children);
+    var index = children.findIndex(isManualBreak);
+    if (index < 0) return false;
+    var next = getPages()[getPages().indexOf(page) + 1] || addPageAfter(page);
+    for (var i = children.length - 1; i > index; i--) next.insertBefore(children[i], next.firstChild);
+    return true;
+  }
+
+  function textMap(block) {
+    var walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (node) {
+        var parent = node.parentElement;
+        return parent && parent.closest("script,style,code,pre,[contenteditable='false']")
+          ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var nodes = [], total = 0, all = "";
+    while (walker.nextNode()) {
+      var node = walker.currentNode;
+      nodes.push({ node:node, start:total, end:total + node.nodeValue.length });
+      total += node.nodeValue.length; all += node.nodeValue;
+    }
+    return { nodes:nodes, total:total, text:all };
+  }
+
+  function locateTextPosition(map, offset) {
+    offset = Math.max(0, Math.min(map.total, offset));
+    for (var i = 0; i < map.nodes.length; i++) {
+      var item = map.nodes[i];
+      if (offset <= item.end) return { node:item.node, offset:offset - item.start };
+    }
+    var last = map.nodes[map.nodes.length - 1];
+    return last ? { node:last.node, offset:last.node.nodeValue.length } : null;
+  }
+
+  function fragmentFor(block, map, start, end) {
+    if (!map.nodes.length) return document.createDocumentFragment();
+    var a = locateTextPosition(map, start), b = locateTextPosition(map, end);
+    if (!a || !b) return document.createDocumentFragment();
+    var range = document.createRange();
+    range.setStart(a.node, a.offset); range.setEnd(b.node, b.offset);
+    return range.cloneContents();
+  }
+
+  function captureCaret(block, map) {
+    var selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return null;
+    var range = selection.getRangeAt(0);
+    if (!block.contains(range.startContainer)) return null;
+    var offset = 0;
+    for (var i = 0; i < map.nodes.length; i++) {
+      var item = map.nodes[i];
+      if (item.node === range.startContainer) return offset + range.startOffset;
+      offset += item.node.nodeValue.length;
+    }
+    return null;
+  }
+
+  function restoreCaret(block, offset) {
+    if (offset == null) return;
+    var map = textMap(block), pos = locateTextPosition(map, offset);
+    if (!pos) { block.focus(); return; }
+    var range = document.createRange();
+    range.setStart(pos.node, pos.offset); range.collapse(true);
+    var selection = window.getSelection();
+    selection.removeAllRanges(); selection.addRange(range);
+    activePage = block.closest(".fz-page");
+    lastRange = range.cloneRange();
+  }
+
+  function prefixFits(page, block, map, count) {
+    var fragment = fragmentFor(block, map, 0, count);
+    var temp = document.createElement("article");
+    temp.className = "fz-page fz-measure";
+    temp.style.width = twipsToPx(layout.width) + "px";
+    temp.style.height = twipsToPx(layout.height) + "px";
+    temp.style.padding = twipsToPx(layout.top) + "px " + twipsToPx(layout.right) + "px "
+      + twipsToPx(layout.bottom) + "px " + twipsToPx(layout.left) + "px";
+    temp.style.fontFamily = page.style.fontFamily || '"' + defaultFont + '", Arial, sans-serif';
+    var clone = block.cloneNode(false);
+    clone.appendChild(fragment);
+    temp.appendChild(clone);
+    document.body.appendChild(temp);
+    var fits = temp.scrollHeight <= temp.clientHeight + 2;
+    temp.remove();
+    return fits;
+  }
+
+  function splitOversizedBlock(page, block) {
+    var tag = block.tagName.toLowerCase();
+    if (!/^(p|h1|h2|h3|h4|blockquote)$/.test(tag)) return null;
+    var map = textMap(block);
+    if (map.total < 80 || !map.nodes.length) return null;
+    var caret = captureCaret(block, map);
+    var low = 1, high = map.total - 1, best = 0;
+    for (var n = 0; n < 18 && low <= high; n++) {
+      var mid = Math.floor((low + high) / 2);
+      if (prefixFits(page, block, map, mid)) { best = mid; low = mid + 1; }
+      else high = mid - 1;
+    }
+    if (best < 24 || best >= map.total - 8) return null;
+    var text = map.text;
+    while (best > 24 && !/\s/.test(text.charAt(best - 1))) best--;
+    if (best < 24) return null;
+    var prefix = fragmentFor(block, map, 0, best);
+    var suffix = fragmentFor(block, map, best, map.total);
+    var continuation = block.cloneNode(false);
+    continuation.appendChild(suffix);
+    block.innerHTML = "";
+    block.appendChild(prefix);
+    var pages = getPages(), index = pages.indexOf(page);
+    var next = pages[index + 1] || addPageAfter(page);
+    next.insertBefore(continuation, next.firstChild);
+    if (caret != null) {
+      if (caret <= best) restoreCaret(block, caret);
+      else restoreCaret(continuation, caret - best);
+    }
+    return continuation;
+  }
+
+  function paginate() {
+    if (!ready || composing) return;
+    internalMutation = true;
+    try {
+      if (!getPages().length) makePage();
+      var i = 0;
+      while (i < getPages().length && i < 500) {
+        var page = getPages()[i];
+        handleManualBreak(page);
+        var guard = 0;
+        while (pageOverflows(page) && guard++ < 300) {
+          var children = Array.prototype.slice.call(page.children).filter(function (node) {
+            return !node.classList || !node.classList.contains("fz-measure");
+          });
+          if (!children.length) break;
+          var next = getPages()[i + 1] || addPageAfter(page);
+          if (children.length === 1) {
+            var continuation = splitOversizedBlock(page, children[0]);
+            if (!continuation) {
+              shellOf(page).setAttribute("data-overflow", "true");
+              break;
+            }
+          } else {
+            next.insertBefore(children[children.length - 1], next.firstChild);
+          }
+        }
+        if (!pageOverflows(page)) shellOf(page).removeAttribute("data-overflow");
+        i++;
+      }
+
+      // Pull content back after deletions so blank pages do not accumulate.
+      var pages = getPages();
+      for (var p = 0; p < pages.length - 1; p++) {
+        var current = pages[p], following = getPages()[p + 1];
+        if (current.lastElementChild && isManualBreak(current.lastElementChild)) continue;
+        while (following && following.firstChild) {
+          var candidate = following.firstChild;
+          current.appendChild(candidate);
+          if (pageOverflows(current)) {
+            following.insertBefore(candidate, following.firstChild);
+            break;
+          }
+        }
+      }
+      pages = getPages();
+      for (var j = pages.length - 1; j > 0; j--) {
+        if (!pages[j].childNodes.length) {
+          var previous = pages[j - 1];
+          // Keep the deliberate blank page after an explicit page-break marker.
+          if (previous && previous.lastElementChild && isManualBreak(previous.lastElementChild)) continue;
+          shellOf(pages[j]).remove();
+        }
+      }
+      if (!getPages().length) makePage();
+      applyLayout();
+      notifyPageCount();
+    } finally {
+      internalMutation = false;
     }
   }
-  page.addEventListener("input", changed);
-  page.addEventListener("paste", function () {
-    window.setTimeout(changed, 0);
-  });
-  document.addEventListener("keydown", function (event) {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
-      event.preventDefault();
-      requestSave();
+
+  function handleBoundaryKey(event) {
+    if (event.key !== "Backspace" && event.key !== "Delete") return;
+    var page = event.currentTarget;
+    var selection = window.getSelection();
+    if (!selection || !selection.isCollapsed || selection.rangeCount === 0) return;
+    var range = selection.getRangeAt(0);
+    var pages = getPages(), index = pages.indexOf(page);
+    if (event.key === "Backspace" && index > 0) {
+      var before = document.createRange();
+      before.selectNodeContents(page);
+      try { before.setEnd(range.startContainer, range.startOffset); }
+      catch (_) { return; }
+      if (before.toString().length === 0) {
+        var previous = pages[index - 1];
+        if (!previous.lastChild || isManualBreak(previous.lastChild)) return;
+        event.preventDefault();
+        var moved = previous.lastChild;
+        page.insertBefore(moved, page.firstChild);
+        restoreCaret(moved, textMap(moved).total);
+        changed(); schedulePagination();
+      }
     }
-  });
-  document.execCommand("styleWithCSS", false, true);
+  }
+
+  function activeEditor() {
+    var selection = window.getSelection();
+    if (selection && selection.rangeCount) {
+      var node = selection.getRangeAt(0).commonAncestorContainer;
+      if (node.nodeType === 3) node = node.parentNode;
+      var page = node.closest ? node.closest(".fz-page") : null;
+      if (page) { activePage = page; return page; }
+    }
+    return activePage || getPages()[0];
+  }
 
   function command(name, value) {
+    restoreSelection();
+    var page = activeEditor();
+    if (!page) return;
     page.focus();
-    if (name === "formatBlock") {
-      document.execCommand(name, false, value || "p");
-    } else {
-      document.execCommand(name, false, value || null);
-    }
-    changed();
+    if (name === "formatBlock") document.execCommand(name, false, value || "p");
+    else document.execCommand(name, false, value || null);
+    changed(); schedulePagination();
+    rememberSelection();
   }
+
   function insertTable() {
+    restoreSelection();
+    var page = activeEditor();
+    if (!page) return;
     page.focus();
     var table = '<table><tbody>' +
-      '<tr><td><p> </p></td><td><p> </p></td></tr>' +
-      '<tr><td><p> </p></td><td><p> </p></td></tr>' +
-      '</tbody></table><p></p>';
+      '<tr><td><p><br></p></td><td><p><br></p></td></tr>' +
+      '<tr><td><p><br></p></td><td><p><br></p></td></tr>' +
+      '</tbody></table><p><br></p>';
     document.execCommand("insertHTML", false, table);
-    changed();
+    changed(); schedulePagination();
   }
+
+  function insertPageBreak() {
+    restoreSelection();
+    var page = activeEditor();
+    if (!page) return;
+    page.focus();
+    document.execCommand("insertHTML", false, '<div class="fz-manual-break" data-fz-page-break="true"></div><p><br></p>');
+    changed(); schedulePagination();
+  }
+
   function setHtml(html) {
-    page.innerHTML = html || "<p></p>";
-    if (!page.innerHTML.trim()) page.innerHTML = "<p></p>";
+    internalMutation = true;
+    try {
+      pagesRoot.innerHTML = "";
+      var page = makePage();
+      var template = document.createElement("div");
+      template.innerHTML = html || "<p><br></p>";
+      while (template.firstChild) page.appendChild(template.firstChild);
+      if (!page.childNodes.length) page.innerHTML = "<p><br></p>";
+      ready = true;
+    } finally { internalMutation = false; }
+    paginate();
   }
+
   function registerFonts(css) {
     if (!css) return;
     var style = document.getElementById("fz-font-face-rules");
@@ -88,69 +464,88 @@ body { padding:14px 10px 30px; }
       style.id = "fz-font-face-rules";
       document.head.appendChild(style);
     }
-    style.textContent += css;
+    style.textContent = css;
   }
+
   function setFont(family, applyToSelection) {
     if (!family) return;
-    page.style.fontFamily = '"' + family.replace(/["\\]/g, "") +
-      '", "Noto Sans Devanagari", Arial, sans-serif';
-    page.setAttribute("data-fz-default-font", family);
-    if (applyToSelection === true) {
-      page.focus();
-      document.execCommand("fontName", false, family);
-      changed();
-    }
-  }
-  function insertText(value) {
-    page.focus();
-    document.execCommand("insertText", false, value || "");
-    changed();
-  }
-  function convertLegacy(profile) {
-    if (profile !== "krutidev010") return false;
-    if (!window.FZLegacyHindi || !window.FZLegacyHindi.krutiDevToUnicode) return false;
-
-    var walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
-    var nodes = [];
-    while (walker.nextNode()) {
-      var node = walker.currentNode;
-      if (!node.nodeValue || !node.nodeValue.trim()) continue;
-      var parent = node.parentElement;
-      if (parent && parent.closest("script,style,code,pre,[data-no-convert='true']")) continue;
-      nodes.push(node);
-    }
-
-    nodes.forEach(function (node) {
-      node.nodeValue = window.FZLegacyHindi.krutiDevToUnicode(node.nodeValue);
+    defaultFont = family;
+    getPages().forEach(function (page) {
+      page.style.fontFamily = '"' + family.replace(/["\\]/g, "") + '", "Noto Sans Devanagari", Arial, sans-serif';
     });
-    changed();
-    return true;
+    if (applyToSelection === true) command("fontName", family);
+  }
+
+  function setPageLayout(width, height, top, right, bottom, left) {
+    layout = {
+      width:Math.max(7200, Math.min(31680, Number(width) || 11906)),
+      height:Math.max(7200, Math.min(31680, Number(height) || 16838)),
+      top:Math.max(0, Math.min(7200, Number(top) || 0)),
+      right:Math.max(0, Math.min(7200, Number(right) || 0)),
+      bottom:Math.max(0, Math.min(7200, Number(bottom) || 0)),
+      left:Math.max(0, Math.min(7200, Number(left) || 0))
+    };
+    applyLayout(); schedulePagination();
+  }
+
+  function getDocumentHtml() {
+    var container = document.createElement("div");
+    getPages().forEach(function (page) {
+      Array.prototype.slice.call(page.childNodes).forEach(function (node) {
+        container.appendChild(node.cloneNode(true));
+      });
+    });
+    var blocks = container.querySelectorAll("p,div,td,th,li,h1,h2,h3,blockquote");
+    blocks.forEach(function (block) {
+      if (!block.style.fontFamily) block.style.fontFamily = defaultFont;
+    });
+    return container.innerHTML;
   }
 
   function requestSave() {
     if (window.AndroidBridge && window.AndroidBridge.onSaveHtml) {
-      var copy = page.cloneNode(true);
-      var defaultFont = page.getAttribute("data-fz-default-font") || "Noto Sans Devanagari";
-      var blocks = copy.querySelectorAll("p,div,td,th,li,h1,h2,h3,blockquote");
-      blocks.forEach(function (block) {
-        if (!block.style.fontFamily) block.style.fontFamily = defaultFont;
-      });
-      window.AndroidBridge.onSaveHtml(copy.innerHTML);
+      window.AndroidBridge.onSaveHtml(getDocumentHtml());
     }
   }
-  window.FZWriter = {
-    command: command,
-    insertTable: insertTable,
-    setHtml: setHtml,
-    registerFonts: registerFonts,
-    setFont: setFont,
-    insertText: insertText,
-    convertLegacy: convertLegacy,
-    requestSave: requestSave
-  };
-  if (window.AndroidBridge && window.AndroidBridge.onEditorReady) {
-    window.AndroidBridge.onEditorReady();
+
+  function insertText(value) {
+    restoreSelection();
+    var page = activeEditor();
+    if (!page) return;
+    page.focus();
+    document.execCommand("insertText", false, value || "");
+    changed(); schedulePagination();
   }
+
+  function convertLegacy(profile) {
+    if (profile !== "krutidev010") return false;
+    if (!window.FZLegacyHindi || !window.FZLegacyHindi.krutiDevToUnicode) return false;
+    getPages().forEach(function (page) {
+      var walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
+      var nodes = [];
+      while (walker.nextNode()) {
+        var node = walker.currentNode;
+        if (!node.nodeValue || !node.nodeValue.trim()) continue;
+        var parent = node.parentElement;
+        if (parent && parent.closest("script,style,code,pre,[data-no-convert='true']")) continue;
+        nodes.push(node);
+      }
+      nodes.forEach(function (node) {
+        node.nodeValue = window.FZLegacyHindi.krutiDevToUnicode(node.nodeValue);
+      });
+    });
+    changed(); schedulePagination();
+    return true;
+  }
+
+  window.addEventListener("resize", applyLayout);
+  window.FZWriter = {
+    command:command, insertTable:insertTable, insertPageBreak:insertPageBreak,
+    setHtml:setHtml, registerFonts:registerFonts, setFont:setFont,
+    setPageLayout:setPageLayout, insertText:insertText,
+    convertLegacy:convertLegacy, requestSave:requestSave
+  };
+  if (window.AndroidBridge && window.AndroidBridge.onEditorReady) window.AndroidBridge.onEditorReady();
 })();
 </script>
 </body>
