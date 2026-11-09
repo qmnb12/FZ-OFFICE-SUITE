@@ -8,6 +8,10 @@ const viewer = read("app/src/main/java/com/fz/office/writer/WriterActivity.java"
 const codec = read("app/src/main/java/com/fz/office/writer/DocxCodec.java");
 assert(viewer.includes('control("Edit"'), "Edit action must be visible in DOCX viewer");
 assert(viewer.includes("startActivity(intent)"), "Editor must open only after explicit Edit tap");
+assert(viewer.includes("loadedDocumentForEdit") && viewer.includes("setPreloadedDocument"),
+  "Viewer must hand its parsed DOCX package to Edit without reading it twice");
+assert(editor.includes("takePreloadedDocument(source)"),
+  "Editor must consume the viewer's parsed DOCX package before opening the source again");
 assert(viewer.includes('contains("<img")'), "Image-bearing documents must be protected from lossy editing");
 assert(html.includes('contenteditable="true"'), "Writer editor page must be editable");
 for (const command of ["bold", "italic", "underline", "insertUnorderedList", "insertOrderedList",
