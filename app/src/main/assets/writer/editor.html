@@ -57,6 +57,7 @@ body { min-height:100vh; overflow-x:hidden; }
   var layout = { width:11906, height:16838, top:1440, right:1440, bottom:1440, left:1440 };
   var defaultFont = "Noto Sans Devanagari";
   var ready = false, composing = false, paginationQueued = false, internalMutation = false;
+  var paginationTimer = null;
   var activePage = null, lastRange = null;
 
   function twipsToPx(value) { return Math.max(0, Number(value) || 0) / 15; }
@@ -176,12 +177,17 @@ body { min-height:100vh; overflow-x:hidden; }
   }
 
   function schedulePagination() {
-    if (paginationQueued || composing) return;
-    paginationQueued = true;
-    requestAnimationFrame(function () {
-      paginationQueued = false;
-      paginate();
-    });
+    if (composing) return;
+    if (paginationTimer !== null) clearTimeout(paginationTimer);
+    paginationTimer = setTimeout(function () {
+      paginationTimer = null;
+      if (paginationQueued) return;
+      paginationQueued = true;
+      requestAnimationFrame(function () {
+        paginationQueued = false;
+        paginate();
+      });
+    }, 120);
   }
 
   function pageOverflows(page) {
@@ -444,6 +450,10 @@ body { min-height:100vh; overflow-x:hidden; }
   }
 
   function setHtml(html) {
+    if (paginationTimer !== null) {
+      clearTimeout(paginationTimer);
+      paginationTimer = null;
+    }
     internalMutation = true;
     try {
       pagesRoot.innerHTML = "";
