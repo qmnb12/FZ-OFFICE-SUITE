@@ -65,7 +65,6 @@ public class OfficeViewerActivity extends Activity {
                 ? (documentUri == null ? "Office document" : queryDisplayName(documentUri))
                 : suppliedName;
         extension = extensionOf(documentName);
-        editableXlsx = "xlsx".equals(extension);
         String mime = documentUri == null ? null : getContentResolver().getType(documentUri);
         if (extension.isEmpty()) {
             String type = mime == null ? "" : mime.toLowerCase(Locale.ROOT);
@@ -73,6 +72,9 @@ public class OfficeViewerActivity extends Activity {
             else if (type.contains("excel") || type.contains("spreadsheet")) extension = "xlsx";
         }
         presentation = isPresentationExtension(extension) || isPresentationMime(mime);
+        // Resolve the final extension first: providers sometimes omit the filename suffix
+        // while still supplying the XLSX MIME type.
+        editableXlsx = !presentation && "xlsx".equals(extension);
         if (documentUri == null || (!presentation && !isSpreadsheetExtension(extension) && !isSpreadsheetMime(mime))) {
             Toast.makeText(this, "This file type is not supported by the reader.", Toast.LENGTH_LONG).show();
             finish();
