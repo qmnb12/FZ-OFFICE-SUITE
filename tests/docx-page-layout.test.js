@@ -4,6 +4,7 @@ const codec = fs.readFileSync("app/src/main/java/com/fz/office/writer/DocxCodec.
 const activity = fs.readFileSync("app/src/main/java/com/fz/office/writer/WriterActivity.java", "utf8");
 const viewer = fs.readFileSync("app/src/main/assets/writer/viewer.html", "utf8");
 assert(codec.includes("readPageLayout(documentXml)"), "DOCX load must read section page geometry");
+assert(codec.includes("htmlToDocumentXml(html, pageLayout)"), "DOCX save must retain page geometry and margins");
 assert(codec.includes('"pgSz".equals(name)'), "DOCX parser must read page dimensions");
 assert(codec.includes('"pgMar".equals(name)'), "DOCX parser must read page margins");
 assert(codec.includes('"landscape".equalsIgnoreCase(orientation)'), "landscape orientation must be honored");

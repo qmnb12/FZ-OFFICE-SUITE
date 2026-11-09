@@ -835,19 +835,18 @@ public final class DocxCodec {
 
     public static byte[] writeDocx(String html, Map<String, byte[]> originalEntries)
             throws Exception {
+        return writeDocx(html, originalEntries, null);
+    }
+
+    public static byte[] writeDocx(String html, Map<String, byte[]> originalEntries,
+                                   PageLayout pageLayout) throws Exception {
         LinkedHashMap<String, byte[]> entries = new LinkedHashMap<>();
         if (originalEntries != null) entries.putAll(originalEntries);
-
         if (!entries.containsKey("[Content_Types].xml")) entries.put("[Content_Types].xml", CONTENT_TYPES.getBytes(StandardCharsets.UTF_8));
         if (!entries.containsKey("_rels/.rels")) entries.put("_rels/.rels", ROOT_RELS.getBytes(StandardCharsets.UTF_8));
-        entries.put("word/document.xml", htmlToDocumentXml(html).getBytes(StandardCharsets.UTF_8));
-        if (!entries.containsKey("word/styles.xml")) {
-            entries.put("word/styles.xml", STYLES.getBytes(StandardCharsets.UTF_8));
-        }
-        if (!entries.containsKey("word/_rels/document.xml.rels")) {
-            entries.put("word/_rels/document.xml.rels", DOCUMENT_RELS.getBytes(StandardCharsets.UTF_8));
-        }
-
+        entries.put("word/document.xml", htmlToDocumentXml(html, pageLayout).getBytes(StandardCharsets.UTF_8));
+        if (!entries.containsKey("word/styles.xml")) entries.put("word/styles.xml", STYLES.getBytes(StandardCharsets.UTF_8));
+        if (!entries.containsKey("word/_rels/document.xml.rels")) entries.put("word/_rels/document.xml.rels", DOCUMENT_RELS.getBytes(StandardCharsets.UTF_8));
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         ZipOutputStream zip = new ZipOutputStream(output);
         for (Map.Entry<String, byte[]> item : entries.entrySet()) {
@@ -861,7 +860,13 @@ public final class DocxCodec {
         return output.toByteArray();
     }
 
-    private static String htmlToDocumentXml(String html) {
+    private static String htmlToDocumentXml(String html, PageLayout pageLayout) {
+        int pageWidth = pageLayout == null ? 11906 : pageLayout.widthTwips;
+        int pageHeight = pageLayout == null ? 16838 : pageLayout.heightTwips;
+        int marginTop = pageLayout == null ? 1440 : pageLayout.topTwips;
+        int marginRight = pageLayout == null ? 1440 : pageLayout.rightTwips;
+        int marginBottom = pageLayout == null ? 1440 : pageLayout.bottomTwips;
+        int marginLeft = pageLayout == null ? 1440 : pageLayout.leftTwips;
         org.jsoup.nodes.Document parsed = Jsoup.parseBodyFragment(html == null ? "" : html);
         StringBuilder xml = new StringBuilder();
         xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>");
@@ -874,9 +879,13 @@ public final class DocxCodec {
         if (!xml.toString().contains("<w:p")) {
             xml.append("<w:p/>");
         }
-        xml.append("<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/>")
-                .append("<w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" ")
-                .append("w:left=\"1440\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/>")
+        xml.append("<w:sectPr><w:pgSz w:w=\"").append(pageWidth)
+                .append("\" w:h=\"").append(pageHeight).append("\"/>")
+                .append("<w:pgMar w:top=\"").append(marginTop)
+                .append("\" w:right=\"").append(marginRight)
+                .append("\" w:bottom=\"").append(marginBottom)
+                .append("\" w:left=\"").append(marginLeft)
+                .append("\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/>")
                 .append("</w:sectPr></w:body></w:document>");
         return xml.toString();
     }

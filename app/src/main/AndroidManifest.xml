@@ -16,8 +16,11 @@
 
         <activity
             android:name=".writer.WriterActivity"
-            android:exported="false"
-            />
+            android:exported="false" />
+
+        <activity
+            android:name=".writer.WriterEditorActivity"
+            android:exported="false" />
 
         <activity
             android:name=".viewer.OfficeViewerActivity"

@@ -53,6 +53,9 @@ jobs:
       - name: Verify Office viewer routing and local asset pinning
         run: node tests/office-viewer-routing.test.js
 
+      - name: Verify Writer edit mode and safe Save As
+        run: node tests/writer-edit-mode.test.js
+
       - name: Verify local document library
         run: node tests/file-library.test.js
 
