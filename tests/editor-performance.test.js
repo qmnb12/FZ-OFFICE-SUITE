@@ -54,6 +54,8 @@ assert(!inspect.includes('path.startsWith("word/header")') && !inspect.includes(
 assert(!writer.slice(writer.indexOf("private void loadDocument()"), writer.indexOf("private void initializeViewer()"))
     .includes("FontManager.importBundledFontArchives"),
   "Viewer must not import a large legacy font archive before first document paint");
+assert(writer.includes("documentFontsResolved") && writer.includes("documentFontsLoading"),
+  "Viewer font registration must resolve once and never block the initial render");
 assert(writer.includes("private void registerDocumentFontsAsync()")
     && writer.includes("FontManager.getCustomFontCssForFamilies"),
   "Viewer document fonts must be scanned and encoded asynchronously in one pass");

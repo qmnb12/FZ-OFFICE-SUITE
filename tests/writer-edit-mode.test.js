@@ -50,6 +50,10 @@ assert(html.includes('data-fz-page-break="true"'),
   "Writer page-break insertion must retain an explicit page-break marker");
 assert(codec.includes("fz-manual-break") && codec.includes("w:type"),
   "Explicit Writer page breaks must be serialized as real DOCX page breaks");
+assert(codec.includes('"page".equalsIgnoreCase(attribute(parser, "type"))'),
+  "Existing DOCX run-level hard page breaks must be imported as explicit page-break markers");
+assert(codec.includes('"pageBreakBefore".equals(name)') && codec.includes("properties.pageBreakBefore"),
+  "DOCX paragraph pageBreakBefore properties must survive import into the Writer editor");
 assert(codec.includes('String family = firstCssFontFamily(cssValue(css, "font-family"));'),
   "Inline Hindi font-family fallback stacks must not be stored as one invalid Word font name");
 assert(codec.includes('String defaultFamily = firstCssFontFamily('),
