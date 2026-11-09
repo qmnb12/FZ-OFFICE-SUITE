@@ -215,37 +215,70 @@ public class WriterEditorActivity extends Activity {
         // onPageFinished and the JS-ready bridge can both reach this method.
         // Initialize the document only once to avoid rebuilding its full DOM twice.
         initializationStarted = true;
-        String family = FontManager.getDefaultFont(this);
-        String css = FontManager.getBundledCss();
-        try {
-            FontManager.FontRecord selected = FontManager.findByFamily(this, family);
-            if (selected != null && !selected.bundled) {
-                css += FontManager.getCustomFontCss(selected);
-            }
-        } catch (Exception ignored) { }
-        Set<String> registered = new HashSet<>();
-        for (String documentFont : documentFonts) {
-            if (documentFont == null || documentFont.trim().isEmpty()) continue;
-            String key = documentFont.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
-            if (key.isEmpty() || !registered.add(key)) continue;
+
+        // Font discovery, reading imported TTF/OTF files, Base64 encoding and quoting
+        // a large DOCX HTML payload can all be expensive. Keep that work off the UI
+        // thread so the Activity remains responsive while the editor is prepared.
+        final String sourceHtml = html;
+        final List<String> sourceFonts = new ArrayList<>(documentFonts);
+        final DocxCodec.PageLayout sourceLayout = layout;
+        if (status != null) status.setText("Document read · Preparing fonts…");
+
+        io.execute(() -> {
             try {
-                css += FontManager.getCustomFontCssForFamily(this, documentFont);
-            } catch (Exception ignored) { }
-        }
+                String family = FontManager.getDefaultFont(this);
+                StringBuilder css = new StringBuilder(FontManager.getBundledCss());
+                try {
+                    FontManager.FontRecord selected = FontManager.findByFamily(this, family);
+                    if (selected != null && !selected.bundled) {
+                        css.append(FontManager.getCustomFontCss(selected));
+                    }
+                } catch (Exception ignored) { }
 
-        int pageWidth = layout == null ? 11906 : layout.widthTwips;
-        int pageHeight = layout == null ? 16838 : layout.heightTwips;
-        int marginTop = layout == null ? 1440 : layout.topTwips;
-        int marginRight = layout == null ? 1440 : layout.rightTwips;
-        int marginBottom = layout == null ? 1440 : layout.bottomTwips;
-        int marginLeft = layout == null ? 1440 : layout.leftTwips;
+                Set<String> registered = new HashSet<>();
+                for (String documentFont : sourceFonts) {
+                    if (documentFont == null || documentFont.trim().isEmpty()) continue;
+                    String key = documentFont.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+                    if (key.isEmpty() || !registered.add(key)) continue;
+                    try {
+                        css.append(FontManager.getCustomFontCssForFamily(this, documentFont));
+                    } catch (Exception ignored) { }
+                }
 
-        String js = "FZWriter.registerFonts(" + org.json.JSONObject.quote(css) + ");"
-                + "FZWriter.setPageLayout(" + pageWidth + "," + pageHeight + ","
-                + marginTop + "," + marginRight + "," + marginBottom + "," + marginLeft + ");"
-                + "FZWriter.setFont(" + org.json.JSONObject.quote(family) + ",false);"
-                + "FZWriter.setHtml(" + org.json.JSONObject.quote(html) + ");";
-        web.evaluateJavascript(js, null);
+                int pageWidth = sourceLayout == null ? 11906 : sourceLayout.widthTwips;
+                int pageHeight = sourceLayout == null ? 16838 : sourceLayout.heightTwips;
+                int marginTop = sourceLayout == null ? 1440 : sourceLayout.topTwips;
+                int marginRight = sourceLayout == null ? 1440 : sourceLayout.rightTwips;
+                int marginBottom = sourceLayout == null ? 1440 : sourceLayout.bottomTwips;
+                int marginLeft = sourceLayout == null ? 1440 : sourceLayout.leftTwips;
+
+                // Build the potentially multi-megabyte JavaScript argument away from
+                // the main thread as well; WebView evaluation itself stays on UI.
+                String js = "FZWriter.registerFonts(" + org.json.JSONObject.quote(css.toString()) + ");"
+                        + "FZWriter.setPageLayout(" + pageWidth + "," + pageHeight + ","
+                        + marginTop + "," + marginRight + "," + marginBottom + "," + marginLeft + ");"
+                        + "FZWriter.setFont(" + org.json.JSONObject.quote(family) + ",false);"
+                        + "FZWriter.setHtml(" + org.json.JSONObject.quote(sourceHtml) + ");";
+
+                runOnUiThread(() -> {
+                    if (isFinishing() || web == null) return;
+                    web.evaluateJavascript(js, null);
+                });
+            } catch (Exception exception) {
+                runOnUiThread(() -> {
+                    if (isFinishing()) return;
+                    initializationStarted = false;
+                    if (status != null) status.setText("Could not prepare editor");
+                    new AlertDialog.Builder(this)
+                            .setTitle("Cannot prepare editor")
+                            .setMessage(exception.getMessage() == null
+                                    ? "The document could not be prepared for editing."
+                                    : exception.getMessage())
+                            .setPositiveButton("OK", (dialog, which) -> finish())
+                            .show();
+                });
+            }
+        });
     }
 
     private void run(String js) {
