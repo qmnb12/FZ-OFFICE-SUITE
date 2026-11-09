@@ -493,7 +493,7 @@ public final class DocxCodec {
         }
 
         if (pageBreakBefore) {
-            html.append("<div class=\\"fz-manual-break\\" data-fz-page-break=\\"true\\"></div>");
+            html.append("<div class=\"fz-manual-break\" data-fz-page-break=\"true\"></div>");
         }
         html.append("<p");
         if (!"left".equals(alignment)) {
@@ -646,7 +646,7 @@ public final class DocxCodec {
                         output.append(runToHtml(text.toString(), style));
                         text.setLength(0);
                     }
-                    output.append("<div class=\\"fz-manual-break\\" data-fz-page-break=\\"true\\"></div>");
+                    output.append("<div class=\"fz-manual-break\" data-fz-page-break=\"true\"></div>");
                 } else {
                     text.append('\n');
                 }
