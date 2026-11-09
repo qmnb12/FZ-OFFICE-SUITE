@@ -335,7 +335,9 @@ public class WriterActivity extends Activity {
     }
 
     private void updateStatus() {
-        if (pendingLegacyFontLoaded && !pendingLegacyFontName.isEmpty()) {
+        if (documentFontsLoading && pendingLegacyFontName != null && !pendingLegacyFontName.isEmpty()) {
+            statusView.setText("Loading matching font: " + pendingLegacyFontName);
+        } else if (pendingLegacyFontLoaded && !pendingLegacyFontName.isEmpty()) {
             statusView.setText("Matching font loaded: " + pendingLegacyFontName
                     + " · Original DOCX text preserved");
         } else if (!pendingLegacyFontName.isEmpty()) {
