@@ -950,10 +950,9 @@ public final class DocxCodec {
         }
         if (element != null) {
             RunStyle initial = new RunStyle();
-            String defaultFamily = cssValue(element.attr("style"), "font-family");
-            if (!defaultFamily.isEmpty()) {
-                initial.fontFamily = defaultFamily.replace("\"", "").replace("'", "");
-            }
+            String defaultFamily = firstCssFontFamily(
+                    cssValue(element.attr("style"), "font-family"));
+            if (!defaultFamily.isEmpty()) initial.fontFamily = defaultFamily;
             String tag = element.tagName().toLowerCase(Locale.ROOT);
             if ("h1".equals(tag)) { initial.bold = true; initial.fontSizePt = 20; }
             else if ("h2".equals(tag)) { initial.bold = true; initial.fontSizePt = 16; }
@@ -1012,8 +1011,8 @@ public final class DocxCodec {
         if (background.matches("(?i)#[0-9a-f]{6}")) style.highlight = background;
         String fontSize = cssValue(css, "font-size");
         if (!fontSize.isEmpty()) style.fontSizePt = parseFontSize(fontSize, style.fontSizePt);
-        String family = cssValue(css, "font-family");
-        if (!family.isEmpty()) style.fontFamily = family.replace("\"", "").replace("'", "");
+        String family = firstCssFontFamily(cssValue(css, "font-family"));
+        if (!family.isEmpty()) style.fontFamily = family;
 
         for (Node child : element.childNodes()) appendInline(child, style, xml);
     }
@@ -1149,7 +1148,43 @@ public final class DocxCodec {
         }
     }
 
-    private static String cssValue(String css, String property) {
+/**
+     * DOCX rFonts accepts one family name, not the complete CSS fallback list.
+     * Keep only the first CSS family so values such as
+     * "'Kruti Dev 010','Noto Sans Devanagari',sans-serif" round-trip correctly.
+     */
+    private static String firstCssFontFamily(String value) {
+        if (value == null || value.trim().isEmpty()) return "";
+        StringBuilder family = new StringBuilder();
+        char quote = 0;
+        boolean escaped = false;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (escaped) {
+                family.append(ch);
+                escaped = false;
+                continue;
+            }
+            if (quote != 0 && ch == '\\\\') {
+                escaped = true;
+                continue;
+            }
+            if (quote != 0) {
+                if (ch == quote) quote = 0;
+                else family.append(ch);
+                continue;
+            }
+            if (ch == '\\'' || ch == '"') {
+                quote = ch;
+                continue;
+            }
+            if (ch == ',') break;
+            family.append(ch);
+        }
+        return family.toString().trim();
+    }
+
+        private static String cssValue(String css, String property) {
         if (css == null) return "";
         String[] declarations = css.split(";");
         for (String declaration : declarations) {
