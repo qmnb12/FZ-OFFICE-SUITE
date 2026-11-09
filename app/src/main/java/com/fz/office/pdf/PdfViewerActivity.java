@@ -145,9 +145,22 @@ public final class PdfViewerActivity extends Activity {
         worker.execute(() -> {
             ParcelFileDescriptor opened = null;
             try {
-                cachedPdf = copyToPrivateCache();
-                opened = ParcelFileDescriptor.open(cachedPdf, ParcelFileDescriptor.MODE_READ_ONLY);
-                PdfRenderer loaded = new PdfRenderer(opened);
+                PdfRenderer loaded = null;
+                try {
+                    opened = getContentResolver().openFileDescriptor(documentUri, "r");
+                    if (opened != null) loaded = new PdfRenderer(opened);
+                } catch (Exception notSeekable) {
+                    if (opened != null) {
+                        try { opened.close(); } catch (Exception ignored) { }
+                        opened = null;
+                    }
+                }
+                // SAF providers that expose non-seekable streams still use the safe cache fallback.
+                if (loaded == null) {
+                    cachedPdf = copyToPrivateCache();
+                    opened = ParcelFileDescriptor.open(cachedPdf, ParcelFileDescriptor.MODE_READ_ONLY);
+                    loaded = new PdfRenderer(opened);
+                }
                 descriptor = opened;
                 renderer = loaded;
                 pageCount = loaded.getPageCount();
