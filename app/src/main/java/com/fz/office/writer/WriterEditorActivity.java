@@ -37,7 +37,25 @@ public class WriterEditorActivity extends Activity {
     public static final String EXTRA_DOCUMENT_NAME = "document_name";
     private static final int REQUEST_CREATE_COPY = 4101;
     private static final int MAX_DOCX_BYTES = 80 * 1024 * 1024;
+    private static String preloadedUri;
+    private static DocxCodec.LoadedDocument preloadedDocument;
     private final ExecutorService io = Executors.newSingleThreadExecutor();
+
+    /** Transfers the already-parsed viewer document into Edit without a second ZIP read. */
+    public static synchronized void setPreloadedDocument(
+            Uri uri, DocxCodec.LoadedDocument document) {
+        preloadedUri = uri == null ? null : uri.toString();
+        preloadedDocument = document;
+    }
+
+    private static synchronized DocxCodec.LoadedDocument takePreloadedDocument(Uri uri) {
+        String requested = uri == null ? null : uri.toString();
+        if (requested == null || !requested.equals(preloadedUri)) return null;
+        DocxCodec.LoadedDocument document = preloadedDocument;
+        preloadedUri = null;
+        preloadedDocument = null;
+        return document;
+    }
     private Uri source;
     private String name = "Document.docx";
     private String html = "<p></p>";
@@ -154,10 +172,18 @@ public class WriterEditorActivity extends Activity {
 
     private void load() {
         io.execute(() -> {
-            try (InputStream in = getContentResolver().openInputStream(source)) {
-                if (in == null) throw new IOException("Could not read selected document.");
-                DocxCodec.LoadedDocument doc = DocxCodec.readDocx(
-                        new java.io.ByteArrayInputStream(readLimited(in)));
+            try {
+                // The Viewer already parsed this exact DOCX before the user tapped Edit.
+                // Reuse its package entries and parsed HTML instead of opening and parsing it twice.
+                DocxCodec.LoadedDocument doc = takePreloadedDocument(source);
+                if (doc == null) {
+                    try (InputStream in = getContentResolver().openInputStream(source)) {
+                        if (in == null) throw new IOException("Could not read selected document.");
+                        doc = DocxCodec.readDocx(
+                                new java.io.ByteArrayInputStream(readLimited(in)));
+                    }
+                }
+                if (doc == null) throw new IOException("Could not read selected document.");
                 // Unicode DOCX files use the APK-bundled fonts directly. Import the
                 // larger legacy pack only when the document declares a legacy Hindi font.
                 if (doc.legacyFontName != null && !doc.legacyFontName.trim().isEmpty()) {
