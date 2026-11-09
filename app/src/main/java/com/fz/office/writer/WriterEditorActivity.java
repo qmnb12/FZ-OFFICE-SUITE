@@ -65,7 +65,7 @@ public class WriterEditorActivity extends Activity {
     private byte[] pendingBytes;
     private WebView web;
     private TextView status;
-    private boolean ready, dirty, saving;
+    private boolean ready, dirty, saving, initializationStarted;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
@@ -211,7 +211,10 @@ public class WriterEditorActivity extends Activity {
     }
 
     private void initialize() {
-        if (!ready || web == null || packageEntries == null) return;
+        if (!ready || web == null || packageEntries == null || initializationStarted) return;
+        // onPageFinished and the JS-ready bridge can both reach this method.
+        // Initialize the document only once to avoid rebuilding its full DOM twice.
+        initializationStarted = true;
         String family = FontManager.getDefaultFont(this);
         String css = FontManager.getBundledCss();
         try {
@@ -242,11 +245,7 @@ public class WriterEditorActivity extends Activity {
                 + marginTop + "," + marginRight + "," + marginBottom + "," + marginLeft + ");"
                 + "FZWriter.setFont(" + org.json.JSONObject.quote(family) + ",false);"
                 + "FZWriter.setHtml(" + org.json.JSONObject.quote(html) + ");";
-        web.evaluateJavascript(js, value -> {
-            if (!isFinishing() && status != null) {
-                status.setText("Editing a copy · Ready");
-            }
-        });
+        web.evaluateJavascript(js, null);
     }
 
     private void run(String js) {
@@ -368,6 +367,11 @@ public class WriterEditorActivity extends Activity {
 
     private final class Bridge {
         @JavascriptInterface public void onEditorReady() { runOnUiThread(() -> initialize()); }
+        @JavascriptInterface public void onLayoutReady() {
+            runOnUiThread(() -> {
+                if (!isFinishing() && status != null) status.setText("Editing a copy · Ready");
+            });
+        }
         @JavascriptInterface public void onDirty() {
             runOnUiThread(() -> { dirty = true; if (status != null) status.setText("Unsaved changes · Save copy to keep them"); });
         }

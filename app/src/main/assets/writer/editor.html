@@ -320,7 +320,7 @@ body { min-height:100vh; overflow-x:hidden; }
     return continuation;
   }
 
-  function paginate() {
+  function paginate(compactInitialLayout) {
     if (!ready || composing) return;
     internalMutation = true;
     try {
@@ -350,17 +350,20 @@ body { min-height:100vh; overflow-x:hidden; }
         i++;
       }
 
-      // Pull content back after deletions so blank pages do not accumulate.
-      var pages = getPages();
-      for (var p = 0; p < pages.length - 1; p++) {
-        var current = pages[p], following = getPages()[p + 1];
-        if (current.lastElementChild && isManualBreak(current.lastElementChild)) continue;
-        while (following && following.firstChild) {
-          var candidate = following.firstChild;
-          current.appendChild(candidate);
-          if (pageOverflows(current)) {
-            following.insertBefore(candidate, following.firstChild);
-            break;
+      if (compactInitialLayout !== false) {
+        // Repack pages after edits/deletions. The first document layout already
+        // flows forward, so doing this during initial load only repeats costly reflows.
+        var pages = getPages();
+        for (var p = 0; p < pages.length - 1; p++) {
+          var current = pages[p], following = getPages()[p + 1];
+          if (current.lastElementChild && isManualBreak(current.lastElementChild)) continue;
+          while (following && following.firstChild) {
+            var candidate = following.firstChild;
+            current.appendChild(candidate);
+            if (pageOverflows(current)) {
+              following.insertBefore(candidate, following.firstChild);
+              break;
+            }
           }
         }
       }
@@ -464,11 +467,23 @@ body { min-height:100vh; overflow-x:hidden; }
       if (!page.childNodes.length) page.innerHTML = "<p><br></p>";
       ready = true;
     } finally { internalMutation = false; }
-    paginate();
-    // Reflow once WebView has loaded every registered DOCX/custom font.
-    // Font metrics can change line wrapping and therefore page boundaries.
+
+    // Wait for the fonts used by this document, then paginate exactly once.
+    // The previous flow paginated immediately and repeated the entire operation
+    // after fonts.ready, blocking the editor during two full layout passes.
+    function layoutInitialDocument() {
+      requestAnimationFrame(function () {
+        if (!ready) return;
+        paginate(false);
+        if (window.AndroidBridge && AndroidBridge.onLayoutReady) {
+          AndroidBridge.onLayoutReady();
+        }
+      });
+    }
     if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(function () { paginate(); });
+      document.fonts.ready.then(layoutInitialDocument, layoutInitialDocument);
+    } else {
+      layoutInitialDocument();
     }
   }
 
