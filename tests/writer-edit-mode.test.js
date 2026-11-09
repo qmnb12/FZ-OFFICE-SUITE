@@ -41,4 +41,10 @@ assert(editor.includes("FontManager.importBundledFontArchives"),
 assert(!editor.includes("FLAG_GRANT_WRITE_URI_PERMISSION"), "Editor must not request source write permission");
 assert(editor.includes("DocxCodec.writeDocx(editedHtml, packageEntries, layout)"), "Save must preserve page geometry");
 assert(codec.includes("entries.putAll(originalEntries)"), "Original DOCX package parts must be retained");
+assert(codec.includes("private static String firstCssFontFamily("),
+  "DOCX export must reduce CSS fallback stacks to one real font family");
+assert(codec.includes('String family = firstCssFontFamily(cssValue(css, "font-family"));'),
+  "Inline Hindi font-family fallback stacks must not be stored as one invalid Word font name");
+assert(codec.includes('String defaultFamily = firstCssFontFamily('),
+  "Block-level CSS font-family fallback stacks must also be reduced before DOCX export");
 console.log("FZ Writer edit-only-on-demand and safe Save As checks passed.");
