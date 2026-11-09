@@ -39,7 +39,7 @@ assert(fontLoad.includes("getCustomFontCssForFamilies"),
 
 const bulkFonts = fonts.slice(fonts.indexOf("public static String getCustomFontCssForFamilies"),
   fonts.indexOf("public static String getCustomFontCssForFamily"));
-assert((bulkFonts.match(/directory\\.listFiles\\(\\)/g) || []).length === 1,
+assert(bulkFonts.split("directory.listFiles()").length === 2,
   "Bulk font resolution must scan the font directory once, not once per family");
 
 const inspect = codec.slice(codec.indexOf("private static List<String> inspectFontNames"),
