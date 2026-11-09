@@ -19,6 +19,7 @@ import android.widget.Toast;
 import org.json.JSONObject;
 
 import com.fz.office.fonts.FontManager;
+import com.fz.office.OfficeEditorLauncher;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -72,7 +73,8 @@ public class WriterActivity extends Activity {
             sourceUri = Uri.parse(uriValue);
             documentName = queryDisplayName(sourceUri);
         }
-        plainText = documentName.toLowerCase(Locale.ROOT).endsWith(".txt");
+        plainText = documentName.toLowerCase(Locale.ROOT).endsWith(".txt")
+                || "text/plain".equalsIgnoreCase(sourceUri == null ? null : getContentResolver().getType(sourceUri));
         buildViewerScreen();
         loadDocument();
     }
@@ -119,6 +121,15 @@ public class WriterActivity extends Activity {
         zoomIn.setGravity(Gravity.CENTER);
         top.addView(zoomIn, new LinearLayout.LayoutParams(dp(42), dp(42)));
         zoomIn.setOnClickListener(v -> runViewerScript("FZViewer.zoom(1)"));
+        TextView edit = control("Edit", 12, 0xFFFFFFFF);
+        edit.setGravity(Gravity.CENTER);
+        edit.setPadding(dp(9), dp(8), dp(9), dp(8));
+        edit.setBackgroundColor(0xFF176B5B);
+        LinearLayout.LayoutParams editParams = new LinearLayout.LayoutParams(dp(48), dp(40));
+        editParams.leftMargin = dp(4);
+        top.addView(edit, editParams);
+        edit.setVisibility(plainText ? View.GONE : View.VISIBLE);
+        edit.setOnClickListener(v -> OfficeEditorLauncher.openForEdit(this, sourceUri, documentName));
 
         viewer = new WebView(this);
         viewer.setBackgroundColor(0xFFF1F4F2);

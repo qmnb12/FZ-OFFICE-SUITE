@@ -3,6 +3,8 @@ const assert = require("assert");
 
 const main = fs.readFileSync("app/src/main/java/com/fz/office/MainActivity.java", "utf8");
 const fontManager = fs.readFileSync("app/src/main/java/com/fz/office/fonts/FontManager.java", "utf8");
+const editorLauncher = fs.readFileSync("app/src/main/java/com/fz/office/OfficeEditorLauncher.java", "utf8");
+const fontCenter = fs.readFileSync("app/src/main/java/com/fz/office/fonts/FontCenterActivity.java", "utf8");
 const patch = fs.readFileSync("scripts/patch-collabora-hindi.py", "utf8");
 const manifest = fs.readFileSync("third_party/collabora/android/app/src/main/AndroidManifest.xml", "utf8");
 const collaboraGradle = fs.readFileSync("third_party/collabora/android/app/build.gradle", "utf8");
@@ -17,6 +19,12 @@ assert(main.includes("button.setIncludeFontPadding(false)"), "library labels mus
 assert(main.includes("button.setPadding(dp(8), 0, dp(8), 0)"), "library tabs must use the available height");
 assert(main.includes("org.libreoffice.androidlib.LOActivity"), "Office documents must route to native Collabora");
 assert(main.includes('nativeOpen.putExtra("com.fz.office.READ_ONLY", true)'), "native Office documents must open read-only");
+assert(main.includes("isFzWriterViewerDocument"), "DOCX/TXT should remain on the FZ reader until Edit");
+assert(editorLauncher.includes('editor.putExtra(READ_ONLY_EXTRA, false)'), "explicit Edit action must open Collabora writable mode");
+assert(editorLauncher.includes("FLAG_GRANT_WRITE_URI_PERMISSION"), "native editor must forward an actual write grant when available");
+assert(fontManager.includes("ensureBundledEngineFonts") && fontManager.includes("BUNDLED_ENGINE_FONT_FILES"), "Bundled Hindi font installer/catalogue is missing");
+assert(fontManager.includes("getEngineFontFileCount"), "Installed native font file count is missing");
+assert(fontCenter.includes("Search all fonts"), "Font Center must provide all-font search");
 assert(main.includes("isWordOfficeDocument"), "Word formats beyond DOCX must be recognized");
 assert(main.includes('Native Word layout engine is not available in this build.'),
   "do not silently fall back to the broken single-page DOCX renderer when Collabora is missing");
@@ -96,7 +104,7 @@ assert(patch.includes("debug_suffix = ") && patch.includes("applicationIdSuffix 
   "native integration must remove the upstream debug application ID suffix");
 assert(workflow.includes(":app:downloadGanderViewerAssets"), "CI must generate Gander assets");
 assert(workflow.includes("node tests/native-collabora-integration.test.js"), "CI must run integration checks");
-assert(workflow.includes("VERSION_NAME: 0.6.6.0") && workflow.includes("VERSION_CODE: 15"),
+assert(workflow.includes("VERSION_NAME: 0.6.7.0") && workflow.includes("VERSION_CODE: 16"),
   "native APK version must be aligned with the FZ shell");
 
 const java = "third_party/collabora/android/app/src/main/java/com/fz/office/";
@@ -108,6 +116,7 @@ assert(fs.existsSync("third_party/collabora/android/app/src/main/res/drawable/fz
 assert(fs.existsSync("third_party/collabora/android/app/src/main/res/values/fz_brand_colors.xml"),
   "FZ brand colors must be copied");
 assert(fs.existsSync(java + "fonts/FontCenterActivity.java"), "FZ Font Center must be copied");
+assert(fs.existsSync(java + "OfficeEditorLauncher.java"), "FZ explicit Edit launcher must be copied into native app");
 const copiedOfficeViewer = fs.readFileSync(java + "viewer/OfficeViewerActivity.java", "utf8");
 const copiedPdfViewer = fs.readFileSync(java + "pdf/PdfViewerActivity.java", "utf8");
 assert(copiedOfficeViewer.includes("android.R.attr.progressBarStyleHorizontal")

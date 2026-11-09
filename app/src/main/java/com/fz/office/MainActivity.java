@@ -20,6 +20,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.fz.office.fonts.FontCenterActivity;
+import com.fz.office.fonts.FontManager;
 import com.fz.office.library.RecentDocumentsStore;
 import com.fz.office.pdf.PdfViewerActivity;
 import com.fz.office.viewer.OfficeViewerActivity;
@@ -411,7 +412,8 @@ public class MainActivity extends Activity {
                 "application/vnd.oasis.opendocument.presentation-flat-xml",
                 MIME_PDF, "text/plain"
         });
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         try { startActivityForResult(intent, REQUEST_OPEN_DOCUMENT); }
         catch (Exception e) { Toast.makeText(this, "No compatible file picker was found.", Toast.LENGTH_LONG).show(); }
     }
@@ -426,7 +428,8 @@ public class MainActivity extends Activity {
         if ((incomingFlags & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) != 0) {
             try {
                 getContentResolver().takePersistableUriPermission(
-                        uri, incomingFlags & Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        uri, incomingFlags & (Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
             } catch (Exception ignored) { }
         }
         if (!isSupportedDocument(name, mime)) {
@@ -449,7 +452,8 @@ public class MainActivity extends Activity {
                     Toast.LENGTH_LONG).show();
             return;
         }
-        int flags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+        int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
         try { getContentResolver().takePersistableUriPermission(uri, flags); } catch (Exception ignored) { }
         launchDocument(uri, name, mime);
     }
@@ -554,11 +558,16 @@ public class MainActivity extends Activity {
     }
 
     private boolean launchNativeOfficeDocument(Uri uri, String name, String mime) {
+        try {
+            FontManager.ensureBundledEngineFonts(this);
+        } catch (Exception fontError) {
+            android.util.Log.w("FZOffice", "Could not prepare bundled Hindi fonts", fontError);
+        }
         Intent nativeOpen = new Intent(Intent.ACTION_VIEW);
         nativeOpen.setClassName(getPackageName(), "org.libreoffice.androidlib.LOActivity");
         nativeOpen.setDataAndType(uri, resolveOfficeMimeType(name, mime));
         nativeOpen.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        // Accurate native page layout is the default; mobile editing stays off until explicitly requested.
+        // Formats not supported by the previous FZ readers remain safe to inspect read-only.
         nativeOpen.putExtra("com.fz.office.READ_ONLY", true);
         try {
             startActivity(nativeOpen);
@@ -568,9 +577,30 @@ public class MainActivity extends Activity {
         }
     }
 
+    private boolean isFzWriterViewerDocument(String name, String mime) {
+        String lower = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
+        return lower.endsWith(".docx") || lower.endsWith(".txt")
+                || MIME_DOCX.equalsIgnoreCase(mime) || "text/plain".equalsIgnoreCase(mime);
+    }
+
     private void launchDocument(Uri uri, String name, String mime) {
         try {
-            if (!isPdfDocument(name, mime) && isNativeOfficeDocument(name, mime)) {
+            Intent open;
+            if (isPdfDocument(name, mime)) {
+                open = new Intent(this, PdfViewerActivity.class);
+                open.putExtra(PdfViewerActivity.EXTRA_DOCUMENT_URI, uri.toString());
+                open.putExtra(PdfViewerActivity.EXTRA_DOCUMENT_NAME, name);
+            } else if (isOfficeViewerDocument(name, mime)) {
+                // Keep the previous FZ/Gander spreadsheet and slide readers as the default.
+                open = new Intent(this, OfficeViewerActivity.class);
+                open.putExtra(OfficeViewerActivity.EXTRA_DOCUMENT_URI, uri.toString());
+                open.putExtra(OfficeViewerActivity.EXTRA_DOCUMENT_NAME, name);
+            } else if (isFzWriterViewerDocument(name, mime)) {
+                // DOCX/TXT opens in the familiar FZ Writer reader first.
+                open = new Intent(this, WriterActivity.class);
+                open.putExtra(WriterActivity.EXTRA_DOCUMENT_URI, uri.toString());
+            } else if (isNativeOfficeDocument(name, mime)) {
+                // Legacy formats not yet handled by the FZ readers can still be inspected natively.
                 if (launchNativeOfficeDocument(uri, name, mime)) {
                     RecentDocumentsStore.record(this, uri, name, mime);
                     return;
@@ -579,19 +609,11 @@ public class MainActivity extends Activity {
                     Toast.makeText(this,
                             "Native Word layout engine is not available in this build.",
                             Toast.LENGTH_LONG).show();
-                    return;
+                } else {
+                    Toast.makeText(this, "Native Office viewer is not available in this build.",
+                            Toast.LENGTH_LONG).show();
                 }
-            }
-
-            Intent open;
-            if (isPdfDocument(name, mime)) {
-                open = new Intent(this, PdfViewerActivity.class);
-                open.putExtra(PdfViewerActivity.EXTRA_DOCUMENT_URI, uri.toString());
-                open.putExtra(PdfViewerActivity.EXTRA_DOCUMENT_NAME, name);
-            } else if (isOfficeViewerDocument(name, mime)) {
-                open = new Intent(this, OfficeViewerActivity.class);
-                open.putExtra(OfficeViewerActivity.EXTRA_DOCUMENT_URI, uri.toString());
-                open.putExtra(OfficeViewerActivity.EXTRA_DOCUMENT_NAME, name);
+                return;
             } else {
                 open = new Intent(this, WriterActivity.class);
                 open.putExtra(WriterActivity.EXTRA_DOCUMENT_URI, uri.toString());

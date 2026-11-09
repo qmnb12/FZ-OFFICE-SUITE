@@ -52,10 +52,23 @@ public class FontCenterActivity extends Activity {
         buildScreen();
         renderFonts();
         importer.execute(() -> {
-            try { FontManager.importBundledFontArchives(FontCenterActivity.this); }
-            catch (Exception ignored) { }
+            String setupMessage;
+            try {
+                FontManager.ensureBundledEngineFonts(FontCenterActivity.this);
+                FontManager.ImportResult legacy = FontManager.importBundledFontArchives(FontCenterActivity.this);
+                setupMessage = "Native engine: " + FontManager.getEngineFontFileCount(FontCenterActivity.this)
+                        + " font files installed · " + legacy.imported + " legacy fonts newly added.";
+            } catch (Exception exception) {
+                setupMessage = "Font setup warning: " + (exception.getMessage() == null
+                        ? "Some bundled fonts could not be installed." : exception.getMessage());
+            }
+            final String resultMessage = setupMessage;
             runOnUiThread(() -> {
-                if (!isFinishing()) renderFonts();
+                if (!isFinishing()) {
+                    fontSnapshot = null;
+                    renderFonts();
+                    selectedStatus.setText(resultMessage);
+                }
             });
         });
     }
@@ -103,7 +116,7 @@ public class FontCenterActivity extends Activity {
         searchInput.setSingleLine(true);
         searchInput.setTextSize(14);
         searchInput.setTextColor(INK);
-        searchInput.setHint("Search font family, e.g. DevLys 010");
+        searchInput.setHint("Search all fonts: family, style or file name");
         searchInput.setPadding(dp(13), dp(10), dp(13), dp(10));
         searchInput.setBackground(roundRect(Color.WHITE, dp(11)));
         LinearLayout.LayoutParams searchParams = wrapMatch();
@@ -225,9 +238,13 @@ public class FontCenterActivity extends Activity {
             fontList.addView(countInfo, wrapMatch());
         }
         int bundledCount = FontManager.getBundledFonts().size();
-        countInfo.setText(filtered.size() + " matching fonts · " + bundledCount
-                + " bundled Unicode · " + Math.max(0, allFonts.size() - bundledCount)
-                + " imported locally");
+        int importedCount = Math.max(0, allFonts.size() - bundledCount);
+        int visibleCount = Math.min(filtered.size(), visibleFontLimit);
+        int engineFileCount = FontManager.getEngineFontFileCount(this);
+        countInfo.setText("Total " + allFonts.size() + " font entries · Showing " + visibleCount
+                + " of " + filtered.size() + " matches\n" + bundledCount + " Unicode families · "
+                + importedCount + " local/imported entries · " + engineFileCount
+                + " actual font files installed in Collabora");
 
         int limit = Math.min(filtered.size(), visibleFontLimit);
         for (int index = 0; index < limit; index++) {
@@ -402,7 +419,7 @@ public class FontCenterActivity extends Activity {
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Remove", (dialog, which) -> {
                     boolean wasDefault = FontManager.getDefaultFont(this).equals(record.cssFamily);
-                    FontManager.removeCustomFont(record);
+                    FontManager.removeCustomFont(this, record);
                     fontSnapshot = null;
                     if (wasDefault) {
                         FontManager.setDefaultFont(this, FontManager.getBundledFonts().get(0));

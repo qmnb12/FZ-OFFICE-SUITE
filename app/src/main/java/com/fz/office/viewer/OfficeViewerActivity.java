@@ -24,6 +24,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.fz.office.fonts.FontManager;
+import com.fz.office.OfficeEditorLauncher;
 
 import org.json.JSONObject;
 
@@ -130,6 +131,11 @@ public class OfficeViewerActivity extends Activity {
         TextView zoomIn = toolbarControl("+");
         toolbar.addView(zoomIn, new LinearLayout.LayoutParams(dp(34), dp(40)));
         zoomIn.setOnClickListener(v -> { if (webView != null) webView.zoomIn(); });
+        TextView edit = toolbarControl("Edit");
+        edit.setTextColor(Color.WHITE);
+        edit.setBackground(round(0xff176b5b, 12));
+        toolbar.addView(edit, new LinearLayout.LayoutParams(dp(48), dp(40)));
+        edit.setOnClickListener(v -> OfficeEditorLauncher.openForEdit(this, documentUri, documentName));
 
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setIndeterminate(true);

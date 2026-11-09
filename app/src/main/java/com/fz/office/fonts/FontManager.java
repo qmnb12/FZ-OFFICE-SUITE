@@ -81,6 +81,16 @@ public final class FontManager {
         }
     }
 
+    private static final long MAX_BUNDLED_ENGINE_FONT_BYTES = 12L * 1024L * 1024L;
+    private static final String[] BUNDLED_ENGINE_FONT_FILES = {
+            "NotoSansDevanagari-VF.ttf", "NotoSerifDevanagari-VF.ttf",
+            "Mukta-Regular.ttf", "Mukta-Bold.ttf", "Hind-Regular.ttf", "Hind-Bold.ttf",
+            "TiroDevanagariHindi-Regular.ttf", "TiroDevanagariHindi-Italic.ttf",
+            "Kalam-Regular.ttf", "Sahitya-Regular.ttf", "Sahitya-Bold.ttf",
+            "Martel-Regular.ttf", "Baloo2-VF.ttf", "Khand-Regular.ttf",
+            "Gotu-Regular.ttf", "Glegoo-Regular.ttf"
+    };
+
     private static final List<FontRecord> BUILT_IN = Collections.unmodifiableList(Arrays.asList(
         bundled("Noto Sans Devanagari", "Sans serif · Variable",
                 "Recommended default for everyday Hindi documents.", "NotoSansDevanagari-VF.ttf"),
@@ -126,7 +136,8 @@ public final class FontManager {
         if (files != null) {
             Arrays.sort(files, Comparator.comparing(File::getName, String.CASE_INSENSITIVE_ORDER));
             for (File file : files) {
-                if (!file.isFile() || !isSupportedExtension(file.getName())) continue;
+                if (!file.isFile() || !isSupportedExtension(file.getName())
+                        || isBundledEngineFontFile(file.getName())) continue;
                 FontMetadata metadata = readFontMetadata(file);
                 String family = metadata.family.isEmpty() ? customCssFamily(file) : metadata.family;
                 String style = metadata.subfamily.isEmpty() ? "Regular" : metadata.subfamily;
@@ -272,6 +283,7 @@ public final class FontManager {
             destination.delete();
             throw new IOException("Android could not read this font. The file may be damaged or unsupported.");
         }
+        clearEngineFontCaches(context);
         return destination;
     }
 
@@ -472,6 +484,104 @@ public final class FontManager {
         return customDirectory(context);
     }
 
+    /** Copies FZ's verified Devanagari assets into Collabora's private Fontconfig directory. */
+    public static synchronized int ensureBundledEngineFonts(Context context) throws IOException {
+        File directory = customDirectory(context);
+        if (!directory.exists() && !directory.mkdirs()) {
+            throw new IOException("Could not create the native user/fonts directory.");
+        }
+        int installed = 0;
+        for (String fileName : BUNDLED_ENGINE_FONT_FILES) {
+            File target = new File(directory, fileName);
+            if (isValidFontFile(target)) continue;
+            File temporary = new File(directory, fileName + ".installing");
+            temporary.delete();
+            try (InputStream input = context.getAssets().open("writer/fonts/" + fileName);
+                 FileOutputStream output = new FileOutputStream(temporary)) {
+                byte[] buffer = new byte[8192];
+                ByteArrayOutputStream signature = new ByteArrayOutputStream(4);
+                int count;
+                long total = 0;
+                while ((count = input.read(buffer)) != -1) {
+                    total += count;
+                    if (total > MAX_BUNDLED_ENGINE_FONT_BYTES) {
+                        throw new IOException("Bundled font exceeds the safe size limit: " + fileName);
+                    }
+                    if (signature.size() < 4) {
+                        int keep = Math.min(count, 4 - signature.size());
+                        signature.write(buffer, 0, keep);
+                    }
+                    output.write(buffer, 0, count);
+                }
+                output.flush();
+                if (!hasFontSignature(signature.toByteArray())) {
+                    throw new IOException("Bundled font has an invalid TTF signature: " + fileName);
+                }
+            } catch (Exception exception) {
+                temporary.delete();
+                if (exception instanceof IOException) throw (IOException) exception;
+                throw new IOException("Could not install bundled font: " + fileName, exception);
+            }
+            if (target.exists() && !target.delete()) {
+                temporary.delete();
+                throw new IOException("Could not replace damaged font: " + fileName);
+            }
+            if (!temporary.renameTo(target)) {
+                temporary.delete();
+                throw new IOException("Could not finish installing font: " + fileName);
+            }
+            installed++;
+        }
+        if (installed > 0) clearEngineFontCaches(context);
+        return installed;
+    }
+
+    /** Returns the number of real TTF/OTF files visible to native Fontconfig. */
+    public static int getEngineFontFileCount(Context context) {
+        File[] files = customDirectory(context).listFiles();
+        if (files == null) return 0;
+        int count = 0;
+        for (File file : files) {
+            if (file.isFile() && isSupportedExtension(file.getName()) && isValidFontFile(file)) count++;
+        }
+        return count;
+    }
+
+    private static boolean isBundledEngineFontFile(String fileName) {
+        if (fileName == null) return false;
+        for (String bundled : BUNDLED_ENGINE_FONT_FILES) {
+            if (bundled.equalsIgnoreCase(fileName)) return true;
+        }
+        return false;
+    }
+
+    private static boolean isValidFontFile(File file) {
+        if (file == null || !file.isFile() || file.length() < 4) return false;
+        try (FileInputStream input = new FileInputStream(file)) {
+            byte[] signature = new byte[4];
+            return input.read(signature) == 4 && hasFontSignature(signature);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    /** Clears only font caches; it never deletes actual fonts or the native fonts.conf. */
+    public static void clearEngineFontCaches(Context context) {
+        deleteFontCacheTree(new File(context.getApplicationInfo().dataDir, "fontconfig"));
+        deleteFontCacheTree(new File(new File(context.getApplicationInfo().dataDir, "cache"), "fontconfig"));
+        deleteFontCacheTree(new File(context.getCacheDir(), "fontconfig"));
+        deleteFontCacheTree(new File(context.getCacheDir(), "libreoffice/fontconfig"));
+    }
+
+    private static void deleteFontCacheTree(File file) {
+        if (file == null || !file.exists()) return;
+        if (file.isDirectory()) {
+            File[] children = file.listFiles();
+            if (children != null) for (File child : children) deleteFontCacheTree(child);
+        }
+        file.delete();
+    }
+
     /**
      * Prepares a Fontconfig configuration that points at the app-private font folder.
      * The native engine must set FONTCONFIG_FILE to this path before LOK initialization.
@@ -661,6 +771,11 @@ public final class FontManager {
         if (record != null && !record.bundled && record.customFile != null) {
             record.customFile.delete();
         }
+    }
+
+    public static void removeCustomFont(Context context, FontRecord record) {
+        removeCustomFont(record);
+        clearEngineFontCaches(context);
     }
 
     private static boolean hasFontSignature(byte[] bytes) {

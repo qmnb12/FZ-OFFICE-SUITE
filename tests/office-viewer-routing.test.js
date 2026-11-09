@@ -8,6 +8,11 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 const main = read("app/src/main/java/com/fz/office/MainActivity.java");
 const viewer = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity.java");
+const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.java");
+const editor = read("app/src/main/java/com/fz/office/OfficeEditorLauncher.java");
+const fontManager = read("app/src/main/java/com/fz/office/fonts/FontManager.java");
+const fontCenter = read("app/src/main/java/com/fz/office/fonts/FontCenterActivity.java");
+const docxCodec = read("app/src/main/java/com/fz/office/writer/DocxCodec.java");
 const manifest = read("app/src/main/AndroidManifest.xml");
 const gradle = read("app/build.gradle.kts");
 
@@ -17,6 +22,15 @@ for (const ext of [".pdf", ".docx", ".doc", ".docm", ".dotx", ".dotm", ".odt", "
   assert(main.includes(ext), "Missing file route for " + ext);
 }
 assert(main.includes("OfficeViewerActivity.class"), "Office viewer activity is not routed");
+assert(main.includes("isFzWriterViewerDocument"), "DOCX/TXT must use the old FZ Writer reader by default");
+assert(writer.includes("OfficeEditorLauncher.openForEdit(this, sourceUri, documentName)"), "DOCX viewer is missing its explicit Edit action");
+assert(viewer.includes("OfficeEditorLauncher.openForEdit(this, documentUri, documentName)"), "Spreadsheet/slide reader is missing its explicit Edit action");
+assert(editor.includes("editor.putExtra(READ_ONLY_EXTRA, false)"), "Edit action must launch Collabora in editable mode");
+assert(editor.includes("FLAG_GRANT_WRITE_URI_PERMISSION"), "Edit action must respect provider write grants");
+assert(main.includes("FLAG_GRANT_WRITE_URI_PERMISSION"), "Document picker must request persistable write access");
+assert(fontManager.includes("ensureBundledEngineFonts") && fontManager.includes("getEngineFontFileCount"), "Native Hindi font install/count APIs are missing");
+assert(fontCenter.includes("Search all fonts") && fontCenter.includes("actual font files installed in Collabora"), "Font Center must expose all-font search and total counts");
+assert(docxCodec.includes("Noto Sans Devanagari") && docxCodec.includes("Noto Serif Devanagari"), "DOCX HTML must include Devanagari fallback families");
 assert(main.includes("Choose a Word, Excel, PowerPoint, PDF or TXT document."),
   "file picker error text must match the supported formats");
 assert(!main.includes("Choose DOCX, PDF, XLS/XLSX, CSV, ODS, PPTX or TXT."),
@@ -55,8 +69,8 @@ assert(!manifest.includes('android.permission.INTERNET'), "Offline app must not 
 assert(gradle.includes("downloadGanderViewerAssets"), "Gander assets are not included in build");
 assert(gradle.includes("73cf325435868cab1683d8de8cc1b89533e767b3"), "Gander commit is not pinned");
 assert(gradle.includes("gitBlobSha"), "Viewer assets must be checksum verified");
-assert(gradle.includes('versionName = "0.6.6"'), "Version name must match the new release");
-assert(gradle.includes("versionCode = 15"), "Version code must match the new release");
+assert(gradle.includes('versionName = "0.6.7"'), "Version name must match the new release");
+assert(gradle.includes("versionCode = 16"), "Version code must match the new release");
 assert(main.includes("org.libreoffice.androidlib.LOActivity"), "Native LibreOffice routing is missing");
 assert(main.includes('nativeOpen.putExtra("com.fz.office.READ_ONLY", true)'),
   "Office documents must open in read-only mode by default");
