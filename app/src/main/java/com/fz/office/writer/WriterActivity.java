@@ -250,16 +250,8 @@ public class WriterActivity extends Activity {
             String script = "FZViewer.registerFonts(" + JSONObject.quote(css) + ");"
                     + "FZViewer.setDefaultFont(" + JSONObject.quote(family) + ");";
             viewer.evaluateJavascript(script, null);
-
-            FontManager.FontRecord selected = FontManager.findByFamily(this, family);
-            if (!selected.bundled) {
-                String customCss = FontManager.getCustomFontCss(selected);
-                if (!customCss.isEmpty()) {
-                    viewer.evaluateJavascript("FZViewer.registerFonts("
-                            + JSONObject.quote(customCss) + ");", null);
-                }
-            }
-
+            // Custom font directory scans and Base64 encoding are deferred to the
+            // same IO-thread pass as DOCX font registration below.
             applyPendingDocument();
         } catch (Exception exception) {
             statusView.setText("Some fonts could not be registered · View only");
@@ -273,6 +265,8 @@ public class WriterActivity extends Activity {
         documentFontsLoading = true;
 
         final List<String> requested = new ArrayList<>(pendingDocumentFonts);
+        final String defaultFamily = FontManager.getDefaultFont(this);
+        if (defaultFamily != null && !defaultFamily.trim().isEmpty()) requested.add(defaultFamily);
         final String legacyName = pendingLegacyFontName;
         if (legacyName != null && !legacyName.trim().isEmpty()) requested.add(legacyName);
 

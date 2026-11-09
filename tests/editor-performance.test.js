@@ -56,6 +56,12 @@ assert(!writer.slice(writer.indexOf("private void loadDocument()"), writer.index
   "Viewer must not import a large legacy font archive before first document paint");
 assert(writer.includes("documentFontsResolved") && writer.includes("documentFontsLoading"),
   "Viewer font registration must resolve once and never block the initial render");
+const viewerInit = writer.slice(writer.indexOf("private void initializeViewer()"),
+  writer.indexOf("private void registerDocumentFontsAsync()"));
+assert(!viewerInit.includes("FontManager.findByFamily") && !viewerInit.includes("getCustomFontCss"),
+  "Viewer first paint must not scan/encode imported custom fonts on the UI thread");
+assert(writer.includes("final String defaultFamily = FontManager.getDefaultFont(this)"),
+  "Selected custom font must be included in the asynchronous bulk font scan");
 assert(writer.includes("private void registerDocumentFontsAsync()")
     && writer.includes("FontManager.getCustomFontCssForFamilies"),
   "Viewer document fonts must be scanned and encoded asynchronously in one pass");
