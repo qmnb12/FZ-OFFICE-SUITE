@@ -23,11 +23,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -61,6 +59,7 @@ public class WriterEditorActivity extends Activity {
     private String html = "<p></p>";
     private Map<String, byte[]> packageEntries;
     private List<String> documentFonts = new ArrayList<>();
+    private String legacyFontName = "";
     private DocxCodec.PageLayout layout;
     private byte[] pendingBytes;
     private WebView web;
@@ -184,11 +183,10 @@ public class WriterEditorActivity extends Activity {
                     }
                 }
                 if (doc == null) throw new IOException("Could not read selected document.");
-                // Unicode DOCX files use the APK-bundled fonts directly. Import the
-                // larger legacy pack only when the document declares a legacy Hindi font.
-                if (doc.legacyFontName != null && !doc.legacyFontName.trim().isEmpty()) {
-                    try { FontManager.importBundledFontArchives(this); } catch (Exception ignored) { }
-                }
+                // Keep the large bundled legacy-font archive out of the editor's
+                // critical startup path. It is imported on the IO executor after the
+                // first document layout is visible.
+                final String loadedLegacyFontName = doc.legacyFontName == null ? "" : doc.legacyFontName;
                 List<String> loadedFonts = new ArrayList<>(doc.fontNames);
                 if (doc.html != null && doc.html.toLowerCase(Locale.ROOT).contains("<img")) {
                     throw new IOException("This document contains embedded images. Editing is disabled to protect them from being lost.");
@@ -198,6 +196,7 @@ public class WriterEditorActivity extends Activity {
                 layout = doc.pageLayout;
                 runOnUiThread(() -> {
                     documentFonts = loadedFonts;
+                    legacyFontName = loadedLegacyFontName;
                     status.setText("Document read · Preparing editor…");
                     initialize();
                 });
@@ -272,30 +271,21 @@ public class WriterEditorActivity extends Activity {
 
         final String family = FontManager.getDefaultFont(this);
         final List<String> sourceFonts = new ArrayList<>(documentFonts);
+        final String requiredLegacyFont = legacyFontName;
         final DocxCodec.PageLayout sourceLayout = layout;
         io.execute(() -> {
             try {
-                StringBuilder css = new StringBuilder();
-                try {
-                    FontManager.FontRecord selected = FontManager.findByFamily(this, family);
-                    if (selected != null && !selected.bundled) {
-                        css.append(FontManager.getCustomFontCss(selected));
-                    }
-                } catch (Exception ignored) { }
-
-                Set<String> registered = new HashSet<>();
-                String defaultKey = family.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
-                if (!defaultKey.isEmpty()) registered.add(defaultKey);
-                for (String documentFont : sourceFonts) {
-                    if (documentFont == null || documentFont.trim().isEmpty()) continue;
-                    String key = documentFont.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
-                    if (key.isEmpty() || !registered.add(key)) continue;
-                    try {
-                        css.append(FontManager.getCustomFontCssForFamily(this, documentFont));
-                    } catch (Exception ignored) { }
+                // Legacy font packs can be large. Import off the UI thread and only
+                // after the initial document layout has appeared.
+                if (requiredLegacyFont != null && !requiredLegacyFont.trim().isEmpty()) {
+                    try { FontManager.importBundledFontArchives(this); } catch (Exception ignored) { }
                 }
 
-                String customCss = css.toString();
+                // One pass through the private font folder is enough, even when the
+                // DOCX declares many font families and weight variants.
+                List<String> requestedFonts = new ArrayList<>(sourceFonts);
+                if (family != null && !family.trim().isEmpty()) requestedFonts.add(family);
+                String customCss = FontManager.getCustomFontCssForFamilies(this, requestedFonts);
                 if (customCss.isEmpty()) {
                     runOnUiThread(() -> {
                         if (!isFinishing() && status != null) status.setText("Editing a copy · Ready");
@@ -329,7 +319,6 @@ public class WriterEditorActivity extends Activity {
             }
         });
     }
-
     private void run(String js) {
         if (ready && packageEntries != null) web.evaluateJavascript(js, null);
     }

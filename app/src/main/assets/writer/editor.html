@@ -57,7 +57,7 @@ body { min-height:100vh; overflow-x:hidden; }
   var layout = { width:11906, height:16838, top:1440, right:1440, bottom:1440, left:1440 };
   var defaultFont = "Noto Sans Devanagari";
   var ready = false, composing = false, paginationQueued = false, internalMutation = false;
-  var paginationTimer = null;
+  var paginationTimer = null, paginationToken = 0, initialPaginationLock = false;
   var activePage = null, lastRange = null;
 
   function twipsToPx(value) { return Math.max(0, Number(value) || 0) / 15; }
@@ -68,27 +68,39 @@ body { min-height:100vh; overflow-x:hidden; }
     // Open with a comfortable screen-fit view instead of filling the whole display edge-to-edge.
     return Math.min(0.86, Math.max(0.32, (available - 12) / Math.max(1, twipsToPx(layout.width)));
   }
+  function applyPageLayout(page, index, metrics) {
+    if (!page) return;
+    var m = metrics || {
+      width:twipsToPx(layout.width), height:twipsToPx(layout.height),
+      top:twipsToPx(layout.top), right:twipsToPx(layout.right),
+      bottom:twipsToPx(layout.bottom), left:twipsToPx(layout.left),
+      scale:pageScale()
+    };
+    var shell = shellOf(page);
+    shell.style.width = (m.width * m.scale) + "px";
+    shell.style.height = (m.height * m.scale) + "px";
+    shell.style.marginBottom = (28 * m.scale) + "px";
+    page.style.width = m.width + "px";
+    page.style.height = m.height + "px";
+    page.style.padding = m.top + "px " + m.right + "px " + m.bottom + "px " + m.left + "px";
+    page.style.transform = "scale(" + m.scale + ")";
+    var number = shell.querySelector(".page-number");
+    if (number) {
+      number.textContent = "Page " + (index + 1);
+      number.style.transform = "scale(" + m.scale + ")";
+      number.style.transformOrigin = "bottom right";
+    }
+  }
+
   function applyLayout() {
-    var width = twipsToPx(layout.width), height = twipsToPx(layout.height);
-    var top = twipsToPx(layout.top), right = twipsToPx(layout.right);
-    var bottom = twipsToPx(layout.bottom), left = twipsToPx(layout.left);
-    var scale = pageScale();
-    getPages().forEach(function (page, index) {
-      var shell = shellOf(page);
-      shell.style.width = (width * scale) + "px";
-      shell.style.height = (height * scale) + "px";
-      shell.style.marginBottom = (28 * scale) + "px";
-      page.style.width = width + "px";
-      page.style.height = height + "px";
-      page.style.padding = top + "px " + right + "px " + bottom + "px " + left + "px";
-      page.style.transform = "scale(" + scale + ")";
-      var number = shell.querySelector(".page-number");
-      if (number) {
-        number.textContent = "Page " + (index + 1);
-        number.style.transform = "scale(" + scale + ")";
-        number.style.transformOrigin = "bottom right";
-      }
-    });
+    var metrics = {
+      width:twipsToPx(layout.width), height:twipsToPx(layout.height),
+      top:twipsToPx(layout.top), right:twipsToPx(layout.right),
+      bottom:twipsToPx(layout.bottom), left:twipsToPx(layout.left),
+      scale:pageScale()
+    };
+    var pages = getPages();
+    for (var i = 0; i < pages.length; i++) applyPageLayout(pages[i], i, metrics);
   }
 
   function makePage() {
@@ -96,7 +108,7 @@ body { min-height:100vh; overflow-x:hidden; }
     shell.className = "page-shell";
     var page = document.createElement("article");
     page.className = "fz-page";
-    page.contentEditable = "true";
+    page.contentEditable = initialPaginationLock ? "false" : "true";
     page.spellcheck = true;
     page.setAttribute("role", "textbox");
     page.setAttribute("aria-multiline", "true");
@@ -107,7 +119,7 @@ body { min-height:100vh; overflow-x:hidden; }
     shell.appendChild(number);
     pagesRoot.appendChild(shell);
     wirePage(page);
-    applyLayout();
+    applyPageLayout(page, pagesRoot.children.length - 1);
     return page;
   }
 
@@ -117,7 +129,7 @@ body { min-height:100vh; overflow-x:hidden; }
     next.className = "page-shell";
     var editor = document.createElement("article");
     editor.className = "fz-page";
-    editor.contentEditable = "true";
+    editor.contentEditable = initialPaginationLock ? "false" : "true";
     editor.spellcheck = true;
     editor.setAttribute("role", "textbox");
     editor.setAttribute("aria-multiline", "true");
@@ -128,7 +140,7 @@ body { min-height:100vh; overflow-x:hidden; }
     next.appendChild(number);
     shell.parentNode.insertBefore(next, shell.nextSibling);
     wirePage(editor);
-    applyLayout();
+    applyPageLayout(editor, Array.prototype.indexOf.call(pagesRoot.children, next));
     return editor;
   }
 
@@ -199,12 +211,16 @@ body { min-height:100vh; overflow-x:hidden; }
       (node.classList.contains("fz-manual-break") || node.getAttribute("data-fz-page-break") === "true");
   }
 
-  function handleManualBreak(page) {
+  function handleManualBreak(page, pages, pageIndex) {
     var children = Array.prototype.slice.call(page.children);
-    var index = children.findIndex(isManualBreak);
-    if (index < 0) return false;
-    var next = getPages()[getPages().indexOf(page) + 1] || addPageAfter(page);
-    for (var i = children.length - 1; i > index; i--) next.insertBefore(children[i], next.firstChild);
+    var markerIndex = children.findIndex(isManualBreak);
+    if (markerIndex < 0) return false;
+    var next = pages[pageIndex + 1];
+    if (!next) {
+      next = addPageAfter(page);
+      pages.splice(pageIndex + 1, 0, next);
+    }
+    for (var i = children.length - 1; i > markerIndex; i--) next.insertBefore(children[i], next.firstChild);
     return true;
   }
 
@@ -288,7 +304,7 @@ body { min-height:100vh; overflow-x:hidden; }
     return fits;
   }
 
-  function splitOversizedBlock(page, block) {
+  function splitOversizedBlock(page, block, pages, pageIndex) {
     var tag = block.tagName.toLowerCase();
     if (!/^(p|h1|h2|h3|h4|blockquote)$/.test(tag)) return null;
     var map = textMap(block);
@@ -310,8 +326,11 @@ body { min-height:100vh; overflow-x:hidden; }
     continuation.appendChild(suffix);
     block.innerHTML = "";
     block.appendChild(prefix);
-    var pages = getPages(), index = pages.indexOf(page);
-    var next = pages[index + 1] || addPageAfter(page);
+    var next = pages[pageIndex + 1];
+    if (!next) {
+      next = addPageAfter(page);
+      pages.splice(pageIndex + 1, 0, next);
+    }
     next.insertBefore(continuation, next.firstChild);
     if (caret != null) {
       if (caret <= best) restoreCaret(block, caret);
@@ -320,70 +339,139 @@ body { min-height:100vh; overflow-x:hidden; }
     return continuation;
   }
 
-  function paginate(compactInitialLayout) {
-    if (!ready || composing) return;
-    internalMutation = true;
-    try {
-      if (!getPages().length) makePage();
-      var i = 0;
-      while (i < getPages().length && i < 500) {
-        var page = getPages()[i];
-        handleManualBreak(page);
-        var guard = 0;
-        while (pageOverflows(page) && guard++ < 300) {
-          var children = Array.prototype.slice.call(page.children).filter(function (node) {
-            return !node.classList || !node.classList.contains("fz-measure");
-          });
-          if (!children.length) break;
-          var next = getPages()[i + 1] || addPageAfter(page);
-          if (children.length === 1) {
-            var continuation = splitOversizedBlock(page, children[0]);
-            if (!continuation) {
-              shellOf(page).setAttribute("data-overflow", "true");
-              break;
-            }
-          } else {
-            next.insertBefore(children[children.length - 1], next.firstChild);
-          }
-        }
-        if (!pageOverflows(page)) shellOf(page).removeAttribute("data-overflow");
-        i++;
-      }
-
-      if (compactInitialLayout !== false) {
-        // Repack pages after edits/deletions. The first document layout already
-        // flows forward, so doing this during initial load only repeats costly reflows.
-        var pages = getPages();
-        for (var p = 0; p < pages.length - 1; p++) {
-          var current = pages[p], following = getPages()[p + 1];
-          if (current.lastElementChild && isManualBreak(current.lastElementChild)) continue;
-          while (following && following.firstChild) {
-            var candidate = following.firstChild;
-            current.appendChild(candidate);
-            if (pageOverflows(current)) {
-              following.insertBefore(candidate, following.firstChild);
-              break;
-            }
-          }
-        }
-      }
-      pages = getPages();
-      for (var j = pages.length - 1; j > 0; j--) {
-        if (!pages[j].childNodes.length) {
-          var previous = pages[j - 1];
-          // Keep the deliberate blank page after an explicit page-break marker.
-          if (previous && previous.lastElementChild && isManualBreak(previous.lastElementChild)) continue;
-          shellOf(pages[j]).remove();
-        }
-      }
-      if (!getPages().length) makePage();
-      applyLayout();
-      notifyPageCount();
-    } finally {
-      internalMutation = false;
-    }
+  function paginationNow() {
+    return window.performance && typeof window.performance.now === "function"
+      ? window.performance.now() : Date.now();
   }
 
+  function paginate(compactInitialLayout, onComplete) {
+    if (!ready || composing) {
+      if (typeof onComplete === "function") onComplete();
+      return;
+    }
+
+    var token = ++paginationToken;
+    var pages = getPages();
+    initialPaginationLock = typeof onComplete === "function";
+    if (initialPaginationLock) {
+      pagesRoot.setAttribute("aria-busy", "true");
+      pages.forEach(function (page) { page.contentEditable = "false"; });
+    }
+    if (!pages.length) pages.push(makePage());
+
+    var pageIndex = 0;
+    var compactIndex = 0;
+    var cleanupIndex = -1;
+    var phase = "flow";
+
+    function finish() {
+      if (token !== paginationToken) return;
+      if (!pages.length) pages.push(makePage());
+      applyLayout();
+      notifyPageCount();
+      if (initialPaginationLock) {
+        initialPaginationLock = false;
+        pagesRoot.removeAttribute("aria-busy");
+        pages.forEach(function (page) { page.contentEditable = "true"; });
+      }
+      if (typeof onComplete === "function") onComplete();
+    }
+
+    function runSlice() {
+      if (token !== paginationToken) return;
+      var started = paginationNow();
+      var operations = 0;
+      internalMutation = true;
+      try {
+        while (phase === "flow" && pageIndex < pages.length && pageIndex < 500
+            && operations < 8 && paginationNow() - started < 7) {
+          var page = pages[pageIndex];
+          if (handleManualBreak(page, pages, pageIndex)) operations++;
+          if (pageOverflows(page)) {
+            var children = Array.prototype.slice.call(page.children).filter(function (node) {
+              return !node.classList || !node.classList.contains("fz-measure");
+            });
+            if (!children.length) {
+              pageIndex++;
+              continue;
+            }
+            var next = pages[pageIndex + 1];
+            if (!next) {
+              next = addPageAfter(page);
+              pages.splice(pageIndex + 1, 0, next);
+            }
+            if (children.length === 1) {
+              var continuation = splitOversizedBlock(page, children[0], pages, pageIndex);
+              if (!continuation) {
+                shellOf(page).setAttribute("data-overflow", "true");
+                pageIndex++;
+              }
+            } else {
+              next.insertBefore(children[children.length - 1], next.firstChild);
+            }
+            operations++;
+            continue;
+          }
+          shellOf(page).removeAttribute("data-overflow");
+          pageIndex++;
+        }
+
+        if (phase === "flow" && (pageIndex >= pages.length || pageIndex >= 500)) {
+          phase = compactInitialLayout === false ? "cleanup" : "compact";
+          compactIndex = 0;
+          cleanupIndex = pages.length - 1;
+        }
+
+        while (phase === "compact" && compactIndex < pages.length - 1
+            && operations < 8 && paginationNow() - started < 7) {
+          var current = pages[compactIndex];
+          var following = pages[compactIndex + 1];
+          if (current.lastElementChild && isManualBreak(current.lastElementChild)) {
+            compactIndex++;
+            continue;
+          }
+          if (!following || !following.firstChild) {
+            compactIndex++;
+            continue;
+          }
+          var candidate = following.firstChild;
+          current.appendChild(candidate);
+          operations++;
+          if (pageOverflows(current)) {
+            following.insertBefore(candidate, following.firstChild);
+            compactIndex++;
+          }
+        }
+        if (phase === "compact" && compactIndex >= pages.length - 1) {
+          phase = "cleanup";
+          cleanupIndex = pages.length - 1;
+        }
+
+        while (phase === "cleanup" && cleanupIndex > 0
+            && operations < 8 && paginationNow() - started < 7) {
+          var candidatePage = pages[cleanupIndex];
+          if (!candidatePage.childNodes.length) {
+            var previous = pages[cleanupIndex - 1];
+            if (!(previous && previous.lastElementChild && isManualBreak(previous.lastElementChild))) {
+              shellOf(candidatePage).remove();
+              pages.splice(cleanupIndex, 1);
+            }
+          }
+          cleanupIndex--;
+          operations++;
+        }
+        if (phase === "cleanup" && cleanupIndex <= 0) phase = "done";
+      } finally {
+        internalMutation = false;
+      }
+
+      if (token !== paginationToken) return;
+      if (phase === "done") finish();
+      else requestAnimationFrame(runSlice);
+    }
+
+    requestAnimationFrame(runSlice);
+  }
   function handleBoundaryKey(event) {
     if (event.key !== "Backspace" && event.key !== "Delete") return;
     var page = event.currentTarget;
@@ -472,9 +560,8 @@ body { min-height:100vh; overflow-x:hidden; }
     // The previous flow paginated immediately and repeated the entire operation
     // after fonts.ready, blocking the editor during two full layout passes.
     function layoutInitialDocument() {
-      requestAnimationFrame(function () {
-        if (!ready) return;
-        paginate(false);
+      if (!ready) return;
+      paginate(false, function () {
         if (window.AndroidBridge && AndroidBridge.onLayoutReady) {
           AndroidBridge.onLayoutReady();
         }
