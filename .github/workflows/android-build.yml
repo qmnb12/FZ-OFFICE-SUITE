@@ -47,7 +47,7 @@ jobs:
       - name: Verify edge-to-edge insets and document zoom
         run: node tests/system-bar-insets.test.js
 
-      - name: Verify font-import safety and native integration
+      - name: Verify font-import safety and view-only font library
         run: node tests/font-import-safety.test.js
 
       - name: Verify Office viewer routing and local asset pinning

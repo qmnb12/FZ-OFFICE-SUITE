@@ -1,4 +1,0 @@
-[submodule "third_party/collabora"]
-	path = third_party/collabora
-	url = https://github.com/CollaboraOnline/online.mirror.git
-	branch = main

@@ -54,13 +54,11 @@ public class FontCenterActivity extends Activity {
         importer.execute(() -> {
             String setupMessage;
             try {
-                FontManager.ensureBundledEngineFonts(FontCenterActivity.this);
                 FontManager.ImportResult legacy = FontManager.importBundledFontArchives(FontCenterActivity.this);
-                setupMessage = "Native engine: " + FontManager.getEngineFontFileCount(FontCenterActivity.this)
-                        + " font files installed · " + legacy.imported + " legacy fonts newly added.";
+                setupMessage = "Font library ready · " + legacy.imported + " legacy fonts newly added.";
             } catch (Exception exception) {
-                setupMessage = "Font setup warning: " + (exception.getMessage() == null
-                        ? "Some bundled fonts could not be installed." : exception.getMessage());
+                setupMessage = "Font import warning: " + (exception.getMessage() == null
+                        ? "Some bundled fonts could not be imported." : exception.getMessage());
             }
             final String resultMessage = setupMessage;
             runOnUiThread(() -> {
@@ -214,7 +212,7 @@ public class FontCenterActivity extends Activity {
         if (fontList == null) return;
         fontList.removeAllViews();
         String current = FontManager.getDefaultFont(this);
-        selectedStatus.setText("Default font: " + current + " · App-private native font folder");
+        selectedStatus.setText("Default font: " + current + " · Private font library");
 
         List<FontManager.FontRecord> allFonts = fontSnapshot;
         if (allFonts == null) {
@@ -240,11 +238,9 @@ public class FontCenterActivity extends Activity {
         int bundledCount = FontManager.getBundledFonts().size();
         int importedCount = Math.max(0, allFonts.size() - bundledCount);
         int visibleCount = Math.min(filtered.size(), visibleFontLimit);
-        int engineFileCount = FontManager.getEngineFontFileCount(this);
         countInfo.setText("Total " + allFonts.size() + " font entries · Showing " + visibleCount
-                + " of " + filtered.size() + " matches\n" + bundledCount + " Unicode families · "
-                + importedCount + " local/imported entries · " + engineFileCount
-                + " actual font files installed in Collabora");
+                + " of " + filtered.size() + " matches\n" + bundledCount + " bundled Unicode families · "
+                + importedCount + " local/imported entries");
 
         int limit = Math.min(filtered.size(), visibleFontLimit);
         for (int index = 0; index < limit; index++) {

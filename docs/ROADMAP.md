@@ -2,86 +2,47 @@
 
 Items are complete only after implementation and real-file testing. UI labels alone do not count as format support.
 
-## Stage 0 — Transition to native office engine
+## Current baseline — View-only readers
 
-- [x] Evaluate Collabora/LibreOffice, ONLYOFFICE, Fossify Documents and AndrOpen Office.
-- [x] Select Collabora Office Android / LibreOffice native engine as the base.
-- [x] Pin the upstream Collabora source revision as a Git submodule.
-- [x] Design the app-private Hindi font directory patch.
-- [x] Add a separate manual GitHub Actions native build workflow for arm64.
-- [x] Add Fontconfig's app-private user/fonts directory patch.
-- [x] Add native Collabora ZIP font-pack import menu and bounded TTF/OTF importer.
-- [x] Add the 12-family open-license Devanagari pack to native user/fonts packaging.
-- [ ] Run the native LibreOffice engine build successfully on a sufficiently provisioned Linux runner.
-- [ ] Package the Collabora Android app under com.fz.office.
-- [ ] Preserve notices and add FZ Office branding without upstream trademarks.
-- [ ] Verify offline open/render on the user's Android device.
+- [x] FZ home screen and local recent/starred document library.
+- [x] PDF reader with page navigation and bounded zoom.
+- [x] DOCX and TXT read-only FZ Writer reader.
+- [x] XLSX/XLS/XLSM/XLSB/XLTX/CSV/ODS read-only spreadsheet preview.
+- [x] PPTX/PPSX/PPTM/POTX read-only presentation preview.
+- [x] Hindi Font Center with bundled Unicode Devanagari fonts.
+- [x] Local TTF/OTF and ZIP font import with metadata, validation and deduplication.
+- [x] Explicit read-only URI access; original documents are not modified.
 
-## Stage 0.5 — FZ home shell and local library
+## Stage 1 — Reader reliability
 
-- [x] Recent documents list backed by app-private metadata.
-- [x] Search recent document names and MIME types.
-- [x] Star/unstar documents and reopen starred items.
-- [x] Share document references through Android Sharesheet.
-- [x] Remove history entries or clear unstarred history without touching source files.
-- [x] Add built-in offline PDF page rendering, page navigation and bounded zoom (read-only).
-- [x] Add built-in offline PDF page rendering, page navigation and bounded zoom (read-only).
-- [ ] Add user-selected SAF folder browsing and indexed library locations.
-- [ ] Add file metadata, pinning, collections and multi-select actions.
+- [ ] Validate DOCX page geometry, margins, page gaps, tables and images against real documents.
+- [ ] Improve long-document scrolling, zoom controls and memory usage.
+- [ ] Add clear unsupported-format guidance and safe file error recovery.
+- [ ] Test spreadsheet formulas, cell formatting, frozen panes and larger workbooks.
+- [ ] Test presentation layout, images, text boxes and multi-slide navigation.
 
-## Stage 1 — Transitional viewer (v0.5.x)
+## Stage 2 — Hindi typography
 
-The current custom WebView viewer is retained only until the native engine APK is ready. It is not the final DOCX rendering implementation.
-
-- [x] Open DOCX and UTF-8 TXT files read-only.
-- [x] Basic paragraph and simple table rendering.
-- [x] Common raster image relationship support.
-- [x] Limited legacy conversion experiments for exact font-tagged runs.
-- [ ] Retire the custom DOCX parser after native-engine acceptance tests pass.
-
-## Stage 2 — Native Hindi typography and font manager
-
-- [x] Add the app-private user/fonts Fontconfig patch against the pinned upstream source.
-- [x] Add bundled Hindi font packaging using the verified 12-family OFL set.
-- [x] Add native Collabora browser Hindi Fonts menu with ZIP TTF/OTF import, validation, dedupe and Fontconfig cache refresh.
-- [ ] Build and test the native patches in the Collabora Android project.
-- [ ] Bundle the existing 12 licence-verified Devanagari families with their OFL texts.
-- [ ] Expand the Unicode Devanagari catalogue after coverage/licence review.
-- [x] Add transitional FZ Font Center ZIP import for TTF/OTF packs, including OpenType family/style metadata.
-- [ ] Build and exercise both transitional and native import flows on a physical Android device.
-- [ ] Restart/reload the native document engine to refresh Fontconfig.
-- [ ] Add missing-font detection, family aliasing and fallback reports.
-- [ ] Test all shaping cases: matras, reph, rakar, conjuncts, nukta, ZWJ/ZWNJ and punctuation.
+- [x] Bundle 12 licence-verified Unicode Devanagari families with OFL texts.
+- [x] Search bundled and imported fonts by family, style and filename.
+- [x] Show total, bundled and locally imported font counts.
+- [x] Keep imported fonts in private app storage.
+- [ ] Expand the Devanagari catalogue after coverage and licence review.
+- [ ] Test matras, reph, rakar, conjuncts, nukta, ZWJ/ZWNJ and mixed Hindi/English text on physical devices.
+- [ ] Improve family matching for DOCX run-level and inherited font declarations.
 
 ## Stage 3 — Legacy Hindi compatibility
 
-- [x] Prefer rendering with the exact imported legacy font when the DOCX names it; do not automatically rewrite legacy text.
-- [ ] Add a separate exact-version mapping profile for DevLys 010.
-- [ ] Add separate verified profiles for Kruti Dev versions, Chanakya, Shusha, Shree Lipi, APS-DV and Akruti where test fixtures and legal mapping sources exist.
-- [ ] Preserve English names, abbreviations, numbers, dates, references and punctuation.
-- [ ] Add preview/diagnostics for missing legacy fonts; never guess or silently convert.
-- [ ] Test style-inherited and run-level Word font declarations.
+- [x] Detect legacy font declarations in DOCX files.
+- [x] Keep the Kruti Dev 010 conversion preview separate from normal document viewing.
+- [ ] Add verified, version-specific profiles for DevLys, Kruti Dev, Chanakya, Shusha and Shree Lipi.
+- [ ] Never guess a mapping or silently convert legacy text.
+- [ ] Keep the source document unchanged.
 
-## Stage 4 — Office module acceptance
+## Stage 4 — Local library and release quality
 
-- [ ] Writer: DOCX/DOC/ODT/RTF open, render, edit when enabled, save and reopen.
-- [ ] Sheets: XLSX/XLS/ODS open, formulas, formatting, charts and save/reopen.
-- [ ] Slides: PPTX/PPT/ODP open, layout, images, transitions where supported and export.
-- [ ] PDF: view, search, print and export workflows.
-- [ ] Verify embedded images, tables, headers/footers, section/page layout and fonts against desktop references.
-
-## Stage 5 — Release quality
-
-- [ ] Offline and low-memory tests.
-- [ ] Accessibility, screen-size and reader-first UX checks.
-- [ ] File permission, privacy and security review.
-- [ ] Full third-party licence/SBOM audit.
-- [ ] Reproducible arm64 build, then add other ABIs.
-- [ ] Real-document regression corpus before stable release.
-
-
-## User-supplied font archives
-
-- [x] Inspect the supplied DevLys (77), Kruti Dev (407) and Mangal (5) font archives and record metadata.
-- [x] Do not publish font binaries where no redistribution licence is supplied.
-- [x] Keep private on-device ZIP import available for fonts the user is entitled to use.
+- [ ] Add user-selected SAF folder browsing and indexed library locations.
+- [ ] Add file metadata, collections and multi-select actions.
+- [ ] Add accessibility, screen-size and low-memory tests.
+- [ ] Complete file permission, privacy and security review.
+- [ ] Build and test release APKs on physical Android devices.

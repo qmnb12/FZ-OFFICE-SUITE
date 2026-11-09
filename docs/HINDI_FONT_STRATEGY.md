@@ -60,9 +60,9 @@ Converter requirements:
 - Save converted data as a new copy by default.
 - Never silently overwrite the source.
 
-## 5. Document engine integration
+## 5. Read-only viewer integration
 
-The selected document engine must be tested for Devanagari shaping in editing, rendering, print and PDF export; custom-font discovery and substitution; DOCX font metadata; and font embedding rules. The current Writer bridge stores font-family choices in DOCX run properties but does not embed font files inside documents.
+The current FZ Writer and Gander-based screens use Android WebView for document display. Bundled and imported font families are exposed to those local readers for on-device rendering. This viewer-only build does not edit, export or save changes back to the original document; it also does not claim full Microsoft Word pagination or feature fidelity.
 
 ## 6. Acceptance rule
 
@@ -73,6 +73,6 @@ A font is listed as bundled when the binary and license are packaged. It is not 
 
 Writer now includes a manual Kruti Dev 010 to Unicode preview based on the MIT-licensed BharatType Hindi Text Utilities converter. DOCX font declarations are inspected in document, styles, header/footer and font-table XML parts; names containing Kruti Dev or DevLys can trigger a prompt.
 
-The conversion is a preview operation on the editor's current text. The app does not silently convert at open time. Before saving, users must inspect the entire document, especially English text and uncommon glyphs typed in a legacy font. The current mapping is not a universal converter for every Kruti Dev or DevLys version. Chanakya, Shusha, Shree Lipi and other families still need their own verified mapping profiles.
+The conversion is a preview operation in the read-only viewer. The app does not silently convert at open time, and this build does not write converted text back to the source document. The current mapping is not a universal converter for every Kruti Dev or DevLys version. Chanakya, Shusha, Shree Lipi and other families still need their own verified mapping profiles.
 
-Original documents remain unchanged until the user chooses Save. Save As is recommended for important legal or official documents.
+Original documents remain unchanged.

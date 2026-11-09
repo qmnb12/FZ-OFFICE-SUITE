@@ -27,5 +27,6 @@ Both Office viewer pages load the Hindi-run helper and a generated `hindi-fonts.
 - Excel and PowerPoint routes are read-only previews. They do not edit or save workbooks/presentations.
 - The renderers do not promise complete Microsoft Office fidelity for every chart, animation, embedded object, formula or rare layout feature.
 - Legacy binary PowerPoint `.ppt` is not routed to this renderer; convert it to `.pptx`.
-- The existing DOCX parser remains transitional. This change does not replace the planned native Collabora/LibreOffice engine.
+- The DOCX parser remains transitional and does not guarantee Microsoft Word-identical pagination.
+- The application is intentionally view-only; no native office engine, Edit action or save-back workflow is included.
 - The lightweight Android build downloads pinned viewer/font source assets during build; the installed app itself reads documents offline.

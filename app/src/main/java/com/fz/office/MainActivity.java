@@ -20,7 +20,6 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.fz.office.fonts.FontCenterActivity;
-import com.fz.office.fonts.FontManager;
 import com.fz.office.library.RecentDocumentsStore;
 import com.fz.office.pdf.PdfViewerActivity;
 import com.fz.office.viewer.OfficeViewerActivity;
@@ -390,29 +389,19 @@ public class MainActivity extends Activity {
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
         intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[] {
-                MIME_DOCX, "application/msword", "application/vnd.ms-word.document.macroenabled.12",
-                "application/vnd.ms-word.template.macroenabled.12",
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.template",
-                "application/vnd.oasis.opendocument.text",
-                "application/vnd.oasis.opendocument.text-template",
-                "application/vnd.oasis.opendocument.text-flat-xml", "application/rtf", "text/rtf",
+                MIME_DOCX,
                 MIME_XLSX, "application/vnd.ms-excel",
                 "application/vnd.ms-excel.sheet.macroenabled.12",
                 "application/vnd.ms-excel.sheet.binary.macroenabled.12",
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.template",
                 "application/vnd.oasis.opendocument.spreadsheet",
-                "application/vnd.oasis.opendocument.spreadsheet-template",
-                "application/vnd.oasis.opendocument.spreadsheet-flat-xml",
                 "text/csv", "text/comma-separated-values",
                 MIME_PPTX, "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
                 "application/vnd.ms-powerpoint.presentation.macroenabled.12",
                 "application/vnd.openxmlformats-officedocument.presentationml.template",
-                "application/vnd.ms-powerpoint", "application/vnd.oasis.opendocument.presentation",
-                "application/vnd.oasis.opendocument.presentation-template",
-                "application/vnd.oasis.opendocument.presentation-flat-xml",
                 MIME_PDF, "text/plain"
         });
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
                 | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
         try { startActivityForResult(intent, REQUEST_OPEN_DOCUMENT); }
         catch (Exception e) { Toast.makeText(this, "No compatible file picker was found.", Toast.LENGTH_LONG).show(); }
@@ -428,12 +417,11 @@ public class MainActivity extends Activity {
         if ((incomingFlags & Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) != 0) {
             try {
                 getContentResolver().takePersistableUriPermission(
-                        uri, incomingFlags & (Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION));
+                        uri, incomingFlags & Intent.FLAG_GRANT_READ_URI_PERMISSION);
             } catch (Exception ignored) { }
         }
         if (!isSupportedDocument(name, mime)) {
-            Toast.makeText(this, "Supported: Word, Excel, PowerPoint, PDF and TXT documents.",
+            Toast.makeText(this, "This format is not supported by the FZ read-only viewer.",
                     Toast.LENGTH_LONG).show();
             return true;
         }
@@ -448,18 +436,18 @@ public class MainActivity extends Activity {
         String name = queryDisplayName(uri);
         String mime = getContentResolver().getType(uri);
         if (!isSupportedDocument(name, mime)) {
-            Toast.makeText(this, "Choose a Word, Excel, PowerPoint, PDF or TXT document.",
+            Toast.makeText(this, "Choose DOCX/TXT, supported spreadsheets, presentations or PDF.",
                     Toast.LENGTH_LONG).show();
             return;
         }
-        int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION
-                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        int flags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
         try { getContentResolver().takePersistableUriPermission(uri, flags); } catch (Exception ignored) { }
         launchDocument(uri, name, mime);
     }
 
     private boolean isSupportedDocument(String name, String mime) {
-        return isPdfDocument(name, mime) || isOfficeViewerDocument(name, mime) || isWriterDocument(name, mime);
+        return isPdfDocument(name, mime) || isOfficeViewerDocument(name, mime)
+                || isFzWriterViewerDocument(name, mime);
     }
 
     private boolean isPdfDocument(String name, String mime) {
@@ -470,12 +458,9 @@ public class MainActivity extends Activity {
     private boolean isOfficeViewerDocument(String name, String mime) {
         String lower = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
         if (lower.endsWith(".xlsx") || lower.endsWith(".xls") || lower.endsWith(".xlsm")
-                || lower.endsWith(".xlsb") || lower.endsWith(".xlt") || lower.endsWith(".xltx")
-                || lower.endsWith(".csv") || lower.endsWith(".ods") || lower.endsWith(".ots")
-                || lower.endsWith(".fods") || lower.endsWith(".ppt") || lower.endsWith(".pps")
-                || lower.endsWith(".pot") || lower.endsWith(".pptx") || lower.endsWith(".ppsx")
-                || lower.endsWith(".pptm") || lower.endsWith(".potx") || lower.endsWith(".odp")
-                || lower.endsWith(".otp") || lower.endsWith(".fodp")) return true;
+                || lower.endsWith(".xlsb") || lower.endsWith(".xltx") || lower.endsWith(".csv")
+                || lower.endsWith(".ods") || lower.endsWith(".pptx") || lower.endsWith(".ppsx")
+                || lower.endsWith(".pptm") || lower.endsWith(".potx")) return true;
         if (mime == null) return false;
         String type = mime.toLowerCase(java.util.Locale.ROOT);
         return type.equals(MIME_XLSX) || type.equals("application/vnd.ms-excel")
@@ -483,98 +468,11 @@ public class MainActivity extends Activity {
                 || type.equals("application/vnd.ms-excel.sheet.binary.macroenabled.12")
                 || type.equals("application/vnd.openxmlformats-officedocument.spreadsheetml.template")
                 || type.equals("application/vnd.oasis.opendocument.spreadsheet")
-                || type.equals("application/vnd.oasis.opendocument.spreadsheet-template")
-                || type.equals("application/vnd.oasis.opendocument.spreadsheet-flat-xml")
-                || type.equals("text/csv") || type.equals("application/vnd.ms-powerpoint")
-                || type.equals("application/vnd.oasis.opendocument.presentation")
-                || type.equals("application/vnd.oasis.opendocument.presentation-template")
-                || type.equals("application/vnd.oasis.opendocument.presentation-flat-xml")
-                || type.equals("text/comma-separated-values")
+                || type.equals("text/csv") || type.equals("text/comma-separated-values")
                 || type.equals(MIME_PPTX)
                 || type.equals("application/vnd.openxmlformats-officedocument.presentationml.slideshow")
                 || type.equals("application/vnd.ms-powerpoint.presentation.macroenabled.12")
                 || type.equals("application/vnd.openxmlformats-officedocument.presentationml.template");
-    }
-
-    private boolean isWordOfficeDocument(String name, String mime) {
-        String lower = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
-        if (lower.endsWith(".docx") || lower.endsWith(".doc") || lower.endsWith(".docm")
-                || lower.endsWith(".dotx") || lower.endsWith(".dotm") || lower.endsWith(".odt")
-                || lower.endsWith(".ott") || lower.endsWith(".fodt") || lower.endsWith(".rtf")) return true;
-        if (mime == null) return false;
-        String type = mime.toLowerCase(java.util.Locale.ROOT);
-        return type.equals(MIME_DOCX) || type.equals("application/msword")
-                || type.equals("application/vnd.ms-word.document.macroenabled.12")
-                || type.equals("application/vnd.openxmlformats-officedocument.wordprocessingml.template")
-                || type.equals("application/vnd.oasis.opendocument.text")
-                || type.equals("application/vnd.oasis.opendocument.text-template")
-                || type.equals("application/vnd.oasis.opendocument.text-flat-xml")
-                || type.equals("application/vnd.ms-word.template.macroenabled.12")
-                || type.equals("application/rtf") || type.equals("text/rtf");
-    }
-
-    private boolean isNativeOfficeDocument(String name, String mime) {
-        return isOfficeViewerDocument(name, mime) || isWordOfficeDocument(name, mime);
-    }
-
-    private boolean isWriterDocument(String name, String mime) {
-        String lower = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
-        return isWordOfficeDocument(name, mime) || lower.endsWith(".txt")
-                || "text/plain".equalsIgnoreCase(mime);
-    }
-
-    private String resolveOfficeMimeType(String name, String suppliedMime) {
-        String lower = name == null ? "" : name.toLowerCase(java.util.Locale.ROOT);
-        if (lower.endsWith(".docx")) return MIME_DOCX;
-        if (lower.endsWith(".doc")) return "application/msword";
-        if (lower.endsWith(".docm")) return "application/vnd.ms-word.document.macroenabled.12";
-        if (lower.endsWith(".dotx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.template";
-        if (lower.endsWith(".dotm")) return "application/vnd.ms-word.template.macroenabled.12";
-        if (lower.endsWith(".odt")) return "application/vnd.oasis.opendocument.text";
-        if (lower.endsWith(".ott")) return "application/vnd.oasis.opendocument.text-template";
-        if (lower.endsWith(".fodt")) return "application/vnd.oasis.opendocument.text-flat-xml";
-        if (lower.endsWith(".rtf")) return "application/rtf";
-        if (lower.endsWith(".xlsx")) return MIME_XLSX;
-        if (lower.endsWith(".xls")) return "application/vnd.ms-excel";
-        if (lower.endsWith(".xlsm")) return "application/vnd.ms-excel.sheet.macroenabled.12";
-        if (lower.endsWith(".xlsb")) return "application/vnd.ms-excel.sheet.binary.macroenabled.12";
-        if (lower.endsWith(".xlt")) return "application/vnd.ms-excel";
-        if (lower.endsWith(".xltx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.template";
-        if (lower.endsWith(".ods")) return "application/vnd.oasis.opendocument.spreadsheet";
-        if (lower.endsWith(".ots")) return "application/vnd.oasis.opendocument.spreadsheet-template";
-        if (lower.endsWith(".fods")) return "application/vnd.oasis.opendocument.spreadsheet-flat-xml";
-        if (lower.endsWith(".csv")) return "text/csv";
-        if (lower.endsWith(".ppt") || lower.endsWith(".pps") || lower.endsWith(".pot"))
-            return "application/vnd.ms-powerpoint";
-        if (lower.endsWith(".odp")) return "application/vnd.oasis.opendocument.presentation";
-        if (lower.endsWith(".otp")) return "application/vnd.oasis.opendocument.presentation-template";
-        if (lower.endsWith(".fodp")) return "application/vnd.oasis.opendocument.presentation-flat-xml";
-        if (lower.endsWith(".pptx")) return MIME_PPTX;
-        if (lower.endsWith(".ppsx")) return "application/vnd.openxmlformats-officedocument.presentationml.slideshow";
-        if (lower.endsWith(".pptm")) return "application/vnd.ms-powerpoint.presentation.macroenabled.12";
-        if (lower.endsWith(".potx")) return "application/vnd.openxmlformats-officedocument.presentationml.template";
-        return suppliedMime == null || suppliedMime.trim().isEmpty()
-                ? "application/octet-stream" : suppliedMime;
-    }
-
-    private boolean launchNativeOfficeDocument(Uri uri, String name, String mime) {
-        try {
-            FontManager.ensureBundledEngineFonts(this);
-        } catch (Exception fontError) {
-            android.util.Log.w("FZOffice", "Could not prepare bundled Hindi fonts", fontError);
-        }
-        Intent nativeOpen = new Intent(Intent.ACTION_VIEW);
-        nativeOpen.setClassName(getPackageName(), "org.libreoffice.androidlib.LOActivity");
-        nativeOpen.setDataAndType(uri, resolveOfficeMimeType(name, mime));
-        nativeOpen.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        // Formats not supported by the previous FZ readers remain safe to inspect read-only.
-        nativeOpen.putExtra("com.fz.office.READ_ONLY", true);
-        try {
-            startActivity(nativeOpen);
-            return true;
-        } catch (android.content.ActivityNotFoundException engineNotBundled) {
-            return false;
-        }
     }
 
     private boolean isFzWriterViewerDocument(String name, String mime) {
@@ -591,32 +489,16 @@ public class MainActivity extends Activity {
                 open.putExtra(PdfViewerActivity.EXTRA_DOCUMENT_URI, uri.toString());
                 open.putExtra(PdfViewerActivity.EXTRA_DOCUMENT_NAME, name);
             } else if (isOfficeViewerDocument(name, mime)) {
-                // Keep the previous FZ/Gander spreadsheet and slide readers as the default.
                 open = new Intent(this, OfficeViewerActivity.class);
                 open.putExtra(OfficeViewerActivity.EXTRA_DOCUMENT_URI, uri.toString());
                 open.putExtra(OfficeViewerActivity.EXTRA_DOCUMENT_NAME, name);
             } else if (isFzWriterViewerDocument(name, mime)) {
-                // DOCX/TXT opens in the familiar FZ Writer reader first.
                 open = new Intent(this, WriterActivity.class);
                 open.putExtra(WriterActivity.EXTRA_DOCUMENT_URI, uri.toString());
-            } else if (isNativeOfficeDocument(name, mime)) {
-                // Legacy formats not yet handled by the FZ readers can still be inspected natively.
-                if (launchNativeOfficeDocument(uri, name, mime)) {
-                    RecentDocumentsStore.record(this, uri, name, mime);
-                    return;
-                }
-                if (isWordOfficeDocument(name, mime)) {
-                    Toast.makeText(this,
-                            "Native Word layout engine is not available in this build.",
-                            Toast.LENGTH_LONG).show();
-                } else {
-                    Toast.makeText(this, "Native Office viewer is not available in this build.",
-                            Toast.LENGTH_LONG).show();
-                }
-                return;
             } else {
-                open = new Intent(this, WriterActivity.class);
-                open.putExtra(WriterActivity.EXTRA_DOCUMENT_URI, uri.toString());
+                Toast.makeText(this, "This format is not supported by the FZ read-only viewer.",
+                        Toast.LENGTH_LONG).show();
+                return;
             }
             open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             startActivity(open);
