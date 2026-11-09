@@ -1165,7 +1165,7 @@ public final class DocxCodec {
                 escaped = false;
                 continue;
             }
-            if (quote != 0 && ch == '\\\\') {
+            if (quote != 0 && ch == 92) {
                 escaped = true;
                 continue;
             }
@@ -1174,7 +1174,7 @@ public final class DocxCodec {
                 else family.append(ch);
                 continue;
             }
-            if (ch == '\\'' || ch == '"') {
+            if (ch == 39 || ch == '"') {
                 quote = ch;
                 continue;
             }
@@ -1184,7 +1184,7 @@ public final class DocxCodec {
         return family.toString().trim();
     }
 
-        private static String cssValue(String css, String property) {
+    private static String cssValue(String css, String property) {
         if (css == null) return "";
         String[] declarations = css.split(";");
         for (String declaration : declarations) {
