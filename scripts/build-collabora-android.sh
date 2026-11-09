@@ -85,12 +85,19 @@ EOF
   ./gradlew --no-daemon assembleDebug
 )
 
-APK="$(find "$COLLABORA/android" -type f -path '*/build/outputs/apk/*/*debug*.apk' -print -quit)"
+# Collabora relocates the app module build directory to android/build/app,
+# and ABI splits may add more than one directory below outputs/apk. Search the
+# complete Android build tree instead of assuming Gradle's default layout.
+APK="$(find "$COLLABORA/android" -type f \
+  -path '*/outputs/apk/*' -name '*debug*.apk' -print -quit)"
 if [[ -z "$APK" || ! -f "$APK" ]]; then
-  echo "Gradle finished but no debug APK was found." >&2
+  echo "Gradle finished but no debug APK was found under $COLLABORA/android." >&2
+  echo "APK/AAB files produced by Gradle:" >&2
+  find "$COLLABORA/android" -type f \( -name '*.apk' -o -name '*.aab' \) -print >&2 || true
   exit 3
 fi
 
 mkdir -p "$ROOT/build/collabora"
-cp "$APK" "$ROOT/build/collabora/FZ-Office-Collabora-${ANDROID_ABI}-debug.apk"
-echo "APK: $ROOT/build/collabora/FZ-Office-Collabora-arm64-debug.apk"
+OUTPUT_APK="$ROOT/build/collabora/FZ-Office-Collabora-${ANDROID_ABI}-debug.apk"
+cp "$APK" "$OUTPUT_APK"
+echo "APK: $OUTPUT_APK"

@@ -87,6 +87,10 @@ assert(fontManager.includes("String fontPath = xmlEscape(customDirectory(context
   "generated fontconfig must point at the actual FZ imported-font directory");
 assert(buildScript.includes('--with-app-package-name="com.fz.office"'),
   "native build must configure the FZ application ID");
+assert(buildScript.includes("-path '*/outputs/apk/*' -name '*debug*.apk' -print -quit"),
+  "native APK discovery must support Collabora's relocated build directory and ABI-split output folders");
+assert(buildScript.includes("FZ-Office-Collabora-${ANDROID_ABI}-debug.apk"),
+  "native APK export name must match the selected ABI");
 assert(patch.includes("debug_suffix = ") && patch.includes("applicationIdSuffix '.debug'")
   && patch.includes("splitlines(keepends=True)"),
   "native integration must remove the upstream debug application ID suffix");
@@ -117,4 +121,4 @@ assert(fs.existsSync("third_party/collabora/android/app/src/main/assets/writer/v
 assert(fs.existsSync("third_party/collabora/android/app/src/main/assets/viewer/xlsx.html"),
   "Gander fallback reader must be copied");
 
-console.log("FZ native Collabora integration checks passed (62 assertions).");
+console.log("FZ native Collabora integration checks passed (64 assertions).");
