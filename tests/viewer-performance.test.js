@@ -28,6 +28,6 @@ assert(bulkFonts.split("directory.listFiles()").length === 2,
 
 const inspect = codec.slice(codec.indexOf("private fun inspectFontNames"),
   codec.indexOf("private fun addFontName"));
-assert(inspect.includes('if (path != "word/document.xml" && path != "word/styles.xml") continue;'),
+assert(inspect.includes('if (path != "word/document.xml" && path != "word/styles.xml") continue'),
   "Font discovery must stay limited to DOCX body and styles");
 console.log("FZ DOCX viewer startup and font-loading performance checks passed");
