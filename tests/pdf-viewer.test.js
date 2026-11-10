@@ -37,6 +37,10 @@ assert(pdf.includes("captureHorizontalScrollFractions") &&
   pdf.includes("restoreHorizontalScrollFractions") &&
   pdf.includes("scroller.scrollTo((range * fraction).roundToInt(), 0)"),
   "PDF zoom must retain each visible page's horizontal position after its width is re-laid out");
+assert(pdf.includes("horizontalScrollFractionsByPage") &&
+  pdf.includes("setOnScrollChangeListener") &&
+  pdf.includes("val savedFraction = horizontalScrollFractionsByPage[position] ?: 0f"),
+  "PDF must remember horizontal position per page when RecyclerView recycles and rebinds pages");
 assert(pdf.includes("val verticalOffset = anchorView?.top?.minus(recycler.paddingTop) ?: 0") &&
   pdf.includes("scrollToPositionWithOffset(anchor, verticalOffset)"),
   "PDF zoom must preserve the visible vertical position within the current page");

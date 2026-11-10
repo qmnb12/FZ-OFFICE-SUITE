@@ -33,8 +33,9 @@ assert(pdfPrint.includes("class UriPdfPrintAdapter"), "PDF printing must reuse t
 assert(pdfPrint.includes("openInputStream(documentUri)"), "PDF print must stream the unchanged source file");
 assert(writer.includes("DocumentViewerController(") && writer.includes("WebViewDocumentSurface("),
   "DOCX/TXT must connect to the common controller");
-assert(office.includes("DocumentViewerController(") && office.includes("WebViewDocumentSurface(browser)"),
-  "XLSX/PPTX must connect to the common controller");
+assert(office.includes("DocumentViewerController(") &&
+  office.includes("WebViewDocumentSurface(") && office.includes("browser,"),
+  "XLSX/PPTX must connect to the common controller with its renderer-specific zoom adapter");
 assert(pdf.includes("DocumentViewerController(") && pdf.includes("DocumentViewerSurface"),
   "PDF must connect to the common controller through its renderer adapter");
 assert(pdf.includes("override val supportsScrollNavigation: Boolean = true") &&

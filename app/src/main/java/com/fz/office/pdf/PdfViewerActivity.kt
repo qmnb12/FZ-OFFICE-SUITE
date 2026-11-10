@@ -64,6 +64,7 @@ class PdfViewerActivity : Activity() {
     private var pageSizes: List<FzPdfDocument.PageSize> = emptyList()
     private var recyclerView: RecyclerView? = null
     private var pageAdapter: PdfPageAdapter? = null
+    private val horizontalScrollFractionsByPage = HashMap<Int, Float>()
     private var shell: ReaderDashboard? = null
     private var pageIndex = 0
     private var zoomScale = 1f
@@ -293,11 +294,11 @@ class PdfViewerActivity : Activity() {
             val position = recycler.getChildAdapterPosition(scroller)
             if (position == RecyclerView.NO_POSITION) continue
             val content = scroller.getChildAt(0) ?: continue
-            val range = (
-                content.width + scroller.paddingLeft + scroller.paddingRight - scroller.width
-            ).coerceAtLeast(0)
+            val range = horizontalScrollRange(scroller)
             if (range > 0) {
-                positions[position] = (scroller.scrollX.toFloat() / range).coerceIn(0f, 1f)
+                val fraction = (scroller.scrollX.toFloat() / range).coerceIn(0f, 1f)
+                positions[position] = fraction
+                horizontalScrollFractionsByPage[position] = fraction
             }
         }
         return positions
@@ -309,10 +310,8 @@ class PdfViewerActivity : Activity() {
             val holder = recycler.findViewHolderForAdapterPosition(position) ?: continue
             val scroller = holder.itemView as? HorizontalScrollView ?: continue
             scroller.post {
-                val content = scroller.getChildAt(0) ?: return@post
-                val range = (
-                    content.width + scroller.paddingLeft + scroller.paddingRight - scroller.width
-                ).coerceAtLeast(0)
+                val range = horizontalScrollRange(scroller)
+                horizontalScrollFractionsByPage[position] = fraction
                 scroller.scrollTo((range * fraction).roundToInt(), 0)
             }
         }
@@ -581,6 +580,13 @@ class PdfViewerActivity : Activity() {
         super.onDestroy()
     }
 
+    private fun horizontalScrollRange(scroller: HorizontalScrollView): Int {
+        val content = scroller.getChildAt(0) ?: return 0
+        return (
+            content.width + scroller.paddingLeft + scroller.paddingRight - scroller.width
+        ).coerceAtLeast(0)
+    }
+
     private inner class PdfPageAdapter : RecyclerView.Adapter<PdfPageHolder>() {
         private var pages: List<FzPdfDocument.PageSize> = emptyList()
 
@@ -651,6 +657,24 @@ class PdfViewerActivity : Activity() {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 displayHeight + dp(22)
             )
+            holder.scroller.setOnScrollChangeListener { _, scrollX, _, _, _ ->
+                val boundPosition = holder.bindingAdapterPosition
+                if (boundPosition != RecyclerView.NO_POSITION) {
+                    val range = horizontalScrollRange(holder.scroller)
+                    if (range > 0) {
+                        horizontalScrollFractionsByPage[boundPosition] =
+                            (scrollX.toFloat() / range).coerceIn(0f, 1f)
+                    } else {
+                        horizontalScrollFractionsByPage.remove(boundPosition)
+                    }
+                }
+            }
+            val savedFraction = horizontalScrollFractionsByPage[position] ?: 0f
+            holder.scroller.post {
+                if (holder.bindingAdapterPosition != position) return@post
+                val range = horizontalScrollRange(holder.scroller)
+                holder.scroller.scrollTo((range * savedFraction).roundToInt(), 0)
+            }
 
             val renderWidth = displayWidth.coerceAtMost(4096)
             val cacheKey = "page:" + position + ":width:" + renderWidth
@@ -661,6 +685,7 @@ class PdfViewerActivity : Activity() {
         }
 
         override fun onViewRecycled(holder: PdfPageHolder) {
+            holder.scroller.setOnScrollChangeListener(null)
             holder.image.tag = null
             holder.image.setImageDrawable(null)
             holder.overlay.setHighlights(1, 1, emptyList())
