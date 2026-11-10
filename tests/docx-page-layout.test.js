@@ -27,7 +27,7 @@ assert(layout.includes('--fz-shell-width') && layout.includes('--fz-page-transfo
   !layout.includes("pages().forEach"),
   "DOCX zoom must update shared CSS variables without iterating every page");
 
-assert(writer.includes('addToolbarAction("Size", "Choose Word page size")'),
+assert(activity.includes('addToolbarAction("Size", "Choose Word page size")'),
   "Word viewer must expose a page-size option");
 assert(writer.includes("showPageSizeOptions()") && writer.includes("selectedPageSizeKey"),
   "Word page-size selection must be retained across document/font loads");
