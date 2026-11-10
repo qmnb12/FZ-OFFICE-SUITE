@@ -226,7 +226,7 @@ function copyLayout(source){
  var result={};
  Object.keys(fallback).forEach(function(key){
   var value=source&&Number(source[key]);
-  result[key]=Number.isFinite(value)&&value>0?value:fallback[key];
+  result[key]=Number.isFinite(value)&&((key==="widthTwips"||key==="heightTwips")?value>0:value>=0)?value:fallback[key];
  });
  return result;
 }
