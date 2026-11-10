@@ -53,6 +53,16 @@ assert(viewer.includes("originalPageLayout:copyLayout(original)") &&
   "Changing paper size must repaginate from the untouched source document and retain Original");
 assert(viewer.includes("window.addEventListener(\"resize\""), "page layout must adapt to viewport changes");
 assert(viewer.includes("overflow-wrap:break-word;word-break:normal"), "normal words should not be split unnecessarily");
+assert(codec.includes('endTag: String = "body"') &&
+  codec.includes('"sdt", "sdtContent", "customXml", "ins", "moveTo"') &&
+  codec.includes('"del", "moveFrom"'),
+  "DOCX block content nested in controls and accepted tracked changes must not be silently skipped");
+assert(codec.includes('"fldSimple"') && codec.includes('"ins", "moveTo", "fldSimple"'),
+  "Simple fields and tracked insertion run wrappers must retain their visible content");
+assert(codec.includes('"sectPr" ->') &&
+  codec.includes('sectionBreakAfter') &&
+  codec.includes("data-fz-section-break"),
+  "Next-page/odd/even Word section breaks must create physical page boundaries");
 assert(codec.includes('"spacing" ->') && codec.includes('"ind" ->') &&
   codec.includes('lineRule') && codec.includes('margin-top:') &&
   codec.includes('text-indent:') && codec.includes('resolveParagraphCss'),
