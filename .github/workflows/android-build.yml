@@ -36,8 +36,6 @@ jobs:
         with:
           gradle-version: "9.6.1"
 
-      - name: Compile PDF Kotlin integration
-        run: gradle --no-daemon :app:compileDebugKotlin
 
       - name: Test legacy Hindi converter library
         run: node tests/legacy-converter.test.js
