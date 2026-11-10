@@ -29,7 +29,7 @@ assert(layout.includes('--fz-shell-width') && layout.includes('--fz-page-transfo
 
 assert(activity.includes('addToolbarAction("Size", "Choose Word page size")'),
   "Word viewer must expose a page-size option");
-assert(writer.includes("showPageSizeOptions()") && writer.includes("selectedPageSizeKey"),
+assert(activity.includes("showPageSizeOptions()") && activity.includes("selectedPageSizeKey"),
   "Word page-size selection must be retained across document/font loads");
 assert(viewer.includes("function setPageSize(preset)") &&
   viewer.includes("a4:[11906,16838]") &&
