@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=4, user-scalable=yes">
 <meta name="color-scheme" content="light">
 <title>FZ Office Document Viewer</title>
+<link rel="preload" href="fonts/NotoSansDevanagari-VF.ttf" as="font" type="font/ttf" crossorigin>
 <style>
 :root{color-scheme:light;--ink:#1b342d;--muted:#718078;--paper:#fff;--canvas:#e9efeb;--line:#d9e2dc}
 *{box-sizing:border-box}
@@ -42,7 +43,7 @@ body{display:flex;flex-direction:column;overflow:hidden}
 "use strict";
 var root=document.getElementById("pages"),scroll=document.getElementById("viewer-scroll"),notice=document.getElementById("legacyNotice");
 var defaultFont="Noto Sans Devanagari",layout={widthTwips:11906,heightTwips:16838,topTwips:1440,rightTwips:1440,bottomTwips:1440,leftTwips:1440};
-var zoomLevel=1,ready=false,paginationBusy=false;
+var zoomLevel=1,ready=false,paginationBusy=false,paginationGeneration=0,lastDocument=null;
 function px(twips){return Math.max(0,Number(twips)||0)/15}
 function pages(){return Array.prototype.slice.call(root.querySelectorAll(".page-shell > .fz-page"))}
 function shellOf(page){return page&&page.parentElement}
@@ -132,42 +133,106 @@ function splitLongBlock(page,block){
  next.insertBefore(continuation,next.firstChild);
  return continuation;
 }
-function paginate(){
- if(!ready||paginationBusy)return;paginationBusy=true;
- try{
-  if(!pages().length)makePage();
-  var i=0;
-  while(i<pages().length&&i<500){
-   var page=pages()[i],guard=0;
-   while(overflows(page)&&guard++<300){
-    var children=Array.prototype.slice.call(page.children);
-    if(!children.length)break;
-    var next=pages()[i+1]||addPageAfter(page);
-    if(children.length===1){
-     if(!splitLongBlock(page,children[0])){shellOf(page).setAttribute("data-overflow","true");break}
-    }else next.insertBefore(children[children.length-1],next.firstChild);
+function processPage(page){
+ var guard=0;
+ while(guard++<300){
+  var children=Array.prototype.slice.call(page.children);
+  if(!children.length)break;
+  var breakIndex=children.findIndex(function(child){
+   return child.classList&&child.classList.contains("fz-manual-break");
+  });
+  if(breakIndex>=0){
+   var marker=children[breakIndex],following=children.slice(breakIndex+1);
+   marker.remove();
+   if(breakIndex>0&&following.length){
+    var list=pages(),position=list.indexOf(page);
+    var next=list[position+1]||addPageAfter(page);
+    for(var k=following.length-1;k>=0;k--)next.insertBefore(following[k],next.firstChild);
+    return;
    }
-   if(!overflows(page))shellOf(page).removeAttribute("data-overflow");
-   i++;
+   continue;
   }
-  applyPageLayout(true);
- }finally{paginationBusy=false}
+  if(!overflows(page))break;
+  if(children.length===1){
+   if(!splitLongBlock(page,children[0])){
+    shellOf(page).setAttribute("data-overflow","true");
+    break;
+   }
+  }else{
+   var nextPage=pages()[pages().indexOf(page)+1]||addPageAfter(page);
+   nextPage.insertBefore(children[children.length-1],nextPage.firstChild);
+  }
+ }
+ if(!overflows(page))shellOf(page).removeAttribute("data-overflow");
 }
-function setDocument(html,profile,fontName,legacyHint,fontAvailable,pageLayout){
- layout=pageLayout||{widthTwips:11906,heightTwips:16838,topTwips:1440,rightTwips:1440,bottomTwips:1440,leftTwips:1440};
+function paginate(){
+ if(!ready)return;
+ paginationBusy=true;
+ var generation=++paginationGeneration,index=0;
+ function step(){
+  if(generation!==paginationGeneration)return;
+  var started=Date.now(),processed=0;
+  while(index<pages().length&&index<500&&(processed===0||Date.now()-started<8)){
+   processPage(pages()[index]);
+   index++;
+   processed++;
+  }
+  if(index<pages().length&&index<500){
+   requestAnimationFrame(step);
+  }else{
+   paginationBusy=false;
+   applyPageLayout(true);
+  }
+ }
+ requestAnimationFrame(step);
+}
+function renderDocument(state,watchFont){
+ layout=state.pageLayout||{widthTwips:11906,heightTwips:16838,topTwips:1440,rightTwips:1440,bottomTwips:1440,leftTwips:1440};
  layout.widthTwips=Number(layout.widthTwips)||11906;layout.heightTwips=Number(layout.heightTwips)||16838;
- ["topTwips","rightTwips","bottomTwips","leftTwips"].forEach(function(key){layout[key]=Number(layout[key]);if(!Number.isFinite(layout[key]))layout[key]=1440});
- root.innerHTML="";var page=makePage();
- var source=document.createElement("div");source.innerHTML=html||"<p></p>";
+ ["topTwips","rightTwips","bottomTwips","leftTwips"].forEach(function(key){
+  layout[key]=Number(layout[key]);if(!Number.isFinite(layout[key]))layout[key]=1440;
+ });
+ root.innerHTML="";
+ var page=makePage();
+ var source=document.createElement("div");source.innerHTML=state.html||"<p></p>";
  while(source.firstChild)page.appendChild(source.firstChild);
  if(!page.childNodes.length)page.innerHTML="<p></p>";
  ready=true;notice.style.display="none";
- if(fontName&&fontAvailable)showNotice("Matching font loaded: "+fontName,"The original DOCX characters are displayed using the declared font. The source file is unchanged.");
- else if(fontName)showNotice("Legacy font missing: "+fontName,"Import this exact TTF/OTF family in Hindi Font Center. The original text remains unchanged.");
- else if(profile==="krutidev010"||profile==="devlys010")showNotice("Legacy font profile detected","Import the exact font family to render this document. Automatic conversion is disabled.");
- else if(legacyHint)showNotice("Possible legacy Hindi encoding","No exact font family is declared. Text remains unchanged; automatic conversion is disabled.");
+ if(state.fontName&&state.fontAvailable)showNotice("Matching font loaded: "+state.fontName,"The original DOCX characters are displayed using the declared font. The source file is unchanged.");
+ else if(state.fontName)showNotice("Legacy font missing: "+state.fontName,"Import this exact TTF/OTF family in Hindi Font Center. The original text remains unchanged.");
+ else if(state.profile==="krutidev010"||state.profile==="devlys010")showNotice("Legacy font profile detected","Import the exact font family to render this document. Automatic conversion is disabled.");
+ else if(state.legacyHint)showNotice("Possible legacy Hindi encoding","No exact font family is declared. Text remains unchanged; automatic conversion is disabled.");
  paginate();
- if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){paginate()});
+
+ // Start with visible text immediately; if the selected local face is still loading,
+ // rebuild from the untouched source HTML once it is ready so page breaks stay correct.
+ if(watchFont&&document.fonts&&document.fonts.load&&!state.fontWatchStarted){
+  state.fontWatchStarted=true;
+  var fontSpec='16px "'+defaultFont.replace(/["\\]/g,"")+'"';
+  try{
+   if(!document.fonts.check(fontSpec)){
+    document.fonts.load(fontSpec).then(function(loaded){
+     if(loaded&&loaded.length&&lastDocument===state&&!state.fontRefreshDone){
+      state.fontRefreshDone=true;
+      renderDocument(state,false);
+     }
+    }).catch(function(){});
+   }
+  }catch(_){}
+ }
+}
+function setDocument(html,profile,fontName,legacyHint,fontAvailable,pageLayout){
+ lastDocument={
+  html:html||"<p></p>",
+  profile:profile||"",
+  fontName:fontName||"",
+  legacyHint:!!legacyHint,
+  fontAvailable:!!fontAvailable,
+  pageLayout:pageLayout||null,
+  fontWatchStarted:false,
+  fontRefreshDone:false
+ };
+ renderDocument(lastDocument,true);
 }
 function zoom(direction){zoomLevel=Math.max(.7,Math.min(1.5,zoomLevel+(direction>0?.1:-.1)));applyPageLayout()}
 function fit(){zoomLevel=1;applyPageLayout()}
