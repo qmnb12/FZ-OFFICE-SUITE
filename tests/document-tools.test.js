@@ -92,7 +92,7 @@ function gitBlobSha(bytes) {
   return crypto.createHash("sha1").update(header).update(bytes).digest("hex");
 }
 function verifyManifest(file, expectedKind, expectedCount) {
-  const lines = read(file).trim().split("\\n");
+  const lines = read(file).trim().split(/\r?\n/);
   assert.strictEqual(lines.length, expectedCount, "Unexpected asset count in " + file);
   for (const line of lines) {
     const parts = line.split("|");
