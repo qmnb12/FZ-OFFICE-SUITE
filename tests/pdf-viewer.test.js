@@ -23,6 +23,14 @@ assert(pdf.includes("RecyclerView") && pdf.includes("PdfPageAdapter"),
 const dashboard = read("app/src/main/java/com/fz/office/viewer/ReaderDashboard.kt");
 assert(pdf.includes("PdfHorizontalPanScrollView") && pdf.includes("horizontalPanEnabled = zoom > 1.01f"),
   "PDF horizontal panning must be disabled at fit width so it cannot intercept vertical swipes");
+assert(pdf.includes("verticalGestureLocked") &&
+  pdf.includes("dy >= dx * 1.15f") &&
+  pdf.includes("dx >= dy * 1.35f"),
+  "PDF vertical swipes must lock to RecyclerView unless the user clearly pans horizontally");
+assert(pdf.includes("outRect.top = dp(4)") &&
+  pdf.includes("outRect.bottom = dp(4)") &&
+  pdf.includes("height + dp(20)"),
+  "PDF page spacing must stay compact and consistent with the Word reader");
 assert(pdf.includes("dy >= dx") && pdf.includes("dx > touchSlop"),
   "Zoomed PDF pan container must intercept only clear horizontal drags");
 assert(pdf.includes("if (event.pointerCount > 1)") &&
