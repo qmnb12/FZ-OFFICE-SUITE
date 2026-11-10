@@ -4,9 +4,10 @@ const codec = fs.readFileSync("app/src/main/java/com/fz/office/writer/DocxCodec.
 const activity = fs.readFileSync("app/src/main/java/com/fz/office/writer/WriterActivity.kt", "utf8");
 const viewer = fs.readFileSync("app/src/main/assets/writer/viewer.html", "utf8");
 const vm = require("vm");
-const viewerScript = viewer.match(/<script>([\\s\\S]*?)<\\/script>/);
-assert(viewerScript, "Word viewer must contain its layout engine script");
-new vm.Script(viewerScript[1], { filename: "FZ Writer layout engine" });
+const scriptStart = viewer.indexOf("<script>");
+const scriptEnd = viewer.indexOf("</script>", scriptStart);
+assert(scriptStart >= 0 && scriptEnd > scriptStart, "Word viewer must contain its layout engine script");
+new vm.Script(viewer.slice(scriptStart + 8, scriptEnd), { filename: "FZ Writer layout engine" });
 assert(codec.includes("readPageLayout(documentXml)"), "DOCX load must read section page geometry");
 assert(codec.includes("htmlToDocumentXml(html, pageLayout)"), "DOCX save must retain page geometry and margins");
 assert(codec.includes('"pgSz" -> {'), "DOCX parser must read page dimensions");
