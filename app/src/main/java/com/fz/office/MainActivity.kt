@@ -21,7 +21,7 @@ import android.widget.Toast
 import com.fz.office.engine.FzCore
 import com.fz.office.fonts.FontCenterActivity
 import com.fz.office.library.RecentDocumentsStore
-import com.fz.office.pdf.PdfViewerActivity
+import com.fz.office.pdf.PdfJsViewerActivity
 import com.fz.office.viewer.OfficeViewerActivity
 import com.fz.office.writer.WriterActivity
 import java.text.SimpleDateFormat
@@ -623,9 +623,9 @@ class MainActivity : Activity() {
     private fun launchDocument(uri: Uri, name: String, mime: String?) {
         try {
             val open = when {
-                isPdfDocument(name, mime) || formatHint(uri, name) == "PDF" -> Intent(this, PdfViewerActivity::class.java).apply {
-                    putExtra(PdfViewerActivity.EXTRA_DOCUMENT_URI, uri.toString())
-                    putExtra(PdfViewerActivity.EXTRA_DOCUMENT_NAME, name)
+                isPdfDocument(name, mime) || formatHint(uri, name) == "PDF" -> Intent(this, PdfJsViewerActivity::class.java).apply {
+                    putExtra(PdfJsViewerActivity.EXTRA_DOCUMENT_URI, uri.toString())
+                    putExtra(PdfJsViewerActivity.EXTRA_DOCUMENT_NAME, name)
                 }
                 isOfficeViewerDocument(name, mime) -> Intent(this, OfficeViewerActivity::class.java).apply {
                     putExtra(OfficeViewerActivity.EXTRA_DOCUMENT_URI, uri.toString())
