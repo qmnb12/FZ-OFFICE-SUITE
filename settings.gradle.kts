@@ -173,6 +173,25 @@ tasks.named('preBuild').configure {
     }
 }
 
+
+    // FZ Office compatibility fix: the attribute belongs to Material's R class,
+    // not the AndroidPdfViewer module's generated R class.
+    val scrollHandle = File(
+        root,
+        "AndroidPdfViewer/android-pdf-viewer/src/main/java/com/github/barteksc/pdfviewer/scroll/DefaultScrollHandle.java"
+    )
+    var scrollHandleText = scrollHandle.readText(Charsets.UTF_8)
+    val oldScrollColorAttr = "R.attr.colorOnSurface"
+    val materialScrollColorAttr = "com.google.android.material.R.attr.colorOnSurface"
+    if (scrollHandleText.contains(oldScrollColorAttr) &&
+        !scrollHandleText.contains(materialScrollColorAttr)
+    ) {
+        scrollHandleText = scrollHandleText.replace(oldScrollColorAttr, materialScrollColorAttr)
+        scrollHandle.writeText(scrollHandleText, Charsets.UTF_8)
+    } else if (!scrollHandleText.contains(materialScrollColorAttr)) {
+        throw GradleException("MJ PDF scroll-handle color attribute could not be patched safely.")
+    }
+
 val mjPdfAlreadyPrepared =
     mjPdfRevisionFile.isFile &&
         mjPdfRevisionFile.readText(Charsets.UTF_8).trim() == mjPdfRevision &&
