@@ -209,13 +209,7 @@ class OfficeViewerActivity : Activity() {
             }
         }
 
-        shell.addControl("‹ Prev", 1.05f) { browser.pageUp(false) }
-        shell.addControl("Top", 0.9f) { browser.scrollTo(0, 0) }
-        shell.addControl("Next ›", 1.05f) { browser.pageDown(false) }
-        shell.addControl("−", 0.62f) { browser.zoomOut() }
-        shell.addControl("Fit", 0.72f) { fitViewer() }
-        shell.addControl("+", 0.62f) { browser.zoomIn() }
-
+        // Native WebView pinch zoom and finger scrolling; no redundant navigation buttons.
         shell.setDocumentView(browser)
         setContentView(shell.root)
         applySafeAreaInsets(shell.root)
