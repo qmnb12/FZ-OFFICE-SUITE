@@ -27,6 +27,10 @@ assert(pdfJs.includes("pdf.html") && pdfWorkerManifest.includes("viewer/lib/pdf.
 assert(pdfJs.includes("createWebMessageChannel") && pdfJs.includes('postCommand("q$value")') &&
   pdfJs.includes('postCommand("g" +'),
   "PDF Find and page navigation must use the safe WebMessagePort bridge");
+assert(pdfJs.includes("PdfJsDoubleTapZoom") && pdfJs.includes("PdfJsWebView") &&
+  pdfJs.includes("ValueAnimator") && pdfJs.includes("leftToPage") &&
+  pdfJs.includes("computeHorizontalScrollRange"),
+  "PDF double-tap zoom must be smooth, anchored and coordinated with PDF.js pinch-out");
 assert(pdfJs.includes("Accept-Ranges") && pdfJs.includes("Content-Range") &&
   pdfJs.includes("openAssetFileDescriptor") && pdfJs.includes("openInputStream"),
   "Large PDFs must stream read-only with HTTP range support");
