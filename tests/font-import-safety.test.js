@@ -1,9 +1,9 @@
 const fs = require("fs");
 const assert = require("assert");
 
-const manager = fs.readFileSync("app/src/main/java/com/fz/office/fonts/FontManager.java", "utf8");
+const manager = fs.readFileSync("app/src/main/java/com/fz/office/fonts/FontManager.kt", "utf8");
 const fontCenter = fs.readFileSync(
-  "app/src/main/java/com/fz/office/fonts/FontCenterActivity.java",
+  "app/src/main/java/com/fz/office/fonts/FontCenterActivity.kt",
   "utf8"
 );
 
@@ -19,7 +19,7 @@ assert(
 assert(!ignoredEntryMatch[1].includes("readZipEntryLimited"),
   "Non-font ZIP entries must not be buffered in memory.");
 assert(
-  /private static long skipZipEntryLimited\(InputStream input, long limit\)[\s\S]*?byte\[\] buffer = new byte\[8192\]/.test(manager),
+  /private fun skipZipEntryLimited\(input: InputStream, limit: Long\): Long[\s\S]*?ByteArray\(8192\)/.test(manager),
   "The streaming drain must use a fixed-size buffer."
 );
 
@@ -30,7 +30,7 @@ assert(manager.includes("MAX_ARCHIVE_FONTS = 1200"),
   "ZIP font import must keep its file-count bound.");
 assert(manager.includes("MAX_ARCHIVE_EXPANDED_BYTES = 180L * 1024L * 1024L"),
   "ZIP font import must keep its expanded-size bound.");
-assert(manager.includes('".ttf".equals(ext) || ".otf".equals(ext)'),
+assert(manager.includes('ext == ".ttf" || ext == ".otf"'),
   "Only TTF/OTF font files should be accepted.");
 assert(manager.includes("safeFileName(originalName)"),
   "Imported archive paths must be reduced to safe file names.");
@@ -39,7 +39,7 @@ assert(manager.includes("Typeface.createFromFile(destination)"),
 
 // The library scan must be cached while searching and invalidated after mutations.
 assert(
-  /List<FontManager\.FontRecord> allFonts = fontSnapshot;[\s\S]*?if \(allFonts == null\) \{[\s\S]*?FontManager\.getAvailableFonts\(this\)/.test(fontCenter),
+  /val allFonts = fontSnapshot \?: FontManager\.getAvailableFonts\(this\)\.also \{[\s\S]*?fontSnapshot = it/.test(fontCenter),
   "Font Center search must reuse a scanned font snapshot."
 );
 assert(
