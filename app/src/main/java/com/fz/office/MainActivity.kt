@@ -521,7 +521,8 @@ class MainActivity : Activity() {
         val requestedFilter = pendingPickerFilter
         pendingPickerFilter = null
         if (resultCode != RESULT_OK) return
-        val uri = data?.data ?: return
+        val resultIntent = data ?: return
+        val uri = resultIntent.data ?: return
         val name = queryDisplayName(uri)
         val mime = contentResolver.getType(uri)
         if (!matchesPickerFilter(name, mime, requestedFilter)) {
