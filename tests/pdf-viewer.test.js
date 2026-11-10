@@ -67,7 +67,7 @@ assert(pdf.includes("toggleBookmark") && pdf.includes("showBookmarks"),
 assert(pdf.includes("shareDocument"), "PDF sharing must be available");
 assert(pdf.includes("Original file unchanged") || pdf.includes("Read only"),
   "PDF reader must preserve the source file");
-assert(pdf.includes("applySafeAreaInsets(root)"), "PDF reader must respect system bars");
+assert(pdf.includes("applySafeAreaInsets(shell.root)"), "PDF reader must respect system bars");
 assert(!pdf.includes("openOutputStream(documentUri)"), "PDF reader must not write to the original file");
 assert(gradle.includes('implementation("androidx.recyclerview:recyclerview:1.4.0")'),
   "Continuous PDF page list dependency is missing");
