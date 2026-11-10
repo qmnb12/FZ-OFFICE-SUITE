@@ -138,7 +138,7 @@ object FontManager {
         fileName != null && bundledFontAssetCopies.any { it.equals(fileName, ignoreCase = true) }
 
     fun getAvailableFonts(context: Context): List<FontRecord> {
-        val result = getBundledFonts()
+        val result = ArrayList(getBundledFonts())
         val directory = customDirectory(context)
         val files = directory.listFiles()
         if (files != null) {
