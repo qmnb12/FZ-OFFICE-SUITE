@@ -122,7 +122,10 @@ function prefixFits(page,block,map,count){
  var fits=temp.scrollHeight<=temp.clientHeight+2;temp.remove();return fits;
 }
 function splitLongBlock(page,block){
- if(block&&block.getAttribute&&block.getAttribute("data-fz-keep-lines")==="true")return null;
+ if(block&&block.getAttribute&&(
+  block.getAttribute("data-fz-keep-lines")==="true"||
+  block.getAttribute("data-fz-keep-next")==="true"
+ ))return null;
  if(!/^(p|h1|h2|h3|h4|blockquote)$/i.test(block.tagName||""))return null;
  var map=textMap(block);if(map.total<80||!map.nodes.length)return null;
  var low=1,high=map.total-1,best=0;
@@ -158,6 +161,7 @@ function splitTableOverflow(page,table){
 function markOverflow(page){
  var shell=shellOf(page);if(!shell)return;
  shell.setAttribute("data-overflow","true");
+ shell.setAttribute("data-overflow-expanded","true");
  // An indivisible Word block (for example one extremely tall table row) must
  // remain readable. Expand this exceptional page instead of silently clipping it.
  page.style.height="auto";
@@ -200,8 +204,9 @@ function processPage(page){
   var nextPage=pages()[pages().indexOf(page)+1]||addPageAfter(page);
   for(var m=children.length-1;m>=moveFrom;m--)nextPage.insertBefore(children[m],nextPage.firstChild);
  }
- if(!overflows(page))shellOf(page).removeAttribute("data-overflow");
- else markOverflow(page);
+ if(!overflows(page)&&!shellOf(page).hasAttribute("data-overflow-expanded")) {
+  shellOf(page).removeAttribute("data-overflow");
+ } else if(overflows(page)) markOverflow(page);
 }
 function paginate(){
  if(!ready)return;
