@@ -91,7 +91,7 @@ assert(manifest.includes(".pdf.PdfViewerActivity"), "PDF reader missing from man
 assert(!manifest.includes('android.permission.INTERNET'), "Offline app must not request INTERNET");
 assert(gradle.includes("downloadGanderViewerAssets"), "Pinned Gander assets are missing from build");
 assert(gradle.includes("gitBlobSha"), "Viewer assets must be checksum verified");
-assert(gradle.includes('versionName = "0.7.3"'), "Version name must match the viewer-focused build");
-assert(gradle.includes("versionCode = 22"), "Version code must match the viewer-focused build");
+assert(gradle.includes('versionName = "0.7.4"'), "Version name must match the viewer-focused build");
+assert(gradle.includes("versionCode = 23"), "Version code must match the viewer-focused build");
 
 console.log("FZ viewer routing, Excel-only edit path, permissions, Hindi fonts and pinned reader assets verified.");
