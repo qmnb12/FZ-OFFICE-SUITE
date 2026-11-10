@@ -67,11 +67,11 @@ class PdfViewerActivity : Activity() {
     private var shell: ReaderDashboard? = null
     private var pageIndex = 0
     private var zoomScale = 1f
-    private var closing = false
+    @Volatile private var closing = false
     private var activeSearchQuery = ""
     private var searchHits: List<PdfSearchHit> = emptyList()
     private var searchHitIndex = -1
-    private var searchGeneration = 0
+    @Volatile private var searchGeneration = 0
     private var searchPending = false
     private var pendingSearchForward = true
     private var searchHighlightsByPage: Map<Int, List<PdfSearchHighlight>> = emptyMap()
