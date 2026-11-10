@@ -368,28 +368,29 @@ class PdfViewerActivity : Activity() {
         thumbnailWorker.execute {
             var bitmap: Bitmap? = null
             try {
-                var core = thumbnailCore
-                var document = thumbnailDocument
-                if (core == null || document == null) {
-                    core = PdfiumCore(this@PdfViewerActivity)
+                if (thumbnailCore == null || thumbnailDocument == null) {
+                    val newCore = PdfiumCore(this@PdfViewerActivity)
                     val fd = cachedPdf?.let {
                         ParcelFileDescriptor.open(it, ParcelFileDescriptor.MODE_READ_ONLY)
                     } ?: contentResolver.openFileDescriptor(checkNotNull(documentUri), "r")
                     if (fd == null) throw IOException("PDF thumbnail source is unavailable.")
-                    document = core.newDocument(fd)
-                    thumbnailCore = core
-                    thumbnailDocument = document
+                    val newDocument = newCore.newDocument(fd)
+                    thumbnailCore = newCore
+                    thumbnailDocument = newDocument
                 }
+                val core = checkNotNull(thumbnailCore)
+                val document = checkNotNull(thumbnailDocument)
                 core.openPage(document, position)
                 val widthPoints = core.getPageWidthPoint(document, position).coerceAtLeast(1)
                 val heightPoints = core.getPageHeightPoint(document, position).coerceAtLeast(1)
                 val width = 150
                 val height = (width.toFloat() * heightPoints / widthPoints).roundToInt()
                     .coerceIn(1, 260)
-                bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565).apply {
+                val previewBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565).apply {
                     eraseColor(Color.WHITE)
                 }
-                core.renderPageBitmap(document, bitmap, position, 0, 0, width, height)
+                bitmap = previewBitmap
+                core.renderPageBitmap(document, previewBitmap, position, 0, 0, width, height)
                 core.closePage(document, position)
             } catch (_: Exception) {
                 closeThumbnailDocument()
