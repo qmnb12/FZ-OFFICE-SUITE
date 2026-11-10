@@ -28,7 +28,7 @@ assert(pdf.includes("ScaleGestureDetector") && pdf.includes("onDoubleTap"),
   "Pinch zoom and double-tap zoom must be available");
 assert(pdf.includes("ReaderDashboard") && pdf.includes("dashboard.setDocumentView(recycler)"),
   "PDF reader must retain the shared FZ dashboard");
-assert(pdf.includes("jumpToPage") && pdf.includes("supportsPageNavigation"),
+assert(pdf.includes("jumpToPage") && pdf.includes("supportsPageNavigation") && pdf.includes("supportsScrollNavigation"),
   "Direct page navigation must be exposed through the shared document controller");
 assert(!pdf.includes('addToolbarAction("Pages"') &&
   !pdf.includes("toggleBookmark") && !pdf.includes("showBookmarks"),

@@ -20,12 +20,17 @@ import android.widget.Toast
 interface DocumentViewerSurface {
     val view: View
     val supportsFind: Boolean get() = false
+    val supportsScrollNavigation: Boolean get() = false
     val supportsZoom: Boolean get() = true
     val supportsPageNavigation: Boolean get() = false
     val supportsPrint: Boolean get() = false
 
     fun find(query: String, forward: Boolean) {}
     fun clearFind() {}
+    fun scrollBackward() {}
+    fun scrollForward() {}
+    fun scrollToStart() {}
+    fun scrollToEnd() {}
     fun zoomIn() {}
     fun zoomOut() {}
     fun fitToWidth() {}
@@ -57,6 +62,12 @@ class DocumentViewerController(
     private fun showTools() {
         val actions = ArrayList<Pair<String, () -> Unit>>()
         if (surface.supportsFind) actions.add("Find" to { showFind() })
+        if (surface.supportsScrollNavigation) {
+            actions.add("Scroll up" to { surface.scrollBackward() })
+            actions.add("Scroll down" to { surface.scrollForward() })
+            actions.add("Go to top" to { surface.scrollToStart() })
+            actions.add("Go to bottom" to { surface.scrollToEnd() })
+        }
         if (surface.supportsZoom) {
             actions.add("Zoom in" to { surface.zoomIn() })
             actions.add("Zoom out" to { surface.zoomOut() })
@@ -186,6 +197,7 @@ class WebViewDocumentSurface(
     private var lastQuery = ""
 
     override val supportsFind: Boolean = true
+    override val supportsScrollNavigation: Boolean = true
     override val supportsZoom: Boolean = true
     override val supportsPageNavigation: Boolean =
         pageCountScript != null && pageCommand != null
@@ -206,6 +218,25 @@ class WebViewDocumentSurface(
     override fun clearFind() {
         lastQuery = ""
         view.clearMatches()
+    }
+
+    override fun scrollBackward() {
+        view.pageUp(true)
+    }
+
+    override fun scrollForward() {
+        view.pageDown(true)
+    }
+
+    override fun scrollToStart() {
+        view.scrollTo(0, 0)
+    }
+
+    override fun scrollToEnd() {
+        view.evaluateJavascript(
+            "window.scrollTo(0,Math.max(document.body.scrollHeight,document.documentElement.scrollHeight));",
+            null
+        )
     }
 
     override fun zoomIn() {

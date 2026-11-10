@@ -112,9 +112,15 @@ class PdfViewerActivity : Activity() {
             dashboard,
             object : DocumentViewerSurface {
                 override val view: View = recycler
+                override val supportsScrollNavigation: Boolean = true
                 override val supportsZoom: Boolean = true
                 override val supportsPageNavigation: Boolean = true
                 override val supportsPrint: Boolean = true
+
+                override fun scrollBackward() = jumpToPage((pageIndex - 1).coerceAtLeast(0))
+                override fun scrollForward() = jumpToPage((pageIndex + 1).coerceAtMost(pageSizes.lastIndex))
+                override fun scrollToStart() = jumpToPage(0)
+                override fun scrollToEnd() = jumpToPage(pageSizes.lastIndex)
 
                 override fun zoomIn() = setZoom(zoomScale * 1.2f)
                 override fun zoomOut() = setZoom(zoomScale / 1.2f)
