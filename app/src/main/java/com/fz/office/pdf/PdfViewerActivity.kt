@@ -531,16 +531,17 @@ class PdfViewerActivity : Activity() {
         val target = index.coerceIn(0, pageSizes.lastIndex)
         pageIndex = target
         val layout = recycler.layoutManager as? LinearLayoutManager ?: return
-        layout.scrollToPosition(target)
-        recycler.post {
-            if (closing) return@post
-            val page = layout.findViewByPosition(target)
-            if (page != null) {
-                val viewportHeight = recycler.height - recycler.paddingTop - recycler.paddingBottom
-                layout.scrollToPositionWithOffset(target, viewportHeight - page.height)
-            }
-            updatePageStatus()
-        }
+        val size = pageSizes[target]
+        val baseWidth = (resources.displayMetrics.widthPixels - dp(32)).coerceAtLeast(dp(220))
+        val displayWidth = (baseWidth * zoomScale).roundToInt().coerceAtMost(MAX_DISPLAY_WIDTH_PX)
+        val displayHeight = (displayWidth.toDouble() * size.height / size.width)
+            .coerceAtMost(16_000.0)
+            .roundToInt()
+            .coerceAtLeast(1)
+        val itemHeight = displayHeight + dp(22)
+        val viewportHeight = recycler.height - recycler.paddingTop - recycler.paddingBottom
+        layout.scrollToPositionWithOffset(target, viewportHeight - itemHeight)
+        updatePageStatus()
     }
 
     private fun showError(error: Throwable) {

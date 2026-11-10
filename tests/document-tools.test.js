@@ -62,7 +62,8 @@ assert(office.includes("vwSheetFitWidth") && office.includes("vwSheetPreparePrin
   "XLSX fit and print actions must use workbook-aware APIs");
 
 assert(pdf.includes("jumpToPageEnd(pageSizes.lastIndex)") &&
-  pdf.includes("viewportHeight - page.height"),
+  pdf.includes("val itemHeight = displayHeight + dp(22)") &&
+  pdf.includes("layout.scrollToPositionWithOffset(target, viewportHeight - itemHeight)"),
   "PDF Go to bottom must land at the bottom edge of the final page");
 assert(pdf.includes("override fun fitToWidth() = setZoom(1f)") &&
   pdf.includes("override fun zoomIn() = setZoom(zoomScale * 1.2f)") &&
