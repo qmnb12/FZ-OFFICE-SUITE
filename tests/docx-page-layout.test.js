@@ -100,5 +100,15 @@ assert(splitLogic.includes("keepTogether") &&
 assert(viewer.includes("window.getComputedStyle(page)") &&
   viewer.includes('"fontFamily","fontSize","fontWeight","fontStyle","lineHeight"'),
   "split measurements must use the rendered page typography, including the actual DOCX font");
+assert(viewer.includes("function paginateWhenFontsReady(state)") &&
+  viewer.includes("state.fontAvailable&&state.fontName") &&
+  viewer.includes("document.fonts.load(fontSpec)") &&
+  viewer.includes("if(lastDocument===state)paginate()"),
+  "DOCX pagination must wait for the exact available document font before measuring page breaks");
+const renderStart = viewer.indexOf("function renderDocument(state)");
+const renderEnd = viewer.indexOf("function copyLayout", renderStart);
+const renderLogic = viewer.slice(renderStart, renderEnd);
+assert(renderLogic.includes("paginateWhenFontsReady(state)") && !renderLogic.includes("paginate();"),
+  "A DOCX must not paginate immediately with fallback font metrics");
 
 console.log("DOCX page-layout and lightweight layout-engine regression checks passed.");

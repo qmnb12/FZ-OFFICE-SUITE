@@ -416,7 +416,7 @@ class WriterActivity : Activity() {
             documentFontsLoading && pendingLegacyFontName.isNotEmpty() ->
                 "Loading matching font: $pendingLegacyFontName"
             pendingLegacyFontLoaded && pendingLegacyFontName.isNotEmpty() ->
-                "Matching font loaded: $pendingLegacyFontName · Original DOCX text preserved"
+                "Matching font available: $pendingLegacyFontName · Original DOCX text preserved"
             pendingLegacyFontName.isNotEmpty() ->
                 "Missing font: $pendingLegacyFontName · Import it in Hindi Font Center"
             pendingLegacyTextHint ->

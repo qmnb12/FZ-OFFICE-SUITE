@@ -262,7 +262,30 @@ function paginate(){
  }
  requestAnimationFrame(step);
 }
-function renderDocument(state,watchFont){
+function paginateWhenFontsReady(state){
+ if(!document.fonts||!document.fonts.load||typeof Promise==="undefined"){
+  if(lastDocument===state)paginate();
+  return;
+ }
+ var families=[];
+ if(state.fontAvailable&&state.fontName)families.push(state.fontName);
+ if(defaultFont)families.push(defaultFont);
+ var loads=[],seen={};
+ for(var i=0;i<families.length;i++){
+  var family=String(families[i]||"").trim();
+  if(!family||seen[family])continue;
+  seen[family]=true;
+  var fontSpec='16px "'+family.replace(/["\\]/g,"")+'"';
+  try{loads.push(document.fonts.load(fontSpec));}catch(_){}
+ }
+ if(!loads.length){if(lastDocument===state)paginate();return;}
+ Promise.all(loads.map(function(load){
+  return Promise.resolve(load).catch(function(){return[];});
+ })).then(function(){
+  if(lastDocument===state)paginate();
+ });
+}
+function renderDocument(state){
  layout=state.pageLayout||{widthTwips:11906,heightTwips:16838,topTwips:1440,rightTwips:1440,bottomTwips:1440,leftTwips:1440};
  layout.widthTwips=Number(layout.widthTwips)||11906;layout.heightTwips=Number(layout.heightTwips)||16838;
  ["topTwips","rightTwips","bottomTwips","leftTwips"].forEach(function(key){
@@ -274,28 +297,11 @@ function renderDocument(state,watchFont){
  while(source.firstChild)page.appendChild(source.firstChild);
  if(!page.childNodes.length)page.innerHTML="<p></p>";
  ready=true;notice.style.display="none";
- if(state.fontName&&state.fontAvailable)showNotice("Matching font loaded: "+state.fontName,"The original DOCX characters are displayed using the declared font. The source file is unchanged.");
+ if(state.fontName&&state.fontAvailable)showNotice("Matching font found: "+state.fontName,"The viewer waits for this exact font before calculating page breaks. The source file is unchanged.");
  else if(state.fontName)showNotice("Legacy font missing: "+state.fontName,"Import this exact TTF/OTF family in Hindi Font Center. The original text remains unchanged.");
  else if(state.profile==="krutidev010"||state.profile==="devlys010")showNotice("Legacy font profile detected","Import the exact font family to render this document. Automatic conversion is disabled.");
  else if(state.legacyHint)showNotice("Possible legacy Hindi encoding","No exact font family is declared. Text remains unchanged; automatic conversion is disabled.");
- paginate();
-
- // Start with visible text immediately; if the selected local face is still loading,
- // rebuild from the untouched source HTML once it is ready so page breaks stay correct.
- if(watchFont&&document.fonts&&document.fonts.load&&!state.fontWatchStarted){
-  state.fontWatchStarted=true;
-  var fontSpec='16px "'+defaultFont.replace(/["\\]/g,"")+'"';
-  try{
-   if(!document.fonts.check(fontSpec)){
-    document.fonts.load(fontSpec).then(function(loaded){
-     if(loaded&&loaded.length&&lastDocument===state&&!state.fontRefreshDone){
-      state.fontRefreshDone=true;
-      renderDocument(state,false);
-     }
-    }).catch(function(){});
-   }
-  }catch(_){}
- }
+ paginateWhenFontsReady(state);
 }
 function copyLayout(source){
  var fallback={widthTwips:11906,heightTwips:16838,topTwips:1440,rightTwips:1440,bottomTwips:1440,leftTwips:1440};
@@ -316,11 +322,9 @@ function setDocument(html,profile,fontName,legacyHint,fontAvailable,pageLayout){
   fontAvailable:!!fontAvailable,
   pageLayout:copyLayout(original),
   originalPageLayout:copyLayout(original),
-  selectedPageSize:"original",
-  fontWatchStarted:false,
-  fontRefreshDone:false
+  selectedPageSize:"original"
  };
- renderDocument(lastDocument,true);
+ renderDocument(lastDocument);
 }
 function setPageSize(preset){
  if(!lastDocument)return false;
@@ -349,7 +353,7 @@ function setPageSize(preset){
   lastDocument.pageLayout=next;
  }
  lastDocument.selectedPageSize=preset;
- renderDocument(lastDocument,false);
+ renderDocument(lastDocument);
  return true;
 }
 function zoom(direction){zoomLevel=Math.max(.7,Math.min(1.5,zoomLevel+(direction>0?.1:-.1)));applyPageLayout()}

@@ -39,9 +39,13 @@ assert(pagination.includes("requestAnimationFrame(step)"),
   "DOCX pagination must yield between page batches instead of blocking the WebView");
 assert(pagination.includes("fz-manual-break"),
   "Word explicit page breaks must be honoured as real page boundaries");
-assert(viewerHtml.includes('document.fonts.load(fontSpec)') &&
-  viewerHtml.includes("renderDocument(state,false)"),
-  "Hindi font completion must repaginate from the original HTML, not already split pages");
+assert(viewerHtml.includes("function paginateWhenFontsReady(state)") &&
+  viewerHtml.includes("state.fontAvailable&&state.fontName") &&
+  viewerHtml.includes("document.fonts.load(fontSpec)") &&
+  viewerHtml.includes("if(lastDocument===state)paginate()"),
+  "Pagination must wait for the actual DOCX font and default font before page measurements");
+assert(!viewerHtml.includes("renderDocument(state,false)"),
+  "Font completion must not paginate or rebuild an already-fragmented page DOM");
 assert(!viewerHtml.includes("document.fonts.ready.then(function(){paginate()})"),
   "Font completion must not paginate already-fragmented page DOM");
 
