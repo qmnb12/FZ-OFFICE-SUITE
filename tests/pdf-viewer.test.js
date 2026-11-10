@@ -54,8 +54,9 @@ assert(pdf.includes("ReaderDashboard") && pdf.includes("dashboard.setDocumentVie
 assert(pdf.includes("jumpToPage") && pdf.includes("supportsPageNavigation") && pdf.includes("supportsScrollNavigation"),
   "Direct page navigation must be exposed through the shared document controller");
 assert(pdf.includes("jumpToPageEnd(pageSizes.lastIndex)") &&
-  pdf.includes("viewportHeight - page.height"),
-  "PDF Go to bottom must scroll to the actual bottom edge of the last page");
+  pdf.includes("val itemHeight = displayHeight + dp(22)") &&
+  pdf.includes("layout.scrollToPositionWithOffset(target, viewportHeight - itemHeight)"),
+  "PDF Go to bottom must align the full last-page item at the viewport bottom");
 assert(!pdf.includes('addToolbarAction("Pages"') &&
   !pdf.includes("toggleBookmark") && !pdf.includes("showBookmarks"),
   "PDF page previews and bookmarks must stay removed");
