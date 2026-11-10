@@ -502,7 +502,7 @@ class PdfJsViewerActivity : Activity() {
         override val supportsFind: Boolean = true
         override val supportsScrollNavigation: Boolean = true
         override val supportsZoom: Boolean = true
-        override val supportsPageNavigation: Boolean = true
+        override val supportsPageNavigation: Boolean get() = totalPages > 1
         override val supportsPrint: Boolean get() = !locked
 
         override fun find(query: String, forward: Boolean) {
@@ -532,9 +532,43 @@ class PdfJsViewerActivity : Activity() {
                 null
             )
         }
-        override fun zoomIn() { view.zoomIn() }
-        override fun zoomOut() { view.zoomOut() }
+        override fun zoomIn() {
+            view.evaluateJavascript("window.vwPdfShrink ? window.vwPdfShrink() : 1") { raw ->
+                val shrink = raw?.trim('"')?.toFloatOrNull() ?: 1f
+                if (shrink < 0.999f) {
+                    val next = (shrink * 1.2f).coerceAtMost(1f)
+                    view.evaluateJavascript(
+                        "window.vwPdfShrink($next, window.innerHeight / 2);",
+                        null
+                    )
+                } else {
+                    view.zoomIn()
+                }
+            }
+        }
+
+        override fun zoomOut() {
+            val start = baseScale
+            val current = view.scale
+            if (start > 0f && current > start * 1.02f) {
+                view.zoomOut()
+                return
+            }
+            view.evaluateJavascript("window.vwPdfShrink ? window.vwPdfShrink() : 1") { raw ->
+                val shrink = raw?.trim('"')?.toFloatOrNull() ?: 1f
+                val next = (shrink / 1.2f).coerceAtLeast(0.2f)
+                view.evaluateJavascript(
+                    "window.vwPdfShrink($next, window.innerHeight / 2);",
+                    null
+                )
+            }
+        }
+
         override fun fitToWidth() {
+            view.evaluateJavascript(
+                "window.vwPdfShrink && window.vwPdfShrink(1, window.innerHeight / 2);",
+                null
+            )
             val start = baseScale
             val current = view.scale
             if (start > 0f && current > 0f) view.zoomBy(start / current)
