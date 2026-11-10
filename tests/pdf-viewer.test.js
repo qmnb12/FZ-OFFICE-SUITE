@@ -31,6 +31,9 @@ assert(pdf.includes("isNestedScrollingEnabled = false"),
   "PDF page list must own its vertical scroll gestures");
 assert(pdf.includes("ReaderDashboard") && pdf.includes("shell.setDocumentView(horizontal)"),
   "PDF must use the shared reader dashboard");
+assert(pdf.includes("pageLabel = shell.status") && !pdf.includes('shell.addControl("‹ Prev"') &&
+  !pdf.includes('shell.addControl("−"') && !pdf.includes('shell.addControl("Fit"'),
+  "PDF page movement and zoom must be touch-only, with no redundant buttons");
 assert(dashboard.includes("fun addControl") && dashboard.includes("fun addToolbarAction") &&
   dashboard.includes("val content = FrameLayout") && dashboard.includes("val status = TextView"),
   "Shared dashboard must provide matching toolbar, content, control strip and status row");
