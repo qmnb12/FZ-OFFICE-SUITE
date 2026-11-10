@@ -32,8 +32,8 @@ assert(pdf.includes("ScaleGestureDetector") && pdf.includes("onDoubleTap") &&
   "PDF pinch zoom must observe touches above page scrollers and preview continuously");
 assert(!pdf.includes("recycler.setOnTouchListener"),
   "PDF pinch gesture handling must not depend on the RecyclerView touch listener");
-assert(pdf.includes("ReaderDashboard") && pdf.includes("dashboard.setDocumentView(recycler)"),
-  "PDF reader must retain the shared FZ dashboard");
+assert(pdf.includes("ReaderDashboard") && pdf.includes("dashboard.setDocumentView(zoomHost)"),
+  "PDF reader must retain the shared FZ dashboard and the pinch-aware gesture host");
 assert(pdf.includes("jumpToPage") && pdf.includes("supportsPageNavigation") && pdf.includes("supportsScrollNavigation"),
   "Direct page navigation must be exposed through the shared document controller");
 assert(!pdf.includes('addToolbarAction("Pages"') &&
