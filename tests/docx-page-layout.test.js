@@ -23,6 +23,14 @@ assert(activity.includes('pageLayout.put("widthTwips"'), "page geometry must be 
 assert(viewer.includes("function applyPageLayout(renumber)"), "viewer must apply page geometry through shared layout styles");
 assert(viewer.includes("function makePage(after)") && viewer.includes("function paginate()"),
   "DOCX viewer must create and paginate separate physical pages");
+const manualBreakStart = viewer.indexOf("var marker=children[breakIndex],following=children.slice(breakIndex+1);");
+const manualBreakEnd = viewer.indexOf("if(!overflows(page))break;", manualBreakStart);
+const manualBreakLogic = viewer.slice(manualBreakStart, manualBreakEnd);
+assert(manualBreakStart >= 0 && manualBreakEnd > manualBreakStart &&
+  manualBreakLogic.includes("if(overflows(page))") &&
+  manualBreakLogic.includes("nextPage.appendChild(marker)") &&
+  manualBreakLogic.includes("children=Array.prototype.slice.call(page.children)"),
+  "Explicit Word page breaks must not bypass pagination of overflowing content before the break");
 assert(viewer.includes('numbers[i].textContent="Page "+(i+1)'),
   "DOCX viewer must show a page number for each physical page after pagination");
 assert(viewer.includes('root.style.setProperty("--fz-page-gap",(28*scale)+"px")'),

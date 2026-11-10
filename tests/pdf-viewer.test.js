@@ -53,7 +53,7 @@ assert(appGradle.includes('implementation(project(":third_party:mj_pdf:AndroidPd
 assert(appGradle.includes('implementation(project(":third_party:mj_pdf:PdfiumAndroid"))'),
   "FZ app must directly depend on PdfiumAndroid for PDF thumbnails and metadata");
 
-assert(appGradle.includes('versionCode = 32') && appGradle.includes('versionName = "0.9.2"'),
+assert(appGradle.includes('versionCode = 33') && appGradle.includes('versionName = "0.9.3"'),
   "The MJ PDF integration must advance the app version");
 
 assert(settings.includes('include(":third_party:mj_pdf:PdfiumAndroid")') &&

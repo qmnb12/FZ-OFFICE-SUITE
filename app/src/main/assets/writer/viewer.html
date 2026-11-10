@@ -191,14 +191,36 @@ function processPage(page){
   });
   if(breakIndex>=0){
    var marker=children[breakIndex],following=children.slice(breakIndex+1);
+   // Measure only the content before this explicit Word page break. The
+   // previous implementation moved the tail first, then returned, which
+   // skipped overflow pagination for every block before the manual break.
    marker.remove();
-   if(breakIndex>0&&following.length){
-    var list=pages(),position=list.indexOf(page);
-    var next=list[position+1]||addPageAfter(page);
-    for(var k=following.length-1;k>=0;k--)next.insertBefore(following[k],next.firstChild);
+   for(var f=0;f<following.length;f++)following[f].remove();
+   var previousShell=shellOf(page)&&shellOf(page).previousElementSibling;
+   if(breakIndex===0&&previousShell&&previousShell.hasAttribute("data-overflow-expanded")){
+    // An indivisible oversized block already expanded the previous page.
+    // Continue the next section on this page instead of creating a blank page.
+    for(var expandedIndex=0;expandedIndex<following.length;expandedIndex++)
+     page.appendChild(following[expandedIndex]);
+    children=Array.prototype.slice.call(page.children);
+   }else if(overflows(page)){
+    // Defer the explicit break until the preceding content has been split or
+    // moved onto as many physical pages as it needs. Overflow handlers insert
+    // continuations before this marker, preserving the original document order.
+    var nextList=pages(),nextPosition=nextList.indexOf(page);
+    var nextPage=nextList[nextPosition+1]||addPageAfter(page);
+    nextPage.appendChild(marker);
+    for(var tailIndex=0;tailIndex<following.length;tailIndex++)
+     nextPage.appendChild(following[tailIndex]);
+    children=Array.prototype.slice.call(page.children);
+   }else{
+    if(following.length){
+     var list=pages(),position=list.indexOf(page);
+     var next=list[position+1]||addPageAfter(page);
+     for(var k=following.length-1;k>=0;k--)next.insertBefore(following[k],next.firstChild);
+    }
     return;
    }
-   continue;
   }
   if(!overflows(page))break;
   var last=children[children.length-1];
