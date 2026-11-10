@@ -68,13 +68,6 @@ class ReaderDashboard(
         clipToPadding = false
     }
 
-    val controls = LinearLayout(activity).apply {
-        gravity = Gravity.CENTER_VERTICAL
-        orientation = LinearLayout.HORIZONTAL
-        setPadding(dp(7), dp(5), dp(7), dp(5))
-        setBackgroundColor(SURFACE)
-    }
-
     val status = TextView(activity).apply {
         text = "Ready · Original file is never changed"
         textSize = 10f
@@ -111,7 +104,6 @@ class ReaderDashboard(
 
         root.addView(progress, LinearLayout.LayoutParams(-1, dp(3)))
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(controls, LinearLayout.LayoutParams(-1, dp(50)))
         root.addView(status, LinearLayout.LayoutParams(-1, -2))
     }
 
@@ -130,29 +122,6 @@ class ReaderDashboard(
         }
         toolbar.addView(button, LinearLayout.LayoutParams(dp(42), dp(42)).apply {
             leftMargin = dp(4)
-        })
-        return button
-    }
-
-    fun addControl(
-        label: String,
-        weight: Float = 1f,
-        onClick: () -> Unit
-    ): TextView {
-        val button = TextView(activity).apply {
-            text = label
-            textSize = 12f
-            setTextColor(INK)
-            gravity = Gravity.CENTER
-            isSingleLine = true
-            isClickable = true
-            isFocusable = true
-            background = rounded(0xffeef3f0.toInt(), 10)
-            setOnClickListener { onClick() }
-        }
-        controls.addView(button, LinearLayout.LayoutParams(0, dp(40), weight).apply {
-            leftMargin = dp(3)
-            rightMargin = dp(3)
         })
         return button
     }
