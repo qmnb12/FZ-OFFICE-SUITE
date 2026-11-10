@@ -131,7 +131,7 @@ class FzPdfDocument private constructor(
         const val DEFAULT_MAX_PDF_BYTES = 512L * 1024L * 1024L
         private const val MIN_RENDER_WIDTH_PX = 256
         private const val MAX_RENDER_DIMENSION_PX = 4096
-        private const val MAX_BITMAP_PIXELS = 12_000_000L
+        private const val MAX_BITMAP_PIXELS = 6_000_000L
         private const val COPY_BUFFER_BYTES = 32 * 1024
 
         /**
