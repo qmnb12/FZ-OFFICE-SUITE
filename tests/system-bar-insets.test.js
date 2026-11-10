@@ -11,8 +11,8 @@ const office = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity
 const docxViewer = read("app/src/main/assets/writer/viewer.html");
 
 assert(home.includes("applySafeAreaInsets(scroll)"), "Home screen must apply system-bar insets");
-assert(writer.includes("applySafeAreaInsets(root)"), "DOCX/TXT screen must apply system-bar insets");
-assert(office.includes("applySafeAreaInsets(root)"), "XLSX/PPTX screen must apply system-bar insets");
+assert(writer.includes("applySafeAreaInsets(shell.root)"), "DOCX/TXT dashboard must apply system-bar insets");
+assert(office.includes("applySafeAreaInsets(shell.root)"), "XLSX/PPTX dashboard must apply system-bar insets");
 
 for (const source of [home, writer, office]) {
   assert(source.includes("setOnApplyWindowInsetsListener"), "Missing Android edge-to-edge inset listener");
