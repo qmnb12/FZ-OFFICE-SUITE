@@ -112,11 +112,16 @@ assert(manifest.includes('android:icon="@mipmap/ic_launcher"'), "Launcher icon i
 assert(manifest.includes('android:roundIcon="@mipmap/ic_launcher_round"'), "Round icon is not assigned");
 assert(manifest.includes(".viewer.OfficeViewerActivity"), "Office reader missing from manifest");
 assert(manifest.includes(".viewer.SpreadsheetEditorActivity"), "Spreadsheet editor missing from manifest");
-assert(manifest.includes(".pdf.PdfViewerActivity"), "PDF reader missing from manifest");
+assert(manifest.includes(".pdf.PdfJsViewerActivity"), "Gander PDF.js reader missing from manifest");
+assert(manifest.includes(".pdf.PdfViewerActivity"), "Legacy PDF compatibility fallback missing from manifest");
 assert(!manifest.includes('android.permission.INTERNET'), "Offline app must not request INTERNET");
 assert(gradle.includes("downloadGanderViewerAssets"), "Pinned Gander assets are missing from build");
 assert(gradle.includes("gitBlobSha"), "Viewer assets must be checksum verified");
-assert(gradle.includes('versionName = "0.9.6"'), "Version name must match the viewer-focused build");
-assert(gradle.includes("versionCode = 36"), "Version code must match the viewer-focused build");
+assert(gradle.includes('versionName = "0.9.7"'), "Version name must match the PDF.js viewer build");
+assert(gradle.includes("versionCode = 37"), "Version code must match the PDF.js viewer build");
+assert(gradle.includes("offline-pdf-viewer-1.manifest") &&
+  gradle.includes("offline-pdf-viewer-2.manifest") &&
+  gradle.includes("offline-pdf-viewer-3.manifest"),
+  "All pinned PDF.js assets must join the offline checksum-verified asset task");
 
 console.log("FZ viewer routing, Excel-only edit path, permissions, Hindi fonts and pinned reader assets verified.");
