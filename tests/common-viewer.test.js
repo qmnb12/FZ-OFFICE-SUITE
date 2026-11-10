@@ -57,8 +57,9 @@ assert(pdf.includes("override val supportsScrollNavigation: Boolean = true") &&
   pdf.includes("override fun scrollForward()") && pdf.includes("override fun scrollToEnd()"),
   "PDF must map the same common scroll actions to its native page list");
 assert(pdf.includes("jumpToPageEnd(pageSizes.lastIndex)") &&
-  pdf.includes("viewportHeight - page.height"),
-  "PDF Go to bottom must align the last page's bottom edge, not only jump to its top");
+  pdf.includes("val itemHeight = displayHeight + dp(22)") &&
+  pdf.includes("layout.scrollToPositionWithOffset(target, viewportHeight - itemHeight)"),
+  "PDF Go to bottom must align the full last-page list item at the viewport bottom");
 assert(!writer.includes("private fun showSearch()") && !office.includes("private fun showSearch()"),
   "WebView readers must not keep separate Find dialogs");
 assert(!office.includes("private fun findText("), "Office viewer must not keep a duplicate find implementation");
