@@ -50,7 +50,7 @@ assert(!pdf.includes("openOutputStream(documentUri)"),
 
 assert(appGradle.includes('implementation(project(":third_party:mj_pdf:AndroidPdfViewer:android-pdf-viewer"))'),
   "FZ app must depend on the MJ PDF viewer module");
-assert(appGradle.includes('versionCode = 30') && appGradle.includes('versionName = "0.9.0"'),
+assert(appGradle.includes('versionCode = 31') && appGradle.includes('versionName = "0.9.1"'),
   "The MJ PDF integration must advance the app version");
 
 assert(settings.includes('include(":third_party:mj_pdf:PdfiumAndroid")') &&
