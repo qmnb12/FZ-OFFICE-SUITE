@@ -5,6 +5,7 @@ const read = (p) => fs.readFileSync(p, "utf8");
 const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.kt");
 const fonts = read("app/src/main/java/com/fz/office/fonts/FontManager.kt");
 const codec = read("app/src/main/java/com/fz/office/writer/DocxCodec.kt");
+const viewerHtml = read("app/src/main/assets/writer/viewer.html");
 
 const load = writer.slice(writer.indexOf("private fun loadDocument()"), writer.indexOf("private fun initializeViewer()"));
 assert(!load.includes("FontManager.importBundledFontArchives"),
@@ -30,4 +31,24 @@ const inspect = codec.slice(codec.indexOf("private fun inspectFontNames"),
   codec.indexOf("private fun addFontName"));
 assert(inspect.includes('if (path != "word/document.xml" && path != "word/styles.xml") continue'),
   "Font discovery must stay limited to DOCX body and styles");
-console.log("FZ DOCX viewer startup and font-loading performance checks passed");
+const pagination = viewerHtml.slice(
+  viewerHtml.indexOf("function processPage"),
+  viewerHtml.indexOf("function zoom(")
+);
+assert(pagination.includes("requestAnimationFrame(step)"),
+  "DOCX pagination must yield between page batches instead of blocking the WebView");
+assert(pagination.includes("fz-manual-break"),
+  "Word explicit page breaks must be honoured as real page boundaries");
+assert(viewerHtml.includes('document.fonts.load(fontSpec)') &&
+  viewerHtml.includes("renderDocument(state,false)"),
+  "Hindi font completion must repaginate from the original HTML, not already split pages");
+assert(!viewerHtml.includes("document.fonts.ready.then(function(){paginate()})"),
+  "Font completion must not paginate already-fragmented page DOM");
+
+assert(fontLoad.includes("if (loadedCss.isNotEmpty())") &&
+  fontLoad.includes("applyPendingDocument()"),
+  "A matching custom font may trigger one rebuild after registration");
+assert(fontLoad.includes("else {\n                    updateStatus()"),
+  "A font lookup with no match must not reload and repaginate the whole document");
+
+console.log("FZ DOCX viewer startup, Hindi font loading, and pagination checks passed");
