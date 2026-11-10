@@ -79,6 +79,9 @@ jobs:
       - name: Verify offline PDF reader
         run: node tests/pdf-viewer.test.js
 
+      - name: Verify FZ platform PDF core
+        run: node tests/pdf-kotlin-core.test.js
+
       - name: Restore persistent testing signing key
         env:
           SIGNING_KEY_BASE64: ${{ secrets.SIGNING_KEY_BASE64 }}
