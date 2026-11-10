@@ -47,6 +47,7 @@ class MainActivity : Activity() {
     private var librarySearch: EditText? = null
     private var showStarredOnly = false
     private var libraryQuery = ""
+    private var pendingPickerFilter: String? = null
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -400,7 +401,7 @@ class MainActivity : Activity() {
         tile.addView(title)
         tile.isClickable = true
         tile.isFocusable = true
-        tile.setOnClickListener { openDocumentPicker() }
+        tile.setOnClickListener { openDocumentPicker(type) }
     }
 
     private fun actionButton(value: String, primary: Boolean): TextView =
@@ -412,29 +413,79 @@ class MainActivity : Activity() {
             isFocusable = true
         }
 
-    private fun openDocumentPicker() {
+    private fun pickerMimeTypes(filter: String?): Array<String> = when (filter?.uppercase(Locale.ROOT)) {
+        "DOCX" -> arrayOf(MIME_DOCX)
+        "PDF" -> arrayOf(MIME_PDF)
+        "XLSX" -> arrayOf(
+            MIME_XLSX,
+            "application/vnd.ms-excel",
+            "application/vnd.ms-excel.sheet.macroenabled.12",
+            "application/vnd.ms-excel.sheet.binary.macroenabled.12",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.template",
+            "application/vnd.oasis.opendocument.spreadsheet",
+            "text/csv",
+            "text/comma-separated-values"
+        )
+        "PPTX" -> arrayOf(
+            MIME_PPTX,
+            "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
+            "application/vnd.ms-powerpoint.presentation.macroenabled.12",
+            "application/vnd.openxmlformats-officedocument.presentationml.template"
+        )
+        else -> arrayOf(
+            MIME_DOCX,
+            MIME_XLSX, "application/vnd.ms-excel",
+            "application/vnd.ms-excel.sheet.macroenabled.12",
+            "application/vnd.ms-excel.sheet.binary.macroenabled.12",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.template",
+            "application/vnd.oasis.opendocument.spreadsheet",
+            "text/csv", "text/comma-separated-values",
+            MIME_PPTX, "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
+            "application/vnd.ms-powerpoint.presentation.macroenabled.12",
+            "application/vnd.openxmlformats-officedocument.presentationml.template",
+            MIME_PDF, "text/plain"
+        )
+    }
+
+    private fun openDocumentPicker(filter: String? = null) {
+        pendingPickerFilter = filter?.uppercase(Locale.ROOT)
+        val mimeTypes = pickerMimeTypes(pendingPickerFilter)
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
-            type = "*/*"
-            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf(
-                MIME_DOCX,
-                MIME_XLSX, "application/vnd.ms-excel",
-                "application/vnd.ms-excel.sheet.macroenabled.12",
-                "application/vnd.ms-excel.sheet.binary.macroenabled.12",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.template",
-                "application/vnd.oasis.opendocument.spreadsheet",
-                "text/csv", "text/comma-separated-values",
-                MIME_PPTX, "application/vnd.openxmlformats-officedocument.presentationml.slideshow",
-                "application/vnd.ms-powerpoint.presentation.macroenabled.12",
-                "application/vnd.openxmlformats-officedocument.presentationml.template",
-                MIME_PDF, "text/plain"
-            ))
+            type = if (mimeTypes.size == 1) mimeTypes[0] else "*/*"
+            if (mimeTypes.size > 1) putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         }
         try {
             startActivityForResult(intent, REQUEST_OPEN_DOCUMENT)
         } catch (_: Exception) {
+            pendingPickerFilter = null
             Toast.makeText(this, "No compatible file picker was found.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun matchesPickerFilter(name: String?, mime: String?, filter: String?): Boolean {
+        val lower = name?.lowercase(Locale.ROOT).orEmpty()
+        val type = mime?.lowercase(Locale.ROOT).orEmpty()
+        return when (filter) {
+            "DOCX" -> lower.endsWith(".docx") || MIME_DOCX.equals(type, ignoreCase = true)
+            "PDF" -> lower.endsWith(".pdf") || MIME_PDF.equals(type, ignoreCase = true)
+            "XLSX" -> lower.endsWith(".xlsx") || lower.endsWith(".xls") ||
+                lower.endsWith(".xlsm") || lower.endsWith(".xlsb") || lower.endsWith(".xltx") ||
+                lower.endsWith(".csv") || lower.endsWith(".ods") ||
+                type == MIME_XLSX || type == "application/vnd.ms-excel" ||
+                type == "application/vnd.ms-excel.sheet.macroenabled.12" ||
+                type == "application/vnd.ms-excel.sheet.binary.macroenabled.12" ||
+                type == "application/vnd.openxmlformats-officedocument.spreadsheetml.template" ||
+                type == "application/vnd.oasis.opendocument.spreadsheet" ||
+                type == "text/csv" || type == "text/comma-separated-values"
+            "PPTX" -> lower.endsWith(".pptx") || lower.endsWith(".ppsx") ||
+                lower.endsWith(".pptm") || lower.endsWith(".potx") ||
+                type == MIME_PPTX ||
+                type == "application/vnd.openxmlformats-officedocument.presentationml.slideshow" ||
+                type == "application/vnd.ms-powerpoint.presentation.macroenabled.12" ||
+                type == "application/vnd.openxmlformats-officedocument.presentationml.template"
+            else -> true
         }
     }
 
@@ -466,11 +517,18 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Android API; retained for compatibility with the existing document picker flow")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        val resultIntent = data ?: return
-        val uri = resultIntent.data ?: return
-        if (requestCode != REQUEST_OPEN_DOCUMENT || resultCode != RESULT_OK) return
+        if (requestCode != REQUEST_OPEN_DOCUMENT) return
+        val requestedFilter = pendingPickerFilter
+        pendingPickerFilter = null
+        if (resultCode != RESULT_OK) return
+        val uri = data?.data ?: return
         val name = queryDisplayName(uri)
         val mime = contentResolver.getType(uri)
+        if (!matchesPickerFilter(name, mime, requestedFilter)) {
+            val expected = requestedFilter?.lowercase(Locale.ROOT) ?: "supported"
+            Toast.makeText(this, "Choose only $expected files from this picker.", Toast.LENGTH_LONG).show()
+            return
+        }
         if (!isSupportedDocument(name, mime, uri)) {
             Toast.makeText(
                 this, "Choose DOCX/TXT, supported spreadsheets, presentations or PDF.",

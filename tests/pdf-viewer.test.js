@@ -27,8 +27,11 @@ assert(pdf.includes("supportsFind: Boolean = Build.VERSION.SDK_INT >= 35") &&
   "PDF Find must use Android 15+ text search and highlight the current match");
 assert(pdf.includes("renderPage(page, renderWidth)") && pdf.includes("bitmapCache"),
   "PDF page rendering must be demand-driven and cached");
-assert(pdf.includes("ScaleGestureDetector") && pdf.includes("onDoubleTap"),
-  "Pinch zoom and double-tap zoom must be available");
+assert(pdf.includes("ScaleGestureDetector") && pdf.includes("onDoubleTap") &&
+  pdf.includes("class PdfGestureHost") && pdf.includes("applyPreviewZoom(previewZoom)"),
+  "PDF pinch zoom must observe touches above page scrollers and preview continuously");
+assert(!pdf.includes("recycler.setOnTouchListener"),
+  "PDF pinch gesture handling must not depend on the RecyclerView touch listener");
 assert(pdf.includes("ReaderDashboard") && pdf.includes("dashboard.setDocumentView(recycler)"),
   "PDF reader must retain the shared FZ dashboard");
 assert(pdf.includes("jumpToPage") && pdf.includes("supportsPageNavigation") && pdf.includes("supportsScrollNavigation"),

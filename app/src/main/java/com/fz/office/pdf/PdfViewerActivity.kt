@@ -117,9 +117,9 @@ class PdfViewerActivity : Activity() {
                 updatePageStatus()
             }
         })
-        installZoomGestures(recycler)
+        val zoomHost = PdfGestureHost(this, recycler)
 
-        dashboard.setDocumentView(recycler)
+        dashboard.setDocumentView(zoomHost)
         DocumentViewerController(
             this,
             dashboard,
@@ -208,11 +208,15 @@ class PdfViewerActivity : Activity() {
         }
     }
 
-    private fun installZoomGestures(recycler: RecyclerView) {
-        var startZoom = zoomScale
-        var previewZoom = zoomScale
-        val scaleDetector = ScaleGestureDetector(
-            this,
+    private inner class PdfGestureHost(
+        context: Context,
+        private val recycler: RecyclerView
+    ) : FrameLayout(context) {
+        private var startZoom = zoomScale
+        private var previewZoom = zoomScale
+
+        private val scaleDetector = ScaleGestureDetector(
+            context,
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                     startZoom = zoomScale
@@ -222,6 +226,7 @@ class PdfViewerActivity : Activity() {
 
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
                     previewZoom = (startZoom * detector.scaleFactor).coerceIn(1f, 6f)
+                    applyPreviewZoom(previewZoom)
                     return true
                 }
 
@@ -230,8 +235,9 @@ class PdfViewerActivity : Activity() {
                 }
             }
         )
-        val doubleTapDetector = android.view.GestureDetector(
-            this,
+
+        private val doubleTapDetector = android.view.GestureDetector(
+            context,
             object : android.view.GestureDetector.SimpleOnGestureListener() {
                 override fun onDoubleTap(event: android.view.MotionEvent): Boolean {
                     setZoom(if (zoomScale < 1.4f) 2f else 1f)
@@ -239,10 +245,41 @@ class PdfViewerActivity : Activity() {
                 }
             }
         )
-        recycler.setOnTouchListener { _, event ->
-            val scaling = scaleDetector.onTouchEvent(event)
-            val doubleTap = doubleTapDetector.onTouchEvent(event)
-            scaling || scaleDetector.isInProgress || doubleTap
+
+        init {
+            isClickable = true
+            addView(
+                recycler,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
+            )
+        }
+
+        override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+            // Observe touches before child HorizontalScrollViews can consume them.
+            scaleDetector.onTouchEvent(event)
+            doubleTapDetector.onTouchEvent(event)
+            return super.dispatchTouchEvent(event)
+        }
+
+        override fun onInterceptTouchEvent(event: android.view.MotionEvent): Boolean {
+            // Intercept only a real multi-touch scale; one-finger page scrolling remains native.
+            return scaleDetector.isInProgress
+        }
+
+        override fun onTouchEvent(event: android.view.MotionEvent): Boolean = true
+    }
+
+    private fun applyPreviewZoom(value: Float) {
+        val baseZoom = zoomScale.coerceAtLeast(0.01f)
+        val factor = value / baseZoom
+        for (index in 0 until (recyclerView?.childCount ?: 0)) {
+            val pageScroller = recyclerView?.getChildAt(index) as? HorizontalScrollView ?: continue
+            val pageContent = pageScroller.getChildAt(0) ?: continue
+            pageContent.scaleX = factor
+            pageContent.scaleY = factor
         }
     }
 
@@ -528,6 +565,8 @@ class PdfViewerActivity : Activity() {
                 .coerceAtMost(16_000.0)
                 .roundToInt()
                 .coerceAtLeast(1)
+            holder.pageContent.scaleX = 1f
+            holder.pageContent.scaleY = 1f
             holder.pageContent.layoutParams = FrameLayout.LayoutParams(
                 displayWidth,
                 displayHeight,

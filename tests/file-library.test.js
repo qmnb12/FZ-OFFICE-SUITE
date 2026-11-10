@@ -8,6 +8,12 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const main = read("app/src/main/java/com/fz/office/MainActivity.kt");
 const store = read("app/src/main/java/com/fz/office/library/RecentDocumentsStore.kt");
 assert(main.includes("addLibrarySection(page)"), "Home screen must include the local library");
+assert(main.includes("openDocumentPicker(type)"), "Each format tile must open its own filtered picker");
+assert(main.includes('"DOCX" -> arrayOf(MIME_DOCX)') &&
+  main.includes('"PDF" -> arrayOf(MIME_PDF)'),
+  "DOCX and PDF tiles must filter the system picker to only their own MIME type");
+assert(main.includes("matchesPickerFilter(name, mime, requestedFilter)"),
+  "Picker results must be checked against the selected format as a fallback");
 assert(main.includes("Search recent documents"), "Recent documents must be searchable");
 assert(main.includes('libraryTabButton("Recent files"'), "Recent files tab is missing");
 assert(main.includes('libraryTabButton("Starred files"'), "Starred files tab is missing");
