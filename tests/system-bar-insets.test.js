@@ -21,10 +21,10 @@ for (const source of [home, writer, office]) {
   assert(source.includes("consumeSystemWindowInsets"), "Insets should not be applied twice by child views");
 }
 
-assert(docxViewer.includes('page.style.width=width+"px"'), "DOCX page must retain its real paper width before scaling");
-assert(docxViewer.includes('page.style.height=height+"px"'), "DOCX page must retain its real paper height before scaling");
-assert(docxViewer.includes('page.style.transform="scale("+scale+")"'), "Whole DOCX page must scale uniformly to fit the viewport");
+assert(docxViewer.includes('root.style.setProperty("--fz-page-width",width+"px")'), "DOCX page must retain its real paper width before scaling");
+assert(docxViewer.includes('root.style.setProperty("--fz-page-height",height+"px")'), "DOCX page must retain its real paper height before scaling");
+assert(docxViewer.includes('root.style.setProperty("--fz-page-transform","scale("+scale+")")'), "Whole DOCX page must scale uniformly to fit the viewport");
 assert(docxViewer.includes('Math.min(.92,available/Math.max(1,width))*zoomLevel'), "Viewer must start with screen-fit zoom while retaining page dimensions");
-assert(docxViewer.includes('shell.style.marginBottom=(28*scale)+"px"'), "Physical pages must have a visible gap");
+assert(docxViewer.includes('root.style.setProperty("--fz-page-gap",(28*scale)+"px")'), "Physical pages must have a visible gap");
 
 console.log("System-bar safe areas and DOCX whole-page zoom checks passed.");
