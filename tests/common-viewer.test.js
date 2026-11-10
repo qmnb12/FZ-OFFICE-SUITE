@@ -11,9 +11,12 @@ const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.kt");
 const office = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity.kt");
 const pdf = read("app/src/main/java/com/fz/office/pdf/PdfViewerActivity.kt");
 
-for (const feature of ["Find", "Scroll up", "Scroll down", "Go to top", "Go to bottom", "Zoom in", "Zoom out", "Fit to width", "Go to page", "Print", "Share"]) {
+for (const feature of ["Find", "Scroll up", "Scroll down", "Go to top", "Go to bottom", "Zoom in", "Zoom out", "Fit to width", "Go to page", "Share"]) {
   assert(controller.includes('actions.add("' + feature + '"'), "Shared controller must own " + feature);
 }
+assert(controller.includes("surface.supportsPrint") &&
+  controller.includes("actions.add(surface.printLabel"),
+  "Print action must be shown with the renderer-specific label");
 assert(controller.includes("class DocumentViewerController"), "The one common document controller must exist");
 assert(controller.includes("interface DocumentViewerSurface"), "All formats must implement the common surface contract");
 assert(controller.includes("class WebViewDocumentSurface"), "WebView-based formats must reuse one surface adapter");
