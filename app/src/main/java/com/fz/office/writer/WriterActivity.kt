@@ -97,7 +97,6 @@ class WriterActivity : Activity() {
                 showPageSizeOptions()
             }
         }
-        shell.addToolbarAction("Find", "Find text in document") { showSearch() }
 
         val documentWebView = WebView(this).apply {
             setBackgroundColor(0xFFF1F4F2.toInt())
