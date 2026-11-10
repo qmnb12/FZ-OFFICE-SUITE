@@ -293,8 +293,16 @@ class PdfViewerActivity : Activity() {
         var scalingGestureActive = false
         list.setOnTouchListener { _, event ->
             if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN &&
-                event.pointerCount > 1
-            ) scalingGestureActive = true
+                event.pointerCount > 1 && !scalingGestureActive
+            ) {
+                scalingGestureActive = true
+                // End RecyclerView's one-finger drag before the pinch detector owns
+                // the rest of this pointer stream; prevents mixed scroll/scale motion.
+                val cancel = MotionEvent.obtain(event)
+                cancel.action = MotionEvent.ACTION_CANCEL
+                list.onTouchEvent(cancel)
+                cancel.recycle()
+            }
 
             val handled = detector.onTouchEvent(event)
             when (event.actionMasked) {
