@@ -34,12 +34,14 @@ assert(!pdf.includes("android.graphics.pdf.PdfRenderer") &&
 
 assert(pdf.includes("ReaderDashboard") && pdf.includes("dashboard.setDocumentView(view)"),
   "PDF reader must retain the shared FZ dashboard");
-assert(pdf.includes("showPages") && pdf.includes("requestThumbnail"),
-  "The page grid must retain generated page previews");
+assert(!pdf.includes("showPages") && !pdf.includes("requestThumbnail") &&
+  !pdf.includes('addToolbarAction("Pages"'),
+  "PDF page previews and the Pages toolbar option must stay removed");
 assert(pdf.includes("showGoToPage") && pdf.includes("jumpToPage"),
   "Direct page navigation must remain available");
-assert(pdf.includes("toggleBookmark") && pdf.includes("showBookmarks"),
-  "Per-document bookmarks must remain available");
+assert(!pdf.includes("toggleBookmark") && !pdf.includes("showBookmarks") &&
+  !pdf.includes("bookmarks_") && !pdf.includes("Bookmark current page"),
+  "PDF bookmarks and their toolbar/storage code must stay removed");
 assert(pdf.includes("shareDocument"), "PDF sharing must remain available");
 assert(pdf.includes("copyToPrivateCache") && pdf.includes("MAX_PDF_BYTES"),
   "Non-seekable providers must keep a size-bounded private-cache fallback");
