@@ -15,6 +15,8 @@ const fontCenter = read("app/src/main/java/com/fz/office/fonts/FontCenterActivit
 const docxCodec = read("app/src/main/java/com/fz/office/writer/DocxCodec.kt");
 const manifest = read("app/src/main/AndroidManifest.xml");
 const gradle = read("app/build.gradle.kts");
+const ganderAssets = read("app/vendor/offline-viewer-1.manifest") +
+  read("app/vendor/offline-viewer-2.manifest");
 
 for (const ext of [".pdf", ".docx", ".txt", ".xlsx", ".xls", ".xlsm", ".xlsb",
   ".xltx", ".csv", ".ods", ".pptx", ".ppsx", ".pptm", ".potx"]) {
@@ -81,8 +83,8 @@ assert(viewer.includes("window.vwSheetZoom(z*1.2") &&
 assert(viewer.includes("document.querySelectorAll('#result .slide').length") &&
   viewer.includes("scrollIntoView({behavior:'smooth',block:'start',inline:'nearest'})"),
   "PowerPoint Tools must expose slide count and navigate to the requested slide");
-assert(gradle.includes('"output" to "viewer/xlsx.js"') &&
-  gradle.includes('"output" to "viewer/pptx.js"'),
+assert(ganderAssets.includes("viewer/xlsx.js") &&
+  ganderAssets.includes("viewer/pptx.js"),
   "Gander spreadsheet and presentation gesture handlers must remain bundled");
 assert(!fs.existsSync(path.join(root, "app/src/main/java/com/fz/office/writer/WriterEditorActivity.java")),
   "Unused DOCX editor implementation must not ship");
