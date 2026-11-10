@@ -83,4 +83,14 @@ assert(viewer.includes('function markOverflow') &&
 assert(viewer.includes('data-fz-keep-lines') && viewer.includes('data-fz-keep-next'),
   "Pagination must respect paragraph keep rules");
 assert(!viewer.includes("overflow-wrap:anywhere"), "avoid breaking every word at arbitrary positions");
+const splitStart = viewer.indexOf("function splitLongBlock");
+const splitEnd = viewer.indexOf("function splitTableOverflow", splitStart);
+const splitLogic = viewer.slice(splitStart, splitEnd);
+assert(splitLogic.includes("keepTogether") &&
+  splitLogic.includes("prefixFits(page,block,map,map.total)"),
+  "keepLines/keepNext must be respected when the paragraph fits, but oversized paragraphs must still split");
+assert(viewer.includes("window.getComputedStyle(page)") &&
+  viewer.includes('"fontFamily","fontSize","fontWeight","fontStyle","lineHeight"'),
+  "split measurements must use the rendered page typography, including the actual DOCX font");
+
 console.log("DOCX page-layout and lightweight layout-engine regression checks passed.");
