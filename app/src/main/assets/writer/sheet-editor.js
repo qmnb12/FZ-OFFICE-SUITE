@@ -13,7 +13,7 @@ function touchDistance(touches){
 function applySheetZoom(requested,focusX,focusY){
  var table=gridWrap.querySelector("table");
  if(!table)return;
- var next=Math.max(.65,Math.min(2.5,Math.round(requested*20)/20));
+ var next=Math.max(.3,Math.min(2.5,Math.round(requested*20)/20));
  if(Math.abs(next-sheetZoom)<.01)return;
  var ratio=next/sheetZoom;
  var left=gridWrap.scrollLeft,top=gridWrap.scrollTop;
