@@ -53,9 +53,16 @@ private class PdfHorizontalPanScrollView(context: Context) : HorizontalScrollVie
     private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private var downX = 0f
     private var downY = 0f
+    private var horizontalDragging = false
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
         if (!horizontalPanEnabled) return false
+        if (horizontalDragging) {
+            if (event.actionMasked == MotionEvent.ACTION_UP ||
+                event.actionMasked == MotionEvent.ACTION_CANCEL
+            ) horizontalDragging = false
+            return true
+        }
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 downX = event.x
@@ -66,11 +73,18 @@ private class PdfHorizontalPanScrollView(context: Context) : HorizontalScrollVie
             MotionEvent.ACTION_MOVE -> {
                 val dx = kotlin.math.abs(event.x - downX)
                 val dy = kotlin.math.abs(event.y - downY)
+                // A vertical swipe always belongs to RecyclerView, even when zoomed.
                 if (dy > touchSlop && dy >= dx) return false
-                if (dx > touchSlop && dx > dy) return super.onInterceptTouchEvent(event)
+                if (dx > touchSlop && dx > dy) {
+                    horizontalDragging = super.onInterceptTouchEvent(event)
+                    return horizontalDragging
+                }
                 return false
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> return false
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                horizontalDragging = false
+                return false
+            }
         }
         return false
     }
