@@ -118,7 +118,8 @@ class WriterActivity : Activity() {
 
         documentWebView.setFindListener { _, numberOfMatches, activeMatchOrdinal ->
             statusView?.text = if (numberOfMatches > 0) {
-                "Match " + (activeMatchOrdinal + 1) + " of " + numberOfMatches
+                val activeMatch = activeMatchOrdinal.toString().toIntOrNull()?.plus(1) ?: 1
+                "Match " + activeMatch + " of " + numberOfMatches
             } else "No matches found"
         }
         documentWebView.webViewClient = object : WebViewClient() {
