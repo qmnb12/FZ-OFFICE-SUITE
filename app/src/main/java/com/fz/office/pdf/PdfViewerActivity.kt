@@ -339,12 +339,16 @@ class PdfViewerActivity : Activity() {
                     if (isFinishing || isDestroyed) return@runOnUiThread
                     pageCount = count
                     pageRatios = FloatArray(count) { DEFAULT_PAGE_ASPECT }
+                    pageIndex = pageIndex.coerceIn(0, count - 1)
+                    // Set the render window before attaching the adapter. This also covers
+                    // restoring a saved position deep inside a long PDF.
+                    visibleStartPage = pageIndex
+                    visibleEndPage = minOf(count - 1, pageIndex + 5)
                     pageAdapter = PdfPageAdapter()
                     recycler?.adapter = pageAdapter
                     updateRecyclerWidth()
                     progress?.visibility = View.GONE
                     status?.text = count.toString() + " pages · Offline · Read only"
-                    pageIndex = pageIndex.coerceIn(0, count - 1)
                     recycler?.post { jumpToPage(pageIndex, false) }
                 }
             } catch (exception: Exception) {
@@ -640,8 +644,13 @@ class PdfViewerActivity : Activity() {
         pageIndex = target
         updatePageLabel()
         val list = recycler ?: return
-        if (animate) list.smoothScrollToPosition(target)
-        else {
+        if (animate) {
+            list.smoothScrollToPosition(target)
+        } else {
+            // A direct jump does not necessarily dispatch onScrolled, so update the
+            // render window before RecyclerView binds the destination pages.
+            visibleStartPage = target
+            visibleEndPage = minOf(pageCount - 1, target + 5)
             val manager = list.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return
             manager.scrollToPositionWithOffset(target, dp(12))
         }
