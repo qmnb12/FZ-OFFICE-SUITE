@@ -434,9 +434,8 @@ object DocxCodec {
         imageRelationships: Map<String, String>,
         styleFonts: Map<String, String>
     ) {
-        var alignment = "left"
         var paragraphStyleId: String? = null
-        var pageBreakBefore = false
+        var properties = ParagraphProperties()
         val content = StringBuilder()
 
         while (true) {
@@ -447,10 +446,8 @@ object DocxCodec {
 
             when (parser.name) {
                 "pPr" -> {
-                    val properties = readParagraphProperties(parser)
-                    alignment = properties.alignment
+                    properties = readParagraphProperties(parser)
                     paragraphStyleId = properties.styleId
-                    pageBreakBefore = properties.pageBreakBefore
                 }
                 "r" -> content.append(
                     readRun(
@@ -467,13 +464,25 @@ object DocxCodec {
             }
         }
 
+        val pageBreakBefore = properties.pageBreakBefore ||
+            resolveParagraphFlag(styleFonts, paragraphStyleId, "pageBreak:")
+        val keepNext = properties.keepNext ||
+            resolveParagraphFlag(styleFonts, paragraphStyleId, "keepNext:")
+        val keepLines = properties.keepLines ||
+            resolveParagraphFlag(styleFonts, paragraphStyleId, "keepLines:")
         if (pageBreakBefore) {
             html.append("<div class='fz-manual-break' data-fz-page-break='true'></div>")
         }
+
+        val css = StringBuilder(resolveParagraphCss(styleFonts, paragraphStyleId))
+            .append(properties.css)
+        properties.alignment?.let { css.append("text-align:").append(it).append(";") }
         html.append("<p")
-        if (alignment != "left") {
-            html.append(" style=\"text-align:").append(alignment).append("\"")
+        if (css.isNotEmpty()) {
+            html.append(" style=\"").append(escapeHtml(css.toString())).append("\"")
         }
+        if (keepNext) html.append(" data-fz-keep-next=\"true\"")
+        if (keepLines) html.append(" data-fz-keep-lines=\"true\"")
         html.append(">")
         if (content.isEmpty()) html.append("<br/>") else html.append(content)
         html.append("</p>")
@@ -502,27 +511,40 @@ object DocxCodec {
     }
 
     private data class ParagraphProperties(
-        var alignment: String = "left",
+        var alignment: String? = null,
         var styleId: String? = null,
-        var pageBreakBefore: Boolean = false
+        var pageBreakBefore: Boolean = false,
+        var keepNext: Boolean = false,
+        var keepLines: Boolean = false,
+        var css: String = ""
     )
 
     @Throws(Exception::class)
     private fun readParagraphProperties(parser: XmlPullParser): ParagraphProperties {
         val properties = ParagraphProperties()
+        val css = StringBuilder()
+        fun twips(raw: String?): Float? =
+            raw?.toFloatOrNull()?.takeIf { it.isFinite() && it in -144000f..144000f }
+                ?.div(15f)
+
         while (true) {
             val event = parser.next()
-            if (event == XmlPullParser.END_DOCUMENT) return properties
-            if (event == XmlPullParser.END_TAG && parser.name == "pPr") return properties
+            if (event == XmlPullParser.END_DOCUMENT) {
+                properties.css = css.toString()
+                return properties
+            }
+            if (event == XmlPullParser.END_TAG && parser.name == "pPr") {
+                properties.css = css.toString()
+                return properties
+            }
             if (event != XmlPullParser.START_TAG) continue
             when (parser.name) {
                 "jc" -> {
-                    val value = attribute(parser, "val")
-                    properties.alignment = when (value) {
+                    properties.alignment = when (attribute(parser, "val")) {
                         "center" -> "center"
                         "right", "end" -> "right"
                         "both", "distribute" -> "justify"
-                        else -> properties.alignment
+                        else -> "left"
                     }
                     skipElement(parser)
                 }
@@ -532,6 +554,48 @@ object DocxCodec {
                 }
                 "pageBreakBefore" -> {
                     properties.pageBreakBefore = enabled(attribute(parser, "val"))
+                    skipElement(parser)
+                }
+                "keepNext" -> {
+                    properties.keepNext = enabled(attribute(parser, "val"))
+                    skipElement(parser)
+                }
+                "keepLines" -> {
+                    properties.keepLines = enabled(attribute(parser, "val"))
+                    skipElement(parser)
+                }
+                "spacing" -> {
+                    twips(attribute(parser, "before"))?.let {
+                        css.append("margin-top:").append(it).append("px;")
+                    }
+                    twips(attribute(parser, "after"))?.let {
+                        css.append("margin-bottom:").append(it).append("px;")
+                    }
+                    val line = attribute(parser, "line")?.toFloatOrNull()
+                        ?.takeIf { it.isFinite() && it > 0f }
+                    if (line != null) {
+                        when (attribute(parser, "lineRule") ?: "auto") {
+                            "auto" -> css.append("line-height:").append(line / 240f).append(";")
+                            "exact" -> css.append("line-height:").append(line / 15f).append("px;")
+                            "atLeast" -> css.append("line-height:max(1.15em,")
+                                .append(line / 15f).append("px);")
+                        }
+                    }
+                    skipElement(parser)
+                }
+                "ind" -> {
+                    twips(attribute(parser, "left"))?.let {
+                        css.append("margin-left:").append(it).append("px;")
+                    }
+                    twips(attribute(parser, "right"))?.let {
+                        css.append("margin-right:").append(it).append("px;")
+                    }
+                    val first = twips(attribute(parser, "firstLine"))
+                    val hanging = twips(attribute(parser, "hanging"))
+                    when {
+                        first != null -> css.append("text-indent:").append(first).append("px;")
+                        hanging != null -> css.append("text-indent:-").append(hanging).append("px;")
+                    }
                     skipElement(parser)
                 }
                 else -> skipElement(parser)
