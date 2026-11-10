@@ -24,6 +24,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import com.fz.office.fonts.FontManager
+import com.fz.office.viewer.ReaderDashboard
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.IOException
@@ -103,47 +104,19 @@ class OfficeViewerActivity : Activity() {
     private fun buildViewer() {
         window.statusBarColor = 0xff151d1e.toInt()
         window.navigationBarColor = 0xff151d1e.toInt()
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xfff3f1ec.toInt())
-        }
 
-        val toolbar = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(7), dp(6), dp(8), dp(6))
-            setBackgroundColor(Color.WHITE)
+        val subtitle = when {
+            presentation -> "POWERPOINT · VIEW ONLY"
+            editableXlsx -> "SPREADSHEET · EDITABLE COPY"
+            else -> "SPREADSHEET · VIEW ONLY"
         }
-        root.addView(toolbar, LinearLayout.LayoutParams(-1, dp(58)))
-
-        val back = control("‹", 28, 0xff263c38.toInt()).apply { gravity = Gravity.CENTER }
-        toolbar.addView(back, LinearLayout.LayoutParams(dp(40), dp(44)))
-        back.setOnClickListener { finish() }
-
-        val titleColumn = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(5), 0, dp(3), 0)
-        }
-        toolbar.addView(titleColumn, LinearLayout.LayoutParams(0, -1, 1f))
-
-        val title = control(documentName, 13, 0xff172c28.toInt()).apply {
-            isSingleLine = true
-            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
-        }
-        titleColumn.addView(title)
-        val format = control(
-            if (presentation) "POWERPOINT · VIEW ONLY"
-            else if (editableXlsx) "SPREADSHEET · EDITABLE COPY"
-            else "SPREADSHEET · VIEW ONLY",
-            9, 0xff60776e.toInt()
-        ).apply { letterSpacing = 0.07f }
-        titleColumn.addView(format)
+        val shell = ReaderDashboard(this, documentName, subtitle) { finish() }
+        progress = shell.progress
+        status = shell.status
 
         if (editableXlsx && !presentation) {
-            val edit = toolbarControl("Edit")
-            toolbar.addView(edit, LinearLayout.LayoutParams(dp(48), dp(40)))
-            edit.setOnClickListener {
-                val uri = documentUri ?: return@setOnClickListener
+            shell.addToolbarAction("Edit", "Edit a copy of this workbook") {
+                val uri = documentUri ?: return@addToolbarAction
                 val editorIntent = Intent(this, SpreadsheetEditorActivity::class.java).apply {
                     putExtra(SpreadsheetEditorActivity.EXTRA_DOCUMENT_URI, uri.toString())
                     putExtra(SpreadsheetEditorActivity.EXTRA_DOCUMENT_NAME, documentName)
@@ -152,23 +125,7 @@ class OfficeViewerActivity : Activity() {
                 startActivity(editorIntent)
             }
         }
-
-        val find = toolbarControl("Find")
-        toolbar.addView(find, LinearLayout.LayoutParams(dp(48), dp(40)))
-        find.setOnClickListener { showSearch() }
-
-        val zoomOut = toolbarControl("−")
-        toolbar.addView(zoomOut, LinearLayout.LayoutParams(dp(34), dp(40)))
-        zoomOut.setOnClickListener { webView?.zoomOut() }
-
-        val zoomIn = toolbarControl("+")
-        toolbar.addView(zoomIn, LinearLayout.LayoutParams(dp(34), dp(40)))
-        zoomIn.setOnClickListener { webView?.zoomIn() }
-
-        progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            isIndeterminate = true
-        }
-        root.addView(progress, LinearLayout.LayoutParams(-1, dp(3)))
+        shell.addToolbarAction("Find", "Find text in document") { showSearch() }
 
         val browser = WebView(this).apply {
             setBackgroundColor(0xffece8df.toInt())
@@ -252,21 +209,28 @@ class OfficeViewerActivity : Activity() {
             }
         }
 
-        root.addView(browser, LinearLayout.LayoutParams(-1, 0, 1f))
-        status = control("Preparing offline viewer…", 10, 0xff60766e.toInt()).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(13), dp(8), dp(13), dp(8))
-            setBackgroundColor(Color.WHITE)
-        }
-        root.addView(status, LinearLayout.LayoutParams(-1, -2))
-        setContentView(root)
-        applySafeAreaInsets(root)
+        shell.addControl("‹ Prev", 1.05f) { browser.pageUp(false) }
+        shell.addControl("Top", 0.9f) { browser.scrollTo(0, 0) }
+        shell.addControl("Next ›", 1.05f) { browser.pageDown(false) }
+        shell.addControl("−", 0.62f) { browser.zoomOut() }
+        shell.addControl("Fit", 0.72f) { fitViewer() }
+        shell.addControl("+", 0.62f) { browser.zoomIn() }
+
+        shell.setDocumentView(browser)
+        setContentView(shell.root)
+        applySafeAreaInsets(shell.root)
 
         val viewerUrl = "https://" + ASSET_HOST + "/assets/viewer/" + pageName +
             "?name=" + Uri.encode(documentName) +
             "&ext=" + Uri.encode(extension) +
             "&ranged=0"
         browser.loadUrl(viewerUrl)
+    }
+
+    private fun fitViewer() {
+        val browser = webView ?: return
+        val current = browser.scale
+        if (current > 0f) browser.zoomBy(1f / current)
     }
 
     private fun intercept(uri: Uri?): WebResourceResponse {
