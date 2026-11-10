@@ -4,6 +4,7 @@ const codec = fs.readFileSync("app/src/main/java/com/fz/office/writer/DocxCodec.
 const activity = fs.readFileSync("app/src/main/java/com/fz/office/writer/WriterActivity.kt", "utf8");
 const viewer = fs.readFileSync("app/src/main/assets/writer/viewer.html", "utf8");
 const vm = require("vm");
+const cIncludes = (source, snippet) => source.includes(snippet);
 const scriptStart = viewer.indexOf("<script>");
 const scriptEnd = viewer.indexOf("</script>", scriptStart);
 assert(scriptStart >= 0 && scriptEnd > scriptStart, "Word viewer must contain its layout engine script");
@@ -14,6 +15,9 @@ assert(codec.includes('"pgSz" -> {'), "DOCX parser must read page dimensions");
 assert(codec.includes('"pgMar" -> {'), "DOCX parser must read page margins");
 assert(codec.includes('orientation.equals("landscape", true)'), "landscape orientation must be honored");
 assert(codec.includes("boundedTwips"), "untrusted dimensions and margins must be bounded");
+assert(codec.includes("var inFirstSection = false") &&
+  cIncludes(codec, "parser.name == \"sectPr\" && !inFirstSection"),
+  "Original page geometry must come from the first DOCX section, not the last section's settings");
 assert(activity.includes("pendingPageLayout = loadedPageLayout"), "page layout must survive async DOCX loading");
 assert(activity.includes('pageLayout.put("widthTwips"'), "page geometry must be sent to the viewer");
 assert(viewer.includes("function applyPageLayout(renumber)"), "viewer must apply page geometry through shared layout styles");
@@ -56,7 +60,7 @@ assert(codec.includes('"spacing" ->') && codec.includes('"ind" ->') &&
 assert(codec.includes('"keepNext" ->') && codec.includes('"keepLines" ->') &&
   codec.includes('data-fz-keep-next') && codec.includes('data-fz-keep-lines'),
   "Word keep-with-next and keep-lines rules must reach the page layout engine");
-assert(viewer.includes('font-size:11pt;line-height:1.15') &&
+assert(viewer.includes('font-size:11pt;line-height:1.2') &&
   viewer.includes('.fz-page p,.fz-page div{margin:0}'),
   "Word page defaults must use Word-like 11pt typography and compact normal line spacing");
 assert(viewer.includes('function splitTableOverflow') &&
