@@ -258,7 +258,6 @@ class WriterActivity : Activity() {
         if (!pageReady || viewer == null || !documentLoaded ||
             documentFontsLoading || documentFontsResolved
         ) return
-        documentFontsLoading = true
 
         val requested = ArrayList(pendingDocumentFonts)
         val defaultFamily = FontManager.getDefaultFont(this)
@@ -266,6 +265,32 @@ class WriterActivity : Activity() {
         val legacyName = pendingLegacyFontName
         if (legacyName.isNotBlank()) requested.add(legacyName)
 
+        // Bundled Hindi faces and common Latin Office fonts cannot be satisfied by
+        // a user-imported Devanagari font. Avoid scanning hundreds of local fonts
+        // for Arial/Calibri/etc. on every ordinary DOCX open.
+        val bundledFamilies = FontManager.getBundledFonts()
+            .map { normalizeFontFamily(it.cssFamily) }.toHashSet()
+        val systemFamilies = setOf(
+            "arial", "arialunicodems", "calibri", "cambri", "cambria",
+            "aptos", "aptosdisplay", "timesnewroman", "georgia", "tahoma",
+            "verdana", "trebuchetms", "couriernew", "helvetica",
+            "sansserif", "serif", "monospace", "symbol", "wingdings"
+        )
+        val candidates = requested.distinctBy { normalizeFontFamily(it) }
+            .filter {
+                val family = normalizeFontFamily(it)
+                family.isNotEmpty() && family !in bundledFamilies &&
+                    family !in systemFamilies
+            }
+
+        if (candidates.isEmpty()) {
+            documentFontsResolved = true
+            updateStatus()
+            return
+        }
+
+        documentFontsLoading = true
+        updateStatus()
         ioExecutor.execute {
             var customCss = ""
             var legacyLoaded = false
@@ -274,7 +299,7 @@ class WriterActivity : Activity() {
                     FontManager.importBundledFontArchives(this@WriterActivity)
                 }
                 customCss = FontManager.getCustomFontCssForFamilies(
-                    this@WriterActivity, requested
+                    this@WriterActivity, candidates
                 )
                 if (legacyName.isNotBlank()) {
                     val declaration = "font-family:" + JSONObject.quote(legacyName) + ";"
@@ -291,18 +316,24 @@ class WriterActivity : Activity() {
                 pendingLegacyFontLoaded = loadedLegacy
                 val web = viewer
                 if (isFinishing || web == null) return@runOnUiThread
+
                 if (loadedCss.isNotEmpty()) {
                     web.evaluateJavascript(
                         "FZViewer.registerFonts(" + JSONObject.quote(loadedCss) + ");",
                         null
                     )
+                    // Only rebuild when an actual matching font was found. A no-match
+                    // scan must never trigger a second full DOCX parse/pagination.
+                    applyPendingDocument()
+                } else {
+                    updateStatus()
                 }
-                // Reapply once after fonts are registered to use the document's exact font.
-                applyPendingDocument()
-                updateStatus()
             }
         }
     }
+
+    private fun normalizeFontFamily(value: String): String =
+        value.lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]"), "")
 
     private fun applyPendingDocument() {
         val web = viewer
