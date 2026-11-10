@@ -7,9 +7,9 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const activity = read("app/src/main/java/com/fz/office/viewer/SpreadsheetEditorActivity.kt");
 const html = read("app/src/main/assets/writer/sheet-editor.html");
 const js = read("app/src/main/assets/writer/sheet-editor.js");
-const viewer = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity.java");
+const viewer = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity.kt");
 const manifest = read("app/src/main/AndroidManifest.xml");
-assert(viewer.includes("SpreadsheetEditorActivity.class"), "XLSX viewer Edit action must launch our editor");
+assert(viewer.includes("SpreadsheetEditorActivity::class.java"), "XLSX viewer Edit action must launch our editor");
 assert(viewer.includes("editableXlsx && !presentation"), "Only .xlsx should be editable");
 assert(activity.includes("ACTION_CREATE_DOCUMENT"), "XLSX Save must create a separate copy");
 assert(activity.includes("allowFileAccess = false") && activity.includes("allowContentAccess = false"),

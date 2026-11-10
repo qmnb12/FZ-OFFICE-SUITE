@@ -3,8 +3,8 @@ const assert = require("assert");
 const fs = require("fs");
 const read = (p) => fs.readFileSync(p, "utf8");
 const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.kt");
-const fonts = read("app/src/main/java/com/fz/office/fonts/FontManager.java");
-const codec = read("app/src/main/java/com/fz/office/writer/DocxCodec.java");
+const fonts = read("app/src/main/java/com/fz/office/fonts/FontManager.kt");
+const codec = read("app/src/main/java/com/fz/office/writer/DocxCodec.kt");
 
 const load = writer.slice(writer.indexOf("private fun loadDocument()"), writer.indexOf("private fun initializeViewer()"));
 assert(!load.includes("FontManager.importBundledFontArchives"),
@@ -21,13 +21,13 @@ assert(fontLoad.includes("getCustomFontCssForFamilies"),
 assert(fontLoad.includes("FontManager.importBundledFontArchives"),
   "Legacy fonts may be imported only in the deferred background pass");
 
-const bulkFonts = fonts.slice(fonts.indexOf("public static String getCustomFontCssForFamilies"),
-  fonts.indexOf("public static String getCustomFontCssForFamily"));
+const bulkFonts = fonts.slice(fonts.indexOf("fun getCustomFontCssForFamilies"),
+  fonts.indexOf("fun getCustomFontCssForFamily"));
 assert(bulkFonts.split("directory.listFiles()").length === 2,
   "Bulk font resolution must scan the custom font directory once");
 
-const inspect = codec.slice(codec.indexOf("private static List<String> inspectFontNames"),
-  codec.indexOf("private static void addFontName"));
-assert(inspect.includes('if (!(path.equals("word/document.xml") || path.equals("word/styles.xml"))) continue;'),
+const inspect = codec.slice(codec.indexOf("private fun inspectFontNames"),
+  codec.indexOf("private fun addFontName"));
+assert(inspect.includes('if (path != "word/document.xml" && path != "word/styles.xml") continue'),
   "Font discovery must stay limited to DOCX body and styles");
 console.log("FZ DOCX viewer startup and font-loading performance checks passed");

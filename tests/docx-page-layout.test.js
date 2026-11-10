@@ -1,13 +1,13 @@
 const fs = require("fs");
 const assert = require("assert");
-const codec = fs.readFileSync("app/src/main/java/com/fz/office/writer/DocxCodec.java", "utf8");
+const codec = fs.readFileSync("app/src/main/java/com/fz/office/writer/DocxCodec.kt", "utf8");
 const activity = fs.readFileSync("app/src/main/java/com/fz/office/writer/WriterActivity.kt", "utf8");
 const viewer = fs.readFileSync("app/src/main/assets/writer/viewer.html", "utf8");
 assert(codec.includes("readPageLayout(documentXml)"), "DOCX load must read section page geometry");
 assert(codec.includes("htmlToDocumentXml(html, pageLayout)"), "DOCX save must retain page geometry and margins");
-assert(codec.includes('"pgSz".equals(name)'), "DOCX parser must read page dimensions");
-assert(codec.includes('"pgMar".equals(name)'), "DOCX parser must read page margins");
-assert(codec.includes('"landscape".equalsIgnoreCase(orientation)'), "landscape orientation must be honored");
+assert(codec.includes('"pgSz" -> {'), "DOCX parser must read page dimensions");
+assert(codec.includes('"pgMar" -> {'), "DOCX parser must read page margins");
+assert(codec.includes('orientation.equals("landscape", true)'), "landscape orientation must be honored");
 assert(codec.includes("boundedTwips"), "untrusted dimensions and margins must be bounded");
 assert(activity.includes("pendingPageLayout = loadedPageLayout"), "page layout must survive async DOCX loading");
 assert(activity.includes('pageLayout.put("widthTwips"'), "page geometry must be sent to the viewer");
