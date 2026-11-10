@@ -37,6 +37,13 @@ jobs:
           gradle-version: "9.6.1"
 
 
+      - name: Verify offline PDF reader
+        run: node tests/pdf-viewer.test.js
+
+      - name: Verify FZ platform PDF core
+        run: node tests/pdf-kotlin-core.test.js
+
+
       - name: Test legacy Hindi converter library
         run: node tests/legacy-converter.test.js
 
@@ -80,12 +87,6 @@ jobs:
 
       - name: Verify local document library
         run: node tests/file-library.test.js
-
-      - name: Verify offline PDF reader
-        run: node tests/pdf-viewer.test.js
-
-      - name: Verify FZ platform PDF core
-        run: node tests/pdf-kotlin-core.test.js
 
       - name: Restore persistent testing signing key
         env:
