@@ -6,12 +6,12 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
-const main = read("app/src/main/java/com/fz/office/MainActivity.java");
-const viewer = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity.java");
+const main = read("app/src/main/java/com/fz/office/MainActivity.kt");
+const viewer = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity.kt");
 const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.kt");
-const fontManager = read("app/src/main/java/com/fz/office/fonts/FontManager.java");
-const fontCenter = read("app/src/main/java/com/fz/office/fonts/FontCenterActivity.java");
-const docxCodec = read("app/src/main/java/com/fz/office/writer/DocxCodec.java");
+const fontManager = read("app/src/main/java/com/fz/office/fonts/FontManager.kt");
+const fontCenter = read("app/src/main/java/com/fz/office/fonts/FontCenterActivity.kt");
+const docxCodec = read("app/src/main/java/com/fz/office/writer/DocxCodec.kt");
 const manifest = read("app/src/main/AndroidManifest.xml");
 const gradle = read("app/build.gradle.kts");
 
@@ -21,7 +21,7 @@ for (const ext of [".pdf", ".docx", ".txt", ".xlsx", ".xls", ".xlsm", ".xlsb",
 }
 assert(main.includes("OfficeViewerActivity"), "Spreadsheet/presentation reader is not routed");
 assert(main.includes("isFzWriterViewerDocument"), "DOCX/TXT must use the FZ Writer reader");
-assert(main.includes("PdfViewerActivity.class"), "PDF reader is not routed");
+assert(main.includes("PdfViewerActivity::class.java"), "PDF reader is not routed");
 assert(main.includes("Choose DOCX/TXT, supported spreadsheets, presentations or PDF."),
   "Picker guidance must match supported view-only formats");
 assert(main.includes("FLAG_GRANT_READ_URI_PERMISSION"), "Document open must request read access");
@@ -32,7 +32,7 @@ assert(!main.includes("OfficeEditorLauncher"), "Main activity must not expose an
 assert(!writer.includes("OfficeEditorLauncher") && !writer.includes('control("Edit"'),
   "DOCX reader must remain read-only with no Writer edit action");
 assert(!viewer.includes("OfficeEditorLauncher"), "No external office editor launcher should be used");
-assert(viewer.includes('toolbarControl("Edit")') && viewer.includes("SpreadsheetEditorActivity.class"),
+assert(viewer.includes('toolbarControl("Edit")') && viewer.includes("SpreadsheetEditorActivity::class.java"),
   "XLSX viewer must expose the custom FZ Sheets editor");
 assert(viewer.includes("editableXlsx && !presentation"),
   "Only .xlsx workbooks may expose the editing action");
@@ -57,9 +57,9 @@ assert(viewer.includes("pptx.html") && viewer.includes("xlsx.html"), "Gander rea
 assert(viewer.includes("/doc/file.pptx"), "PPTX reader endpoint is not mapped");
 assert(viewer.includes("FontManager.getBundledCss()"), "Hindi font CSS bridge is missing");
 assert(viewer.includes("hindi-fonts.css"), "Hindi CSS endpoint is missing");
-assert(viewer.includes("setAllowFileAccess(false)"), "WebView file access must remain disabled");
-assert(viewer.includes("setAllowContentAccess(false)"), "WebView content access must remain disabled");
-assert(viewer.includes("setBlockNetworkLoads(true)"), "Runtime network loads must remain blocked");
+assert(viewer.includes("allowFileAccess = false"), "WebView file access must remain disabled");
+assert(viewer.includes("allowContentAccess = false"), "WebView content access must remain disabled");
+assert(viewer.includes("blockNetworkLoads = true"), "Runtime network loads must remain blocked");
 assert(viewer.includes("connect-src 'self'"), "Viewer CSP must remain same-origin");
 assert(manifest.includes('android:icon="@mipmap/ic_launcher"'), "Launcher icon is not assigned");
 assert(manifest.includes('android:roundIcon="@mipmap/ic_launcher_round"'), "Round icon is not assigned");
