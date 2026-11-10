@@ -69,10 +69,55 @@ assert(pdf.includes("override fun fitToWidth() = setZoom(1f)") &&
   pdf.includes("override fun zoomOut() = setZoom(zoomScale / 1.2f)"),
   "PDF Zoom in/out and Fit must connect to the native page renderer");
 
-assert(gradle.includes("window.vwSheetFitWidth = function ()") &&
+assert(gradle.includes('tasks.register("prepareHindiFonts")') &&
+  gradle.includes('tasks.register("prepareGanderViewerAssets")') &&
+  gradle.includes("offline-viewer-1.manifest") &&
+  gradle.includes("offline-viewer-2.manifest") &&
+  gradle.includes("font-licenses.manifest") &&
+  gradle.includes("window.vwSheetFitWidth = function ()") &&
   gradle.includes("window.vwSheetPreparePrint = function ()") &&
   gradle.includes("@media print") &&
   gradle.includes("current.pieces.length"),
-  "Build must inject workbook fit/print support into the checksum-verified pinned XLSX renderer");
+  "Build must prepare workbook fit/print support from repository-bundled assets");
+assert(!gradle.includes("raw.githubusercontent.com") &&
+  !gradle.includes("HttpURLConnection") &&
+  !gradle.includes("java.net.URL") &&
+  !gradle.includes("downloadGanderViewerAssets") &&
+  !gradle.includes("downloadHindiFonts"),
+  "Build must not fetch viewer assets or Hindi fonts from the network");
+
+const crypto = require("crypto");
+function gitBlobSha(bytes) {
+  const header = Buffer.from("blob " + bytes.length + "\0", "utf8");
+  return crypto.createHash("sha1").update(header).update(bytes).digest("hex");
+}
+function verifyManifest(file, expectedKind, expectedCount) {
+  const lines = read(file).trim().split("\\n");
+  assert.strictEqual(lines.length, expectedCount, "Unexpected asset count in " + file);
+  for (const line of lines) {
+    const parts = line.split("|");
+    assert.strictEqual(parts.length, 5, "Malformed local asset manifest row");
+    assert.strictEqual(parts[0], expectedKind, "Unexpected asset type in " + file);
+    const bytes = Buffer.from(parts[4], "base64");
+    assert.strictEqual(bytes.length, Number(parts[2]), "Asset size mismatch: " + parts[1]);
+    assert.strictEqual(gitBlobSha(bytes), parts[3], "Asset checksum mismatch: " + parts[1]);
+  }
+}
+verifyManifest("app/vendor/offline-viewer-1.manifest", "VIEWER", 16);
+verifyManifest("app/vendor/offline-viewer-2.manifest", "VIEWER", 8);
+verifyManifest("app/vendor/font-licenses.manifest", "LICENSE", 12);
+const bundledFonts = [
+  "NotoSansDevanagari-VF.ttf", "NotoSerifDevanagari-VF.ttf",
+  "Mukta-Regular.ttf", "Mukta-Bold.ttf", "Hind-Regular.ttf", "Hind-Bold.ttf",
+  "TiroDevanagariHindi-Regular.ttf", "TiroDevanagariHindi-Italic.ttf",
+  "Kalam-Regular.ttf", "Sahitya-Regular.ttf", "Sahitya-Bold.ttf",
+  "Martel-Regular.ttf", "Baloo2-VF.ttf", "Khand-Regular.ttf",
+  "Gotu-Regular.ttf", "Glegoo-Regular.ttf"
+];
+for (const font of bundledFonts) {
+  const encoded = read("app/vendor/fonts/" + font + ".b64").trim();
+  assert(encoded.length > 1000, "Missing bundled Hindi font payload: " + font);
+  assert(gradle.includes('"' + font + '"'), "Gradle is missing bundled font metadata: " + font);
+}
 
 console.log("FZ Office document Tools audit checks passed.");
