@@ -38,6 +38,17 @@ assert(viewer.includes('toolbarControl("Edit")') && viewer.includes("Spreadsheet
 assert(viewer.includes("editableXlsx && !presentation"),
   "Only .xlsx workbooks may expose the editing action");
 assert(writer.includes("VIEW ONLY"), "Writer reader must show view-only status");
+const dashboard = read("app/src/main/java/com/fz/office/viewer/ReaderDashboard.kt");
+assert(writer.includes("ReaderDashboard") && writer.includes("shell.setDocumentView(documentWebView)"),
+  "Word/TXT must use the shared reader dashboard");
+assert(viewer.includes("ReaderDashboard") && viewer.includes("shell.setDocumentView(browser)"),
+  "Excel/PowerPoint must use the shared reader dashboard");
+assert(dashboard.includes("addControl") && dashboard.includes("addToolbarAction"),
+  "All viewers must share the same header and bottom action strip component");
+assert(writer.includes("FZViewer.pageStep(-1)") && writer.includes("FZViewer.pageStep(1)") &&
+  writer.includes("FZViewer.fit()") && wordHtml.includes("function pageStep(delta)") &&
+  wordHtml.includes("function goToPage(index)"),
+  "Word reader must support previous/next page, jump-to-page and fit controls");
 assert(writer.includes("builtInZoomControls = true") && writer.includes("displayZoomControls = false"),
   "Word/TXT reader must use native WebView pinch zoom without overlay controls");
 assert(wordHtml.includes('maximum-scale=4, user-scalable=yes') &&
