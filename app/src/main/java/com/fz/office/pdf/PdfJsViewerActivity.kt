@@ -135,21 +135,12 @@ class PdfJsViewerActivity : Activity() {
         shell.setLoading(true)
         shell.setStatus("Preparing PDF viewer…")
 
-        val browser = WebView(this).apply {
+        val browser = PdfJsWebView(this).apply {
             setBackgroundColor(0xff48443d.toInt())
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
         }
         webView = browser
-        val doubleTap = PdfJsDoubleTapZoom(this, object : PdfJsZoomSurface {
-            override fun viewWidth() = browser.width
-            override fun viewHeight() = browser.height
-            override fun scrolledX() = browser.scrollX
-            override fun scrolledY() = browser.scrollY
-            override fun rangeX() = browser.computeHorizontalScrollRange()
-            override fun rangeY() = browser.computeVerticalScrollRange()
-            override fun zoomBy(factor: Float) { browser.zoomBy(factor) }
-            override fun scrollTo(x: Int, y: Int) { browser.scrollTo(x, y) }
-        })
+        val doubleTap = PdfJsDoubleTapZoom(this, browser)
         doubleTapZoom = doubleTap
         browser.setOnTouchListener { _, event ->
             doubleTap.touched(event)
@@ -611,8 +602,8 @@ private interface PdfJsZoomSurface {
     fun scrolledY(): Int
     fun rangeX(): Int
     fun rangeY(): Int
-    fun zoomBy(factor: Float)
-    fun scrollTo(x: Int, y: Int)
+    fun applyZoom(factor: Float)
+    fun scrollDocumentTo(x: Int, y: Int)
 }
 
 private class PdfJsDoubleTapZoom(
@@ -691,9 +682,9 @@ private class PdfJsDoubleTapZoom(
     private fun step(target: Float, start: PdfJsZoomStart, x: Float, y: Float) {
         val now = currentZoom() ?: return
         val factor = if (target <= 1f && now > 1f) UNDER_FIT / now else target / now
-        if (factor != 1f) surface.zoomBy(factor.coerceIn(0.02f, 50f))
+        if (factor != 1f) surface.applyZoom(factor.coerceIn(0.02f, 50f))
         val grown = start.grown() ?: return
-        surface.scrollTo(
+        surface.scrollDocumentTo(
             anchored(start.x + x, grown, x, surface.rangeX(), surface.viewWidth()),
             anchored(start.y + y, grown, y, surface.rangeY(), surface.viewHeight())
         )
@@ -721,4 +712,17 @@ private class PdfJsZoomStart(private val surface: PdfJsZoomSurface) {
             else -> null
         }
     }
+}
+
+
+/** Exposes the protected scroll ranges used by the anchored double-tap gesture. */
+private class PdfJsWebView(context: Activity) : WebView(context), PdfJsZoomSurface {
+    override fun viewWidth(): Int = width
+    override fun viewHeight(): Int = height
+    override fun scrolledX(): Int = scrollX
+    override fun scrolledY(): Int = scrollY
+    override fun rangeX(): Int = computeHorizontalScrollRange()
+    override fun rangeY(): Int = computeVerticalScrollRange()
+    override fun applyZoom(factor: Float) { zoomBy(factor) }
+    override fun scrollDocumentTo(x: Int, y: Int) { scrollTo(x, y) }
 }
