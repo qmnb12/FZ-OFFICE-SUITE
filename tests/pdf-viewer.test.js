@@ -56,6 +56,20 @@ assert(pdf.includes("requestPageRender(position, renderBucket)"),
   "Page bitmaps must be rendered on demand for bound pages");
 assert(pdf.includes("LruCache<String, Bitmap>") && pdf.includes("pageCacheSizeKb()"),
   "Rendered page bitmaps must be kept in a bounded LRU cache");
+assert(pdf.includes("setItemViewCacheSize(8)") &&
+  pdf.includes("setHasFixedSize(true)") &&
+  pdf.includes("setMaxRecycledViews(0, 8)"),
+  "PDF vertical scrolling must retain ready page holders for smoother continuous reading");
+assert(pdf.includes("lastPrefetchStart") && pdf.includes("lastPrefetchEnd") &&
+  pdf.includes("lastPrefetchBucket") &&
+  pdf.includes("requestPageRender(position, renderBucket)"),
+  "PDF reader must pre-render nearby pages only when the visible render window changes");
+assert(pdf.includes("if (pageChanged) updatePageLabel()") &&
+  pdf.includes("pageLabel?.text?.toString() != label"),
+  "PDF scroll frames must not repeatedly update identical footer text");
+assert(pdf.includes("list.postOnAnimation") &&
+  !pdf.includes("override fun onScaleEnd(detector: ScaleGestureDetector) {\\n                    list.scaleX = 1f"),
+  "PDF pinch preview must remain scaled until the committed page geometry is laid out");
 assert(pdf.includes("qualityBucket") && pdf.includes("bestCachedPage"),
   "Zoom must use render-quality buckets and keep a previous bitmap while sharper output loads");
 assert(pdf.includes("ScaleGestureDetector"), "Pinch-to-zoom must be supported");
