@@ -44,9 +44,10 @@ fun readOfflineVendorAssets(manifests: List<java.io.File>): List<OfflineVendorAs
         if (!manifest.isFile) {
             throw GradleException("Required offline vendor bundle is missing: " + manifest.path)
         }
-        manifest.forEachLine(Charsets.UTF_8) { line ->
-            if (line.isBlank()) return@forEachLine
-            val fields = line.split('|', limit = 5)
+        var pendingRow: StringBuilder? = null
+
+        fun addManifestRow(row: String) {
+            val fields = row.split('|', limit = 5)
             if (fields.size != 5) {
                 throw GradleException("Invalid offline vendor manifest row in " + manifest.name)
             }
@@ -62,6 +63,21 @@ fun readOfflineVendorAssets(manifests: List<java.io.File>): List<OfflineVendorAs
             }
             assets.add(OfflineVendorAsset(fields[0], fields[1], size, fields[3], bytes))
         }
+
+        manifest.forEachLine(Charsets.UTF_8) { rawLine ->
+            val line = rawLine.trim()
+            if (line.isEmpty()) return@forEachLine
+
+            if (line.contains('|')) {
+                pendingRow?.let { addManifestRow(it.toString()) }
+                pendingRow = StringBuilder(line)
+            } else {
+                val row = pendingRow
+                    ?: throw GradleException("Invalid offline vendor manifest continuation in " + manifest.name)
+                row.append(line)
+            }
+        }
+        pendingRow?.let { addManifestRow(it.toString()) }
     }
     return assets
 }
