@@ -252,9 +252,9 @@ object FontManager {
     fun loadTypeface(context: Context, record: FontRecord): Typeface {
         return try {
             if (record.bundled) {
-                Typeface.createFromAsset(context.assets, "writer/fonts/" + record.assetFile)
+                Typeface.createFromAsset(context.assets, "writer/fonts/" + (record.assetFile ?: return Typeface.DEFAULT))
             } else {
-                Typeface.createFromFile(record.customFile)
+                Typeface.createFromFile(record.customFile ?: return Typeface.DEFAULT)
             }
         } catch (_: Exception) {
             Typeface.DEFAULT
