@@ -38,8 +38,8 @@ assert(controller.includes("preparePrint(onReady") &&
   "Format-specific print preparation must complete before opening Android Print");
 assert(office.includes("window.vwSheetZoom(z*1.2") &&
   office.includes("window.vwSheetZoom(z/1.2") &&
-  office.includes("window.vwSheetZoom(1,"),
-  "XLSX Tools zoom must call the sheet's own CSS zoom engine rather than the disabled WebView zoom");
+  office.includes("window.vwSheetFitWidth"),
+  "XLSX Tools Zoom in/out/Fit must call the sheet's own CSS zoom engine rather than disabled WebView zoom");
 assert(controller.includes("view.pageUp(true)") && controller.includes("view.pageDown(true)"),
   "DOCX/TXT/XLSX/PPTX must use the shared WebView scroll adapter");
 assert(controller.includes("fun scrollBackward()") && controller.includes("fun scrollForward()"),
