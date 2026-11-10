@@ -2,23 +2,16 @@ package com.fz.office.writer
 
 import android.util.Base64
 import android.util.Xml
-import org.jsoup.Jsoup
-import org.jsoup.nodes.Element
-import org.jsoup.nodes.Node
-import org.jsoup.nodes.TextNode
 import org.xmlpull.v1.XmlPullParser
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
-import java.nio.charset.StandardCharsets
 import java.util.ArrayList
 import java.util.LinkedHashMap
 import java.util.LinkedHashSet
 import java.util.Locale
-import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
-import java.util.zip.ZipOutputStream
 
 /**
  * Small offline DOCX bridge.
@@ -35,7 +28,6 @@ object DocxCodec {
 
     class LoadedDocument internal constructor(
         val html: String,
-        val packageEntries: LinkedHashMap<String, ByteArray>,
         val fontNames: List<String>,
         val legacyProfile: String,
         val legacyFontName: String,
@@ -65,7 +57,7 @@ object DocxCodec {
         val legacyFont = findLegacyFontName(fonts)
         val legacyProfile = detectLegacyProfile(fonts)
         val pageLayout = readPageLayout(documentXml)
-        return LoadedDocument(html, entries, fonts, legacyProfile, legacyFont, pageLayout)
+        return LoadedDocument(html, fonts, legacyProfile, legacyFont, pageLayout)
     }
 
     @Throws(IOException::class)
@@ -1174,280 +1166,6 @@ object DocxCodec {
         return out.toString()
     }
 
-    @Throws(Exception::class)
-    fun writeDocx(html: String?, originalEntries: Map<String, ByteArray>?): ByteArray =
-        writeDocx(html, originalEntries, null)
-
-    @Throws(Exception::class)
-    fun writeDocx(
-        html: String?,
-        originalEntries: Map<String, ByteArray>?,
-        pageLayout: PageLayout?
-    ): ByteArray {
-        val entries = LinkedHashMap<String, ByteArray>()
-        if (originalEntries != null) entries.putAll(originalEntries)
-        if (!entries.containsKey("[Content_Types].xml")) {
-            entries["[Content_Types].xml"] = CONTENT_TYPES.toByteArray(StandardCharsets.UTF_8)
-        }
-        if (!entries.containsKey("_rels/.rels")) {
-            entries["_rels/.rels"] = ROOT_RELS.toByteArray(StandardCharsets.UTF_8)
-        }
-        entries["word/document.xml"] =
-            htmlToDocumentXml(html, pageLayout).toByteArray(StandardCharsets.UTF_8)
-        if (!entries.containsKey("word/styles.xml")) {
-            entries["word/styles.xml"] = STYLES.toByteArray(StandardCharsets.UTF_8)
-        }
-        if (!entries.containsKey("word/_rels/document.xml.rels")) {
-            entries["word/_rels/document.xml.rels"] =
-                DOCUMENT_RELS.toByteArray(StandardCharsets.UTF_8)
-        }
-
-        val output = ByteArrayOutputStream()
-        ZipOutputStream(output).use { zip ->
-            for ((name, bytes) in entries) {
-                zip.putNextEntry(ZipEntry(name))
-                zip.write(bytes)
-                zip.closeEntry()
-            }
-            zip.finish()
-        }
-        return output.toByteArray()
-    }
-
-    private fun htmlToDocumentXml(html: String?, pageLayout: PageLayout?): String {
-        val pageWidth = pageLayout?.widthTwips ?: 11906
-        val pageHeight = pageLayout?.heightTwips ?: 16838
-        val marginTop = pageLayout?.topTwips ?: 1440
-        val marginRight = pageLayout?.rightTwips ?: 1440
-        val marginBottom = pageLayout?.bottomTwips ?: 1440
-        val marginLeft = pageLayout?.leftTwips ?: 1440
-        val parsed = Jsoup.parseBodyFragment(html.orEmpty())
-        val xml = StringBuilder()
-        xml.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>")
-        xml.append("<w:document xmlns:w=\"").append(WORD_NS)
-            .append("\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">")
-        xml.append("<w:body>")
-        for (node in parsed.body().childNodes()) appendBlock(node, xml)
-        if (!xml.contains("<w:p")) xml.append("<w:p/>")
-        xml.append("<w:sectPr><w:pgSz w:w=\"").append(pageWidth)
-            .append("\" w:h=\"").append(pageHeight).append("\"/>")
-            .append("<w:pgMar w:top=\"").append(marginTop)
-            .append("\" w:right=\"").append(marginRight)
-            .append("\" w:bottom=\"").append(marginBottom)
-            .append("\" w:left=\"").append(marginLeft)
-            .append("\" w:header=\"720\" w:footer=\"720\" w:gutter=\"0\"/>")
-            .append("</w:sectPr></w:body></w:document>")
-        return xml.toString()
-    }
-
-    private fun appendBlock(node: Node, xml: StringBuilder) {
-        if (node is TextNode) {
-            val text = node.wholeText
-            if (text.trim().isNotEmpty()) appendParagraph(null, text, xml)
-            return
-        }
-        if (node !is Element) return
-        val element = node
-        val tag = element.tagName().lowercase(Locale.ROOT)
-
-        if (tag == "div" && (element.hasClass("fz-manual-break") ||
-                element.attr("data-fz-page-break") == "true")
-        ) {
-            // Keep explicit page breaks when the edited HTML is exported back to DOCX.
-            xml.append("<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>")
-        } else if (tag == "table") {
-            appendTable(element, xml)
-        } else if (tag == "ul" || tag == "ol") {
-            var index = 1
-            for (item in element.children()) {
-                if (item.tagName() == "li") {
-                    val prefix = if (tag == "ul") "• " else (index++).toString() + ". "
-                    appendParagraph(item, prefix, xml)
-                } else {
-                    appendBlock(item, xml)
-                }
-            }
-        } else if (tag == "p" || tag == "div" || tag == "h1" || tag == "h2" ||
-            tag == "h3" || tag == "h4" || tag == "li" || tag == "blockquote"
-        ) {
-            val hasNestedBlocks = element.children().any { child ->
-                child.tagName().lowercase(Locale.ROOT) in setOf("p", "table", "ul", "ol")
-            }
-            if (hasNestedBlocks && tag != "p") {
-                for (child in element.childNodes()) appendBlock(child, xml)
-            } else {
-                appendParagraph(element, if (tag == "li") "• " else "", xml)
-            }
-        } else {
-            appendParagraph(element, "", xml)
-        }
-    }
-
-    private fun appendParagraph(element: Element?, prefix: String, xml: StringBuilder) {
-        xml.append("<w:p>")
-        val alignment = element?.let { cssValue(it.attr("style"), "text-align") }.orEmpty()
-        if (alignment.isNotEmpty()) {
-            val value = alignment.lowercase(Locale.ROOT)
-            if (value == "left" || value == "center" || value == "right" || value == "justify") {
-                xml.append("<w:pPr><w:jc w:val=\"").append(value).append("\"/></w:pPr>")
-            }
-        }
-        if (prefix.isNotEmpty()) appendRun(prefix, RunStyle(), xml)
-        if (element != null) {
-            val initial = RunStyle()
-            val defaultFamily = firstCssFontFamily(cssValue(element.attr("style"), "font-family"))
-            if (defaultFamily.isNotEmpty()) initial.fontFamily = defaultFamily
-            when (element.tagName().lowercase(Locale.ROOT)) {
-                "h1" -> { initial.bold = true; initial.fontSizePt = 20f }
-                "h2" -> { initial.bold = true; initial.fontSizePt = 16f }
-                "h3" -> { initial.bold = true; initial.fontSizePt = 14f }
-            }
-            for (child in element.childNodes()) appendInline(child, initial, xml)
-        }
-        xml.append("</w:p>")
-    }
-
-    private fun appendInline(node: Node, inherited: RunStyle, xml: StringBuilder) {
-        if (node is TextNode) {
-            appendRun(node.wholeText, inherited, xml)
-            return
-        }
-        if (node !is Element) return
-        val element = node
-        val tag = element.tagName().lowercase(Locale.ROOT)
-        if (tag == "br") {
-            xml.append("<w:r><w:br/></w:r>")
-            return
-        }
-        if (tag == "img") return
-
-        val style = inherited.copy()
-        if (tag == "b" || tag == "strong") style.bold = true
-        if (tag == "i" || tag == "em") style.italic = true
-        if (tag == "u") style.underline = true
-        if (tag == "s" || tag == "strike" || tag == "del") style.strike = true
-        if (tag == "sup") style.vertical = "superscript"
-        if (tag == "sub") style.vertical = "subscript"
-        if (tag == "font" && element.hasAttr("face")) style.fontFamily = element.attr("face")
-        if (tag == "font" && element.hasAttr("size")) {
-            val size = element.attr("size")
-            val points = arrayOf("8", "10", "12", "14", "18", "24", "36")
-            try {
-                val index = size.toInt() - 1
-                if (index in points.indices) style.fontSizePt = points[index].toFloat()
-            } catch (_: Exception) {
-            }
-        }
-
-        val css = element.attr("style")
-        val weight = cssValue(css, "font-weight")
-        val fontStyle = cssValue(css, "font-style")
-        val decoration = cssValue(css, "text-decoration")
-        if (weight.equals("bold", true) || weight == "700" || weight == "800" || weight == "900") {
-            style.bold = true
-        }
-        if (fontStyle.equals("italic", true)) style.italic = true
-        if (decoration.contains("underline")) style.underline = true
-        if (decoration.contains("line-through")) style.strike = true
-
-        val color = cssValue(css, "color")
-        if (Regex("(?i)#[0-9a-f]{6}").matches(color)) style.color = color
-        val background = cssValue(css, "background-color")
-        if (Regex("(?i)#[0-9a-f]{6}").matches(background)) style.highlight = background
-        val fontSize = cssValue(css, "font-size")
-        if (fontSize.isNotEmpty()) style.fontSizePt = parseFontSize(fontSize, style.fontSizePt)
-        val family = firstCssFontFamily(cssValue(css, "font-family"))
-        if (family.isNotEmpty()) style.fontFamily = family
-
-        for (child in element.childNodes()) appendInline(child, style, xml)
-    }
-
-    private fun appendTable(table: Element, xml: StringBuilder) {
-        xml.append("<w:tbl><w:tblPr><w:tblBorders>")
-            .append("<w:top w:val=\"single\" w:sz=\"4\" w:color=\"B7C4BE\"/>")
-            .append("<w:left w:val=\"single\" w:sz=\"4\" w:color=\"B7C4BE\"/>")
-            .append("<w:bottom w:val=\"single\" w:sz=\"4\" w:color=\"B7C4BE\"/>")
-            .append("<w:right w:val=\"single\" w:sz=\"4\" w:color=\"B7C4BE\"/>")
-            .append("<w:insideH w:val=\"single\" w:sz=\"4\" w:color=\"B7C4BE\"/>")
-            .append("<w:insideV w:val=\"single\" w:sz=\"4\" w:color=\"B7C4BE\"/>")
-            .append("</w:tblBorders></w:tblPr>")
-        for (row in table.select("tr")) {
-            xml.append("<w:tr>")
-            for (cell in row.children()) {
-                if (cell.tagName() != "td" && cell.tagName() != "th") continue
-                xml.append("<w:tc><w:tcPr><w:tcW w:w=\"0\" w:type=\"auto\"/></w:tcPr>")
-                var hasParagraph = false
-                for (child in cell.childNodes()) {
-                    when {
-                        child is Element && child.tagName() == "table" ->
-                            appendTable(child, xml)
-                        child is Element && child.tagName() == "p" -> {
-                            appendParagraph(child, "", xml)
-                            hasParagraph = true
-                        }
-                        child is TextNode -> {
-                            val text = child.wholeText
-                            if (text.trim().isNotEmpty()) {
-                                appendParagraph(null, text, xml)
-                                hasParagraph = true
-                            }
-                        }
-                        child is Element -> {
-                            appendParagraph(child, "", xml)
-                            hasParagraph = true
-                        }
-                    }
-                }
-                if (!hasParagraph) xml.append("<w:p/>")
-                xml.append("</w:tc>")
-            }
-            xml.append("</w:tr>")
-        }
-        xml.append("</w:tbl>")
-    }
-
-    private fun appendRun(text: String, style: RunStyle, xml: StringBuilder) {
-        if (text.isEmpty()) return
-        val lines = text.split("\n")
-        for ((index, value) in lines.withIndex()) {
-            if (index > 0) xml.append("<w:r><w:br/></w:r>")
-            if (value.isEmpty()) continue
-            xml.append("<w:r>")
-            val hasProps = style.bold || style.italic || style.underline || style.strike ||
-                style.fontSizePt > 0f || style.color != null || style.highlight != null ||
-                style.fontFamily != null || style.vertical != null
-            if (hasProps) {
-                xml.append("<w:rPr>")
-                if (style.bold) xml.append("<w:b/>")
-                if (style.italic) xml.append("<w:i/>")
-                if (style.underline) xml.append("<w:u w:val=\"single\"/>")
-                if (style.strike) xml.append("<w:strike/>")
-                if (style.fontSizePt > 0f) {
-                    val halfPoints = (style.fontSizePt * 2).toInt().coerceIn(12, 144)
-                    xml.append("<w:sz w:val=\"").append(halfPoints).append("\"/>")
-                }
-                style.color?.let {
-                    xml.append("<w:color w:val=\"").append(it.replace("#", "")).append("\"/>")
-                }
-                style.highlight?.let {
-                    xml.append("<w:shd w:val=\"clear\" w:fill=\"")
-                        .append(it.replace("#", "")).append("\"/>")
-                }
-                style.fontFamily?.let { family ->
-                    val font = xmlEscape(family)
-                    xml.append("<w:rFonts w:ascii=\"").append(font)
-                        .append("\" w:hAnsi=\"").append(font).append("\"/>")
-                }
-                when (style.vertical) {
-                    "superscript" -> xml.append("<w:vertAlign w:val=\"superscript\"/>")
-                    "subscript" -> xml.append("<w:vertAlign w:val=\"subscript\"/>")
-                }
-                xml.append("</w:rPr>")
-            }
-            xml.append("<w:t xml:space=\"preserve\">").append(xmlEscape(value)).append("</w:t></w:r>")
-        }
-    }
-
     fun plainTextToHtml(text: String?): String {
         val value = text.orEmpty().replace("\r\n", "\n").replace('\r', '\n')
         val html = StringBuilder()
@@ -1462,102 +1180,143 @@ object DocxCodec {
         return html.toString()
     }
 
+    /**
+     * Extracts readable text from the small, internally generated HTML subset
+     * used by the read-only Word viewer. This is not a general-purpose browser
+     * HTML parser and never interprets or executes markup.
+     */
     fun htmlToPlainText(html: String?): String {
-        val parsed = Jsoup.parseBodyFragment(html.orEmpty())
-        val output = StringBuilder()
-        for (node in parsed.body().childNodes()) appendPlainText(node, output)
-        while (output.isNotEmpty() && output[output.length - 1] == '\n') {
+        val source = html.orEmpty()
+        val output = StringBuilder(source.length)
+        var index = 0
+        while (index < source.length) {
+            when (source[index]) {
+                '<' -> {
+                    if (source.startsWith("<!--", index)) {
+                        val end = source.indexOf("-->", index + 4)
+                        index = if (end >= 0) end + 3 else source.length
+                        continue
+                    }
+                    val tagEnd = findHtmlTagEnd(source, index)
+                    if (tagEnd < 0) {
+                        output.append('<')
+                        index++
+                        continue
+                    }
+                    val rawTag = source.substring(index + 1, tagEnd).trim()
+                    val closing = rawTag.startsWith("/")
+                    var nameStart = if (closing) 1 else 0
+                    while (nameStart < rawTag.length && rawTag[nameStart].isWhitespace()) nameStart++
+                    var nameEnd = nameStart
+                    while (nameEnd < rawTag.length && rawTag[nameEnd].isLetterOrDigit()) nameEnd++
+                    val tagName = rawTag.substring(nameStart, nameEnd).lowercase(Locale.ROOT)
+                    if (!closing && (tagName == "script" || tagName == "style")) {
+                        val closingStart = source.indexOf("</$tagName", tagEnd + 1, ignoreCase = true)
+                        if (closingStart < 0) {
+                            index = source.length
+                        } else {
+                            val closingEnd = findHtmlTagEnd(source, closingStart)
+                            index = if (closingEnd >= 0) closingEnd + 1 else source.length
+                        }
+                        continue
+                    }
+                    when {
+                        tagName == "br" || tagName == "hr" -> appendTextLineBreak(output)
+                        closing && isHtmlBlockTag(tagName) -> appendTextLineBreak(output)
+                    }
+                    index = tagEnd + 1
+                }
+                '&' -> {
+                    val semicolon = source.indexOf(';', index + 1)
+                    if (semicolon > index + 1 && semicolon - index <= 12) {
+                        val decoded = decodeHtmlEntity(source.substring(index + 1, semicolon))
+                        if (decoded != null) {
+                            output.append(decoded)
+                            index = semicolon + 1
+                            continue
+                        }
+                    }
+                    output.append('&')
+                    index++
+                }
+                '\r' -> {
+                    if (index + 1 < source.length && source[index + 1] == '\n') index++
+                    appendTextLineBreak(output)
+                    index++
+                }
+                else -> {
+                    output.append(source[index])
+                    index++
+                }
+            }
+        }
+        while (output.isNotEmpty() && output[output.length - 1].isWhitespace()) {
             output.setLength(output.length - 1)
         }
         return output.toString()
     }
 
-    private fun appendPlainText(node: Node, output: StringBuilder) {
-        if (node is TextNode) {
-            output.append(node.wholeText)
-            return
-        }
-        if (node !is Element) return
-        val element = node
-        val tag = element.tagName().lowercase(Locale.ROOT)
-        if (tag == "br") {
-            output.append('\n')
-            return
-        }
-        val block = tag == "p" || tag == "div" || tag == "li" || tag == "tr" ||
-            tag == "h1" || tag == "h2" || tag == "h3" || tag == "blockquote"
-        for (child in element.childNodes()) appendPlainText(child, output)
-        if (block && (output.isEmpty() || output[output.length - 1] != '\n')) {
-            output.append('\n')
-        }
-    }
-
-    /**
-     * DOCX rFonts accepts one family name, not the complete CSS fallback list.
-     * Keep only the first CSS family so values such as
-     * "'Kruti Dev 010','Noto Sans Devanagari',sans-serif" round-trip correctly.
-     */
-    private fun firstCssFontFamily(value: String?): String {
-        if (value.isNullOrBlank()) return ""
-        val family = StringBuilder()
+    private fun findHtmlTagEnd(source: String, start: Int): Int {
         var quote: Char? = null
-        var escaped = false
-        for (ch in value) {
-            if (escaped) {
-                family.append(ch)
-                escaped = false
-                continue
-            }
-            if (quote != null && ch.code == 92) {
-                escaped = true
-                continue
-            }
+        var index = start + 1
+        while (index < source.length) {
+            val current = source[index]
             if (quote != null) {
-                if (ch == quote) quote = null else family.append(ch)
-                continue
+                if (current == quote) quote = null
+            } else {
+                when (current) {
+                    '\'', '"' -> quote = current
+                    '>' -> return index
+                }
             }
-            if (ch == '\'' || ch == '"') {
-                quote = ch
-                continue
-            }
-            if (ch == ',') break
-            family.append(ch)
+            index++
         }
-        return family.toString().trim()
+        return -1
     }
 
-    private fun cssValue(css: String?, property: String): String {
-        if (css == null) return ""
-        for (declaration in css.split(";")) {
-            val separator = declaration.indexOf(':')
-            if (separator < 0) continue
-            if (property.equals(declaration.substring(0, separator).trim(), true)) {
-                return declaration.substring(separator + 1).trim()
-            }
-        }
-        return ""
+    private fun isHtmlBlockTag(tagName: String): Boolean = when (tagName) {
+        "p", "div", "li", "tr", "h1", "h2", "h3", "h4", "h5", "h6",
+        "blockquote", "section", "article" -> true
+        else -> false
     }
 
-    private fun parseFontSize(value: String, fallback: Float): Float {
-        return try {
-            val clean = value.lowercase(Locale.ROOT).trim()
-            when {
-                clean.endsWith("pt") -> clean.dropLast(2).toFloat()
-                clean.endsWith("px") -> clean.dropLast(2).toFloat() * 0.75f
-                else -> clean.toFloat()
-            }
-        } catch (_: Exception) {
-            fallback
+    private fun appendTextLineBreak(output: StringBuilder) {
+        if (output.isNotEmpty() && output[output.length - 1] != '\n') output.append('\n')
+    }
+
+    private fun decodeHtmlEntity(entity: String): String? {
+        if (entity.startsWith("#")) {
+            val hexadecimal = entity.startsWith("#x", ignoreCase = true)
+            val digits = entity.substring(if (hexadecimal) 2 else 1)
+            val codePoint = digits.toIntOrNull(if (hexadecimal) 16 else 10) ?: return null
+            if (codePoint <= 0 || codePoint > Character.MAX_CODE_POINT ||
+                codePoint in Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code
+            ) return null
+            return String(Character.toChars(codePoint))
+        }
+        return when (entity.lowercase(Locale.ROOT)) {
+            "amp" -> "&"
+            "lt" -> "<"
+            "gt" -> ">"
+            "quot" -> "\""
+            "apos" -> "'"
+            "nbsp" -> "\u00A0"
+            "tab" -> "\t"
+            "ensp" -> "\u2002"
+            "emsp" -> "\u2003"
+            "ndash" -> "\u2013"
+            "mdash" -> "\u2014"
+            "lsquo" -> "\u2018"
+            "rsquo" -> "\u2019"
+            "ldquo" -> "\u201C"
+            "rdquo" -> "\u201D"
+            else -> null
         }
     }
 
     private fun escapeHtml(value: String): String =
         value.replace("&", "&amp;").replace("<", "&lt;")
             .replace(">", "&gt;").replace("\"", "&quot;")
-
-    private fun xmlEscape(value: String): String =
-        value.replace("&", "&amp;").replace("<", "&lt;")
-            .replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&apos;")
 
     private data class RunStyle(
         var bold: Boolean = false,
@@ -1571,31 +1330,4 @@ object DocxCodec {
         var vertical: String? = null
     )
 
-    private const val CONTENT_TYPES =
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
-            "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">" +
-            "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>" +
-            "<Default Extension=\"xml\" ContentType=\"application/xml\"/>" +
-            "<Override PartName=\"/word/document.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml\"/>" +
-            "<Override PartName=\"/word/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml\"/>" +
-            "</Types>"
-
-    private const val ROOT_RELS =
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
-            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
-            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"word/document.xml\"/>" +
-            "</Relationships>"
-
-    private const val DOCUMENT_RELS =
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
-            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
-            "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>" +
-            "</Relationships>"
-
-    private const val STYLES =
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
-            "<w:styles xmlns:w=\"$WORD_NS\">" +
-            "<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii=\"Arial\" w:hAnsi=\"Arial\" w:eastAsia=\"Noto Sans Devanagari\"/></w:rPr></w:rPrDefault></w:docDefaults>" +
-            "<w:style w:type=\"paragraph\" w:default=\"1\" w:styleId=\"Normal\"><w:name w:val=\"Normal\"/></w:style>" +
-            "</w:styles>"
 }

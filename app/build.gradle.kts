@@ -273,7 +273,6 @@ tasks.named("preBuild").configure {
 
 dependencies {
     implementation("androidx.recyclerview:recyclerview:1.4.0")
-    implementation("org.jsoup:jsoup:1.24.1")
     implementation(project(":third_party:mj_pdf:AndroidPdfViewer:android-pdf-viewer"))
     implementation(project(":third_party:mj_pdf:PdfiumAndroid"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")

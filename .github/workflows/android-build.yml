@@ -50,6 +50,9 @@ jobs:
       - name: Verify DOCX page dimensions and margins
         run: node tests/docx-page-layout.test.js
 
+      - name: Verify Kotlin-owned DOCX core
+        run: node tests/docx-kotlin-core.test.js
+
       - name: Verify edge-to-edge insets and document zoom
         run: node tests/system-bar-insets.test.js
 
