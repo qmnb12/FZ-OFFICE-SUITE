@@ -202,7 +202,7 @@ class PdfViewerActivity : Activity() {
             setItemViewCacheSize(3)
             isNestedScrollingEnabled = false
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            verticalScrollBarEnabled = true
+            isVerticalScrollBarEnabled = true
             itemAnimator = null
             layoutManager = androidx.recyclerview.widget.LinearLayoutManager(
                 this@PdfViewerActivity,
