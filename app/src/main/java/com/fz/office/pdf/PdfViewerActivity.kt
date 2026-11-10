@@ -318,6 +318,10 @@ class PdfViewerActivity : Activity() {
             Toast.makeText(this, "PDF text search requires Android 15 or later.", Toast.LENGTH_LONG).show()
             return
         }
+        if (pdfDocument == null || pageSizes.isEmpty()) {
+            Toast.makeText(this, "Wait for the PDF to finish opening, then try Find again.", Toast.LENGTH_SHORT).show()
+            return
+        }
 
         if (normalized != activeSearchQuery) {
             activeSearchQuery = normalized
@@ -498,7 +502,9 @@ class PdfViewerActivity : Activity() {
                 elevation = dp(2).toFloat()
                 contentDescription = "PDF page"
             }
-            val overlay = PdfMatchOverlayView(this@PdfViewerActivity)
+            val overlay = PdfMatchOverlayView(this@PdfViewerActivity).apply {
+                elevation = dp(3).toFloat()
+            }
             val pageContent = FrameLayout(this@PdfViewerActivity).apply {
                 addView(image, FrameLayout.LayoutParams(1, 1))
                 addView(overlay, FrameLayout.LayoutParams(1, 1))
@@ -609,20 +615,32 @@ private class PdfMatchOverlayView(context: Context) : View(context) {
         val scaleY = height / pageHeight
         paint.style = Paint.Style.FILL
         highlights.forEach { highlight ->
-            paint.color = if (highlight.active) {
-                Color.argb(145, 255, 145, 0)
-            } else {
-                Color.argb(92, 255, 226, 58)
-            }
-            highlight.bounds.forEach { bounds ->
-                val rect = RectF(
-                    bounds.left * scaleX,
-                    bounds.top * scaleY,
-                    bounds.right * scaleX,
-                    bounds.bottom * scaleY
-                )
-                canvas.drawRoundRect(rect, 3f, 3f, paint)
-            }
+            if (!highlight.active) drawHighlight(canvas, highlight, scaleX, scaleY)
+        }
+        highlights.forEach { highlight ->
+            if (highlight.active) drawHighlight(canvas, highlight, scaleX, scaleY)
+        }
+    }
+
+    private fun drawHighlight(
+        canvas: Canvas,
+        highlight: PdfSearchHighlight,
+        scaleX: Float,
+        scaleY: Float
+    ) {
+        paint.color = if (highlight.active) {
+            Color.argb(145, 255, 145, 0)
+        } else {
+            Color.argb(92, 255, 226, 58)
+        }
+        highlight.bounds.forEach { bounds ->
+            val rect = RectF(
+                bounds.left * scaleX,
+                bounds.top * scaleY,
+                bounds.right * scaleX,
+                bounds.bottom * scaleY
+            )
+            canvas.drawRoundRect(rect, 3f, 3f, paint)
         }
     }
 }
