@@ -231,8 +231,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 29
-        versionName = "0.8.0"
+        versionCode = 30
+        versionName = "0.9.0"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
@@ -274,5 +274,6 @@ tasks.named("preBuild").configure {
 dependencies {
     implementation("androidx.recyclerview:recyclerview:1.4.0")
     implementation("org.jsoup:jsoup:1.24.1")
+    implementation(project(":third_party:mj_pdf:AndroidPdfViewer:android-pdf-viewer"))
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
