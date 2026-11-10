@@ -36,6 +36,29 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build python3-requests
 
+      - name: Set up Rust toolchain for Android
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked --version 4.1.2
+
+      - name: Test FZ Rust document core
+        run: cargo test --manifest-path rust/Cargo.toml
+
+      - name: Build FZ Rust native core for Android
+        env:
+          ANDROID_NDK_HOME: ${ANDROID_HOME}/ndk/30.0.14904198
+        run: |
+          cargo ndk -t arm64-v8a -t armeabi-v7a -t x86 -t x86_64 \
+            -o app/src/main/jniLibs build --release --manifest-path rust/Cargo.toml
+
       - name: Set up Gradle 9.6.1
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -124,7 +147,7 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v6
         with:
           commit_message: "Add prebuilt PDFium libraries for on-device builds"
-          file_pattern: "third_party/mj_pdf_prebuilt/**/*.so"
+          file_pattern: "third_party/mj_pdf_prebuilt/**/*.so app/src/main/jniLibs/**/*.so rust/Cargo.lock"
           commit_user_name: "github-actions[bot]"
           commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
 

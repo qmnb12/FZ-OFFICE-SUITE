@@ -18,6 +18,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import com.fz.office.engine.FzNative
 import com.fz.office.fonts.FontCenterActivity
 import com.fz.office.library.RecentDocumentsStore
 import com.fz.office.pdf.PdfViewerActivity
@@ -451,7 +452,7 @@ class MainActivity : Activity() {
             } catch (_: Exception) {
             }
         }
-        if (!isSupportedDocument(name, mime)) {
+        if (!isSupportedDocument(name, mime, uri)) {
             Toast.makeText(
                 this, "This format is not supported by the FZ read-only viewer.",
                 Toast.LENGTH_LONG
@@ -470,7 +471,7 @@ class MainActivity : Activity() {
         if (requestCode != REQUEST_OPEN_DOCUMENT || resultCode != RESULT_OK) return
         val name = queryDisplayName(uri)
         val mime = contentResolver.getType(uri)
-        if (!isSupportedDocument(name, mime)) {
+        if (!isSupportedDocument(name, mime, uri)) {
             Toast.makeText(
                 this, "Choose DOCX/TXT, supported spreadsheets, presentations or PDF.",
                 Toast.LENGTH_LONG
@@ -485,9 +486,31 @@ class MainActivity : Activity() {
         launchDocument(uri, name, mime)
     }
 
-    private fun isSupportedDocument(name: String?, mime: String?): Boolean =
+    private fun isSupportedDocument(name: String?, mime: String?, uri: Uri): Boolean =
         isPdfDocument(name, mime) || isOfficeViewerDocument(name, mime) ||
-            isFzWriterViewerDocument(name, mime)
+            isFzWriterViewerDocument(name, mime) || nativeFormatHint(uri, name) == "PDF"
+
+    /**
+     * Uses the FZ Rust core to recognize extensionless PDFs from their file signature.
+     * If the native library is unavailable, existing extension/MIME routing stays intact.
+     */
+    private fun nativeFormatHint(uri: Uri, name: String?): String? {
+        if (!FzNative.isAvailable) return null
+        return try {
+            contentResolver.openInputStream(uri)?.use { input ->
+                val header = ByteArray(16)
+                var count = 0
+                while (count < header.size) {
+                    val read = input.read(header, count, header.size - count)
+                    if (read <= 0) break
+                    count += read
+                }
+                if (count == 0) null else FzNative.detectFormat(name.orEmpty(), header.copyOf(count))
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     private fun isPdfDocument(name: String?, mime: String?): Boolean {
         val lower = name?.lowercase(Locale.ROOT).orEmpty()
@@ -523,7 +546,7 @@ class MainActivity : Activity() {
     private fun launchDocument(uri: Uri, name: String, mime: String?) {
         try {
             val open = when {
-                isPdfDocument(name, mime) -> Intent(this, PdfViewerActivity::class.java).apply {
+                isPdfDocument(name, mime) || nativeFormatHint(uri, name) == "PDF" -> Intent(this, PdfViewerActivity::class.java).apply {
                     putExtra(PdfViewerActivity.EXTRA_DOCUMENT_URI, uri.toString())
                     putExtra(PdfViewerActivity.EXTRA_DOCUMENT_NAME, name)
                 }
