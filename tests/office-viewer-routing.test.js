@@ -9,6 +9,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const main = read("app/src/main/java/com/fz/office/MainActivity.kt");
 const viewer = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity.kt");
 const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.kt");
+const wordHtml = read("app/src/main/assets/writer/viewer.html");
 const fontManager = read("app/src/main/java/com/fz/office/fonts/FontManager.kt");
 const fontCenter = read("app/src/main/java/com/fz/office/fonts/FontCenterActivity.kt");
 const docxCodec = read("app/src/main/java/com/fz/office/writer/DocxCodec.kt");
@@ -37,6 +38,16 @@ assert(viewer.includes('toolbarControl("Edit")') && viewer.includes("Spreadsheet
 assert(viewer.includes("editableXlsx && !presentation"),
   "Only .xlsx workbooks may expose the editing action");
 assert(writer.includes("VIEW ONLY"), "Writer reader must show view-only status");
+assert(writer.includes("builtInZoomControls = true") && writer.includes("displayZoomControls = false"),
+  "Word/TXT reader must use native WebView pinch zoom without overlay controls");
+assert(wordHtml.includes('maximum-scale=4, user-scalable=yes') &&
+  wordHtml.includes("touch-action:manipulation"),
+  "Word/TXT pages must allow native pinch zoom while keeping one-finger scrolling");
+assert(viewer.includes("webView?.zoomIn()") && viewer.includes("webView?.zoomOut()"),
+  "Spreadsheet and slide zoom controls must remain available");
+assert(gradle.includes('"output" to "viewer/xlsx.js"') &&
+  gradle.includes('"output" to "viewer/pptx.js"'),
+  "Gander spreadsheet and presentation gesture handlers must remain bundled");
 assert(!fs.existsSync(path.join(root, "app/src/main/java/com/fz/office/writer/WriterEditorActivity.java")),
   "Unused DOCX editor implementation must not ship");
 assert(!manifest.includes(".writer.WriterEditorActivity"), "DOCX editor must not be registered");
