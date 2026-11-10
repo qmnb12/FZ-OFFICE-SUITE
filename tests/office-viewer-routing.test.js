@@ -33,7 +33,7 @@ assert(!main.includes("OfficeEditorLauncher"), "Main activity must not expose an
 assert(!writer.includes("OfficeEditorLauncher") && !writer.includes('control("Edit"'),
   "DOCX reader must remain read-only with no Writer edit action");
 assert(!viewer.includes("OfficeEditorLauncher"), "No external office editor launcher should be used");
-assert(viewer.includes('toolbarControl("Edit")') && viewer.includes("SpreadsheetEditorActivity::class.java"),
+assert(viewer.includes('shell.addToolbarAction("Edit"') && viewer.includes("SpreadsheetEditorActivity::class.java"),
   "XLSX viewer must expose the custom FZ Sheets editor");
 assert(viewer.includes("editableXlsx && !presentation"),
   "Only .xlsx workbooks may expose the editing action");
@@ -65,7 +65,7 @@ assert(wordZoomLayout.length > 0 &&
   "Word zoom must update shared CSS variables instead of iterating every page");
 assert(wordHtml.includes("applyPageLayout(true)"),
   "Word page numbers must refresh after pagination");
-assert(viewer.includes("webView?.zoomIn()") && viewer.includes("webView?.zoomOut()"),
+assert(viewer.includes("browser.zoomIn()") && viewer.includes("browser.zoomOut()"),
   "Spreadsheet and slide zoom controls must remain available");
 assert(gradle.includes('"output" to "viewer/xlsx.js"') &&
   gradle.includes('"output" to "viewer/pptx.js"'),
