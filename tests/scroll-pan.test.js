@@ -11,6 +11,8 @@ const office = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity
 const controller = read("app/src/main/java/com/fz/office/viewer/DocumentViewerController.kt");
 const pdf = read("app/src/main/java/com/fz/office/pdf/PdfViewerActivity.kt");
 const gradle = read("app/build.gradle.kts");
+const ganderAssets = read("app/vendor/offline-viewer-1.manifest") +
+  read("app/vendor/offline-viewer-2.manifest");
 
 assert(docx.includes("touch-action:pan-x pan-y pinch-zoom"),
   "DOCX must leave both-axis panning and pinch zoom enabled");
@@ -30,10 +32,10 @@ assert(office.includes("settings.setSupportZoom(true)") &&
   office.includes("settings.useWideViewPort = true") &&
   office.includes("settings.loadWithOverviewMode = true"),
   "PPTX/XLSX must retain WebView zoom and wide viewport support");
-assert(gradle.includes('"output" to "viewer/pptx.html"') &&
-  gradle.includes('"output" to "viewer/xlsx.html"') &&
-  gradle.includes('"output" to "viewer/xlsx.js"') &&
-  gradle.includes('"output" to "viewer/pptx.js"'),
+assert(ganderAssets.includes("viewer/pptx.html") &&
+  ganderAssets.includes("viewer/xlsx.html") &&
+  ganderAssets.includes("viewer/xlsx.js") &&
+  ganderAssets.includes("viewer/pptx.js"),
   "PPTX/XLSX two-axis pan and their format-specific zoom handlers must stay bundled");
 assert(controller.includes("class WebViewDocumentSurface") &&
   controller.includes("view.pageUp(true)") && controller.includes("view.pageDown(true)"),
