@@ -1,11 +1,17 @@
 package com.fz.office.pdf
 
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.GestureDetector
+import android.view.InputDevice
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
+import android.view.animation.DecelerateInterpolator
 import android.webkit.WebMessage
 import android.webkit.WebMessagePort
 import android.webkit.WebResourceRequest
@@ -26,6 +32,10 @@ import java.io.InputStream
 import java.util.Locale
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.hypot
+import kotlin.math.pow
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * Read-only PDF.js viewer adapted from Gander's pinned offline viewer.
@@ -58,6 +68,7 @@ class PdfJsViewerActivity : Activity() {
     @Volatile private var documentLength = -1L
     @Volatile private var useRanges = false
     private var webView: WebView? = null
+    private var doubleTapZoom: PdfJsDoubleTapZoom? = null
     private var dashboard: ReaderDashboard? = null
     private var surface: PdfJsSurface? = null
     private var appPort: WebMessagePort? = null
@@ -129,6 +140,21 @@ class PdfJsViewerActivity : Activity() {
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
         }
         webView = browser
+        val doubleTap = PdfJsDoubleTapZoom(this, object : PdfJsZoomSurface {
+            override fun viewWidth() = browser.width
+            override fun viewHeight() = browser.height
+            override fun scrolledX() = browser.scrollX
+            override fun scrolledY() = browser.scrollY
+            override fun rangeX() = browser.computeHorizontalScrollRange()
+            override fun rangeY() = browser.computeVerticalScrollRange()
+            override fun zoomBy(factor: Float) { browser.zoomBy(factor) }
+            override fun scrollTo(x: Int, y: Int) { browser.scrollTo(x, y) }
+        })
+        doubleTapZoom = doubleTap
+        browser.setOnTouchListener { _, event ->
+            doubleTap.touched(event)
+            false
+        }
 
         val settings: WebSettings = browser.settings
         settings.javaScriptEnabled = true
@@ -428,6 +454,11 @@ class PdfJsViewerActivity : Activity() {
 
     private fun handlePageMessage(raw: String) {
         val message = raw.trim()
+        if (message.startsWith("shrunk ")) {
+            val shrunk = message.substringAfter(' ').trim() == "1"
+            runOnUiThread { doubleTapZoom?.leftToPage = shrunk }
+            return
+        }
         if (message == "locked") {
             locked = true
             runOnUiThread { dashboard?.setStatus("Password-protected PDF · Printing unavailable") }
@@ -542,6 +573,8 @@ class PdfJsViewerActivity : Activity() {
         closing = true
         surface?.dispose()
         surface = null
+        doubleTapZoom?.cancel()
+        doubleTapZoom = null
         runCatching { webView?.stopLoading() }
         webView?.apply {
             webChromeClient = null
@@ -566,5 +599,126 @@ class PdfJsViewerActivity : Activity() {
             insets.consumeSystemWindowInsets()
         }
         root.requestApplyInsets()
+    }
+}
+
+
+/** Minimal Gander-style double-tap zoom anchored under the tapped position. */
+private interface PdfJsZoomSurface {
+    fun viewWidth(): Int
+    fun viewHeight(): Int
+    fun scrolledX(): Int
+    fun scrolledY(): Int
+    fun rangeX(): Int
+    fun rangeY(): Int
+    fun zoomBy(factor: Float)
+    fun scrollTo(x: Int, y: Int)
+}
+
+private class PdfJsDoubleTapZoom(
+    context: Activity,
+    private val surface: PdfJsZoomSurface
+) {
+    companion object {
+        private const val TARGET_ZOOM = 2f
+        private const val DURATION_MS = 250L
+        private const val UNDER_FIT = 0.9f
+    }
+
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var animator: ValueAnimator? = null
+    private var downX = 0f
+    private var downY = 0f
+    private var still = false
+    var leftToPage: Boolean = false
+
+    private val detector = GestureDetector(
+        context,
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTapEvent(event: MotionEvent): Boolean {
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downX = event.x
+                        downY = event.y
+                        still = !event.isFromSource(InputDevice.SOURCE_MOUSE)
+                    }
+                    MotionEvent.ACTION_MOVE -> {
+                        if (hypot(event.x - downX, event.y - downY) > touchSlop) {
+                            still = false
+                        }
+                    }
+                    MotionEvent.ACTION_UP -> if (still) zoomAbout(event.x, event.y)
+                }
+                return false
+            }
+        }
+    )
+
+    fun touched(event: MotionEvent) {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) cancel()
+        detector.onTouchEvent(event)
+    }
+
+    fun cancel() {
+        animator?.cancel()
+        animator = null
+    }
+
+    private fun currentZoom(): Float? {
+        val width = surface.viewWidth()
+        val range = surface.rangeX()
+        return if (width > 0 && range > 0) range.toFloat() / width else null
+    }
+
+    private fun zoomAbout(x: Float, y: Float) {
+        if (leftToPage) return
+        val from = currentZoom() ?: return
+        val target = if (from < sqrt(TARGET_ZOOM)) TARGET_ZOOM else 1f
+        val start = PdfJsZoomStart(surface)
+        cancel()
+        animator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = DURATION_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { frame ->
+                val fraction = frame.animatedFraction
+                val zoom = from * (target / from).pow(fraction)
+                step(zoom, start, x, y)
+            }
+            start()
+        }
+    }
+
+    private fun step(target: Float, start: PdfJsZoomStart, x: Float, y: Float) {
+        val now = currentZoom() ?: return
+        val factor = if (target <= 1f && now > 1f) UNDER_FIT / now else target / now
+        if (factor != 1f) surface.zoomBy(factor.coerceIn(0.02f, 50f))
+        val grown = start.grown() ?: return
+        surface.scrollTo(
+            anchored(start.x + x, grown, x, surface.rangeX(), surface.viewWidth()),
+            anchored(start.y + y, grown, y, surface.rangeY(), surface.viewHeight())
+        )
+    }
+
+    private fun anchored(place: Float, grown: Float, at: Float, range: Int, extent: Int): Int =
+        (place * grown - at).roundToInt().coerceIn(0, maxOf(0, range - extent))
+}
+
+private class PdfJsZoomStart(private val surface: PdfJsZoomSurface) {
+    val x = surface.scrolledX().toFloat()
+    val y = surface.scrolledY().toFloat()
+    private val initialWidth = surface.rangeX()
+    private val initialHeight = surface.rangeY()
+
+    fun grown(): Float? {
+        val viewHeight = surface.viewHeight()
+        val currentHeight = surface.rangeY()
+        val currentWidth = surface.rangeX()
+        return when {
+            initialHeight > viewHeight && currentHeight > viewHeight ->
+                currentHeight.toFloat() / initialHeight
+            currentWidth > 0 ->
+                currentWidth.toFloat() / initialWidth.coerceAtLeast(1)
+            else -> null
+        }
     }
 }
