@@ -3,6 +3,7 @@ package com.fz.office.pdf
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
@@ -14,6 +15,8 @@ import android.os.ParcelFileDescriptor
 import android.text.InputType
 import android.util.LruCache
 import android.view.Gravity
+import android.view.MotionEvent
+import android.view.ViewConfiguration
 import android.view.View
 import android.view.ViewGroup
 import android.view.ScaleGestureDetector
@@ -26,6 +29,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import androidx.recyclerview.widget.RecyclerView
+import com.fz.office.viewer.ReaderDashboard
 import android.widget.TextView
 import android.widget.Toast
 import java.io.File
@@ -38,6 +42,39 @@ import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+
+/**
+ * The outer horizontal pan surface must never steal a vertical page swipe.
+ * At fit width it does not intercept touches at all; while zoomed it intercepts
+ * only a clearly horizontal drag, leaving vertical gestures to RecyclerView.
+ */
+private class PdfHorizontalPanScrollView(context: Context) : HorizontalScrollView(context) {
+    var horizontalPanEnabled = false
+    private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+    private var downX = 0f
+    private var downY = 0f
+
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+        if (!horizontalPanEnabled) return false
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                downX = event.x
+                downY = event.y
+                super.onInterceptTouchEvent(event)
+                return false
+            }
+            MotionEvent.ACTION_MOVE -> {
+                val dx = kotlin.math.abs(event.x - downX)
+                val dy = kotlin.math.abs(event.y - downY)
+                if (dy > touchSlop && dy >= dx) return false
+                if (dx > touchSlop && dx > dy) return super.onInterceptTouchEvent(event)
+                return false
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> return false
+        }
+        return false
+    }
+}
 
 /** Offline read-only PDF reader. Pages render lazily on one worker into a bounded cache. */
 class PdfViewerActivity : Activity() {
@@ -88,7 +125,7 @@ class PdfViewerActivity : Activity() {
     private var renderBucket = 1f
     @Volatile private var closing = false
 
-    private var horizontalScroll: HorizontalScrollView? = null
+    private var horizontalScroll: PdfHorizontalPanScrollView? = null
     private var recycler: RecyclerView? = null
     private var pageLabel: TextView? = null
     private var bookmarkButton: TextView? = null
@@ -120,57 +157,27 @@ class PdfViewerActivity : Activity() {
         window.statusBarColor = 0xff151d1e.toInt()
         window.navigationBarColor = 0xff151d1e.toInt()
 
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(CANVAS)
-        }
-        val toolbar = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(7), dp(5), dp(7), dp(5))
-            setBackgroundColor(Color.WHITE)
-        }
-        root.addView(toolbar, LinearLayout.LayoutParams(-1, dp(56)))
+        val shell = ReaderDashboard(this, documentName, "PDF · VIEW ONLY") { finish() }
+        shell.addToolbarAction("Grid", "Page thumbnails") { showThumbnails() }
 
-        val back = control("‹", 28, INK).apply {
-            gravity = Gravity.CENTER
-            setOnClickListener { finish() }
-        }
-        toolbar.addView(back, LinearLayout.LayoutParams(dp(40), dp(44)))
-
-        val title = control(documentName, 13, INK).apply {
-            isSingleLine = true
-            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
-            setPadding(dp(5), 0, dp(5), 0)
-        }
-        toolbar.addView(title, LinearLayout.LayoutParams(0, -1, 1f))
-
-        val gridButton = toolbarButton("Grid")
-        toolbar.addView(gridButton, LinearLayout.LayoutParams(dp(42), dp(40)))
-        gridButton.setOnClickListener { showThumbnails() }
-
-        val star = toolbarButton("☆")
+        val star = shell.addToolbarAction("☆", "Bookmark current page") { toggleBookmark() }
         bookmarkButton = star
-        toolbar.addView(star, LinearLayout.LayoutParams(dp(40), dp(40)))
-        star.setOnClickListener { toggleBookmark() }
         star.setOnLongClickListener {
             showBookmarks()
             true
         }
 
-        val share = toolbarButton("↗")
-        toolbar.addView(share, LinearLayout.LayoutParams(dp(40), dp(40)))
-        share.setOnClickListener { shareDocument() }
+        shell.addToolbarAction("↗", "Share PDF") { shareDocument() }
 
-        progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            isIndeterminate = true
-        }
-        root.addView(progress, LinearLayout.LayoutParams(-1, dp(3)))
+        progress = shell.progress
+        status = shell.status
 
-        val horizontal = HorizontalScrollView(this).apply {
+        val horizontal = PdfHorizontalPanScrollView(this).apply {
             isFillViewport = true
             isHorizontalScrollBarEnabled = false
             clipToPadding = false
             setBackgroundColor(CANVAS)
+            horizontalPanEnabled = zoom > 1.01f
         }
         horizontalScroll = horizontal
 
@@ -179,6 +186,9 @@ class PdfViewerActivity : Activity() {
             setPadding(dp(8), dp(12), dp(8), dp(24))
             clipToPadding = false
             setItemViewCacheSize(3)
+            isNestedScrollingEnabled = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            verticalScrollBarEnabled = true
             itemAnimator = null
             layoutManager = androidx.recyclerview.widget.LinearLayoutManager(
                 this@PdfViewerActivity,
@@ -203,64 +213,35 @@ class PdfViewerActivity : Activity() {
                 updateCurrentPage()
             }
         })
+
         horizontal.addView(
             list,
             FrameLayout.LayoutParams(
-                maxOf(resources.displayMetrics.widthPixels, dp(300)),
+                maxOf(resources.displayMetrics.widthPixels, pageWidthPx() + dp(28)),
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         )
-        root.addView(horizontal, LinearLayout.LayoutParams(-1, 0, 1f))
+        shell.setDocumentView(horizontal)
 
-        val controls = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(6), dp(8), dp(6))
-            setBackgroundColor(Color.WHITE)
-        }
-        root.addView(controls, LinearLayout.LayoutParams(-1, dp(52)))
+        val previous = shell.addControl("‹ Prev", 1.05f) { jumpToPage(pageIndex - 1) }
+        previous.contentDescription = "Previous page"
 
-        val previous = toolbarButton("‹ Prev")
-        controls.addView(previous, LinearLayout.LayoutParams(0, dp(40), 1f))
-        previous.setOnClickListener { jumpToPage(pageIndex - 1) }
-
-        val label = control("Page — / —", 12, ACCENT).apply {
-            gravity = Gravity.CENTER
-            isClickable = true
-            isFocusable = true
-        }
+        val label = shell.addControl("Page — / —", 1.15f) { showGoToPage() }
+        label.setTextColor(ACCENT)
         pageLabel = label
-        controls.addView(label, LinearLayout.LayoutParams(dp(100), dp(40)))
-        label.setOnClickListener { showGoToPage() }
         label.setOnLongClickListener {
             showBookmarks()
             true
         }
 
-        val next = toolbarButton("Next ›")
-        controls.addView(next, LinearLayout.LayoutParams(0, dp(40), 1f))
-        next.setOnClickListener { jumpToPage(pageIndex + 1) }
+        val next = shell.addControl("Next ›", 1.05f) { jumpToPage(pageIndex + 1) }
+        next.contentDescription = "Next page"
+        shell.addControl("−", 0.62f) { setZoom(zoom - 0.25f) }
+        shell.addControl("Fit", 0.72f) { setZoom(1f) }
+        shell.addControl("+", 0.62f) { setZoom(zoom + 0.25f) }
 
-        val zoomOut = toolbarButton("−")
-        controls.addView(zoomOut, LinearLayout.LayoutParams(dp(36), dp(40)))
-        zoomOut.setOnClickListener { setZoom(zoom - 0.25f) }
-
-        val fit = toolbarButton("Fit")
-        controls.addView(fit, LinearLayout.LayoutParams(dp(40), dp(40)))
-        fit.setOnClickListener { setZoom(1f) }
-
-        val zoomIn = toolbarButton("+")
-        controls.addView(zoomIn, LinearLayout.LayoutParams(dp(36), dp(40)))
-        zoomIn.setOnClickListener { setZoom(zoom + 0.25f) }
-
-        status = control("Preparing offline PDF…", 10, MUTED).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(13), dp(6), dp(13), dp(6))
-            setBackgroundColor(Color.WHITE)
-        }
-        root.addView(status, LinearLayout.LayoutParams(-1, -2))
-
-        setContentView(root)
-        applySafeAreaInsets(root)
+        setContentView(shell.root)
+        applySafeAreaInsets(shell.root)
         updatePageLabel()
 
         var previewZoom = zoom
@@ -282,8 +263,6 @@ class PdfViewerActivity : Activity() {
                     previewZoom = (previewZoom * detector.scaleFactor).coerceIn(1f, 4f)
                     focusX = detector.focusX
                     focusY = detector.focusY
-                    // Transform already-rendered pages on the GPU while fingers move.
-                    // Layout and sharper bitmap rendering happen only when the pinch ends.
                     list.pivotX = focusX
                     list.pivotY = focusY
                     val previewScale = previewZoom / zoom
@@ -299,7 +278,12 @@ class PdfViewerActivity : Activity() {
                 }
             }
         )
-        list.setOnTouchListener { _, event -> detector.onTouchEvent(event) }
+        // A one-finger event is always left to RecyclerView for vertical scrolling.
+        // Only a two-finger gesture is consumed by the scale detector.
+        list.setOnTouchListener { _, event ->
+            val handled = detector.onTouchEvent(event)
+            event.pointerCount > 1 && handled
+        }
     }
 
     private fun openPdf() {
@@ -600,6 +584,7 @@ class PdfViewerActivity : Activity() {
 
         zoom = next
         renderBucket = qualityBucket(next)
+        horizontalScroll?.horizontalPanEnabled = next > 1.01f
         updateRecyclerWidth()
         // One rebind after the gesture, never one per pinch-motion event.
         pageAdapter?.refreshForZoom()
