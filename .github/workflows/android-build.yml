@@ -53,11 +53,11 @@ jobs:
         run: cargo test --manifest-path rust/Cargo.toml
 
       - name: Build FZ Rust native core for Android
-        env:
-          ANDROID_NDK_HOME: ${ANDROID_HOME}/ndk/30.0.14904198
+        working-directory: rust
         run: |
+          export ANDROID_NDK_HOME="${ANDROID_HOME}/ndk/30.0.14904198"
           cargo ndk -t arm64-v8a -t armeabi-v7a -t x86 -t x86_64 \
-            -o app/src/main/jniLibs build --release --manifest-path rust/Cargo.toml
+            -o ../app/src/main/jniLibs build --release
 
       - name: Set up Gradle 9.6.1
         uses: gradle/actions/setup-gradle@v4
