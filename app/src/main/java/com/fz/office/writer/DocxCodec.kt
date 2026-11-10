@@ -464,12 +464,12 @@ object DocxCodec {
             }
         }
 
-        val pageBreakBefore = properties.pageBreakBefore ||
-            resolveParagraphFlag(styleFonts, paragraphStyleId, "pageBreak:")
-        val keepNext = properties.keepNext ||
-            resolveParagraphFlag(styleFonts, paragraphStyleId, "keepNext:")
-        val keepLines = properties.keepLines ||
-            resolveParagraphFlag(styleFonts, paragraphStyleId, "keepLines:")
+        val pageBreakBefore = properties.pageBreakBefore
+            ?: resolveParagraphFlag(styleFonts, paragraphStyleId, "pageBreak:")
+        val keepNext = properties.keepNext
+            ?: resolveParagraphFlag(styleFonts, paragraphStyleId, "keepNext:")
+        val keepLines = properties.keepLines
+            ?: resolveParagraphFlag(styleFonts, paragraphStyleId, "keepLines:")
         if (pageBreakBefore) {
             html.append("<div class='fz-manual-break' data-fz-page-break='true'></div>")
         }
@@ -513,9 +513,9 @@ object DocxCodec {
     private data class ParagraphProperties(
         var alignment: String? = null,
         var styleId: String? = null,
-        var pageBreakBefore: Boolean = false,
-        var keepNext: Boolean = false,
-        var keepLines: Boolean = false,
+        var pageBreakBefore: Boolean? = null,
+        var keepNext: Boolean? = null,
+        var keepLines: Boolean? = null,
         var css: String = ""
     )
 
@@ -766,20 +766,23 @@ object DocxCodec {
                         skipElement(parser)
                     }
                     "pageBreakBefore" -> {
-                        if (propertyContext == "p" && enabled(attribute(parser, "val"))) {
-                            result["pageBreak:" + (currentStyle ?: "__default__")] = "true"
+                        if (propertyContext == "p") {
+                            result["pageBreak:" + (currentStyle ?: "__default__")] =
+                                enabled(attribute(parser, "val")).toString()
                         }
                         skipElement(parser)
                     }
                     "keepNext" -> {
-                        if (propertyContext == "p" && enabled(attribute(parser, "val"))) {
-                            result["keepNext:" + (currentStyle ?: "__default__")] = "true"
+                        if (propertyContext == "p") {
+                            result["keepNext:" + (currentStyle ?: "__default__")] =
+                                enabled(attribute(parser, "val")).toString()
                         }
                         skipElement(parser)
                     }
                     "keepLines" -> {
-                        if (propertyContext == "p" && enabled(attribute(parser, "val"))) {
-                            result["keepLines:" + (currentStyle ?: "__default__")] = "true"
+                        if (propertyContext == "p") {
+                            result["keepLines:" + (currentStyle ?: "__default__")] =
+                                enabled(attribute(parser, "val")).toString()
                         }
                         skipElement(parser)
                     }
@@ -841,8 +844,11 @@ object DocxCodec {
         prefix: String
     ): Boolean {
         if (styles == null) return false
-        if (styles[prefix + "__default__"] == "true") return true
-        return styleChain(styles, styleId).any { styles[prefix + it] == "true" }
+        var value = styles[prefix + "__default__"]?.toBooleanStrictOrNull()
+        for (id in styleChain(styles, styleId)) {
+            styles[prefix + id]?.toBooleanStrictOrNull()?.let { value = it }
+        }
+        return value ?: false
     }
 
     private fun chooseFontFamily(
