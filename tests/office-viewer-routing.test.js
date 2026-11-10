@@ -51,10 +51,8 @@ assert(!dashboard.includes("fun addControl") && !dashboard.includes("val control
   "Shared dashboard must not render redundant zoom or page-navigation controls");
 assert(dashboard.includes("addToolbarAction") && dashboard.includes("val status = TextView"),
   "All viewers must share the same header and compact status footer");
-assert(writer.includes("FZViewer.pageStep(-1)") && writer.includes("FZViewer.pageStep(1)") &&
-  writer.includes("FZViewer.fit()") && wordHtml.includes("function pageStep(delta)") &&
-  wordHtml.includes("function goToPage(index)"),
-  "Word reader must support previous/next page, jump-to-page and fit controls");
+assert(wordHtml.includes("function currentPage()") && wordHtml.includes("function goToPage(index)"),
+  "Word reader must retain internal page tracking without visible navigation buttons");
 assert(writer.includes("builtInZoomControls = true") && writer.includes("displayZoomControls = false"),
   "Word/TXT reader must use native WebView pinch zoom without overlay controls");
 assert(wordHtml.includes('maximum-scale=4, user-scalable=yes') &&
@@ -71,8 +69,9 @@ assert(wordZoomLayout.length > 0 &&
   "Word zoom must update shared CSS variables instead of iterating every page");
 assert(wordHtml.includes("applyPageLayout(true)"),
   "Word page numbers must refresh after pagination");
-assert(viewer.includes("browser.zoomIn()") && viewer.includes("browser.zoomOut()"),
-  "Spreadsheet and slide zoom controls must remain available");
+assert(viewer.includes("builtInZoomControls = true") &&
+  viewer.includes("displayZoomControls = false"),
+  "Spreadsheet and slide readers must use native pinch zoom without zoom buttons");
 assert(gradle.includes('"output" to "viewer/xlsx.js"') &&
   gradle.includes('"output" to "viewer/pptx.js"'),
   "Gander spreadsheet and presentation gesture handlers must remain bundled");
