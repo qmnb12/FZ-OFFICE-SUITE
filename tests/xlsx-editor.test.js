@@ -21,6 +21,8 @@ assert(js.includes("formulaInput") && js.includes("data-address"), "Spreadsheet 
 assert(js.includes("AndroidBridge.saveWorkbook"), "Save Copy must call the Android Save As bridge");
 assert(html.includes("touch-action:pan-x pan-y"),
   "Spreadsheet grid must preserve single-finger panning while allowing custom pinch gestures");
+assert(js.includes("Math.max(.3,Math.min(2.5"),
+  "Excel editor zoom must support 30 percent preview while preserving its upper zoom limit");
 assert(js.includes("function applySheetZoom") &&
   js.includes("table.style.zoom=String(sheetZoom)"),
   "XLSX editor must scale only the worksheet grid while keeping the formula bar and toolbar fixed");
