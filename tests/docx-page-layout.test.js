@@ -22,6 +22,11 @@ assert(codec.includes("var inFirstSection = false") &&
 assert(activity.includes("pendingPageLayout = loadedPageLayout"), "page layout must survive async DOCX loading");
 assert(activity.includes('pageLayout.put("widthTwips"'), "page geometry must be sent to the viewer");
 assert(viewer.includes("function applyPageLayout(renumber)"), "viewer must apply page geometry through shared layout styles");
+assert(viewer.includes("overflow-x:auto") &&
+  viewer.includes("touch-action:pan-x pan-y pinch-zoom"),
+  "DOCX viewer must allow horizontal touch scrolling and native pinch zoom");
+assert(viewer.includes('root.style.width=Math.max(viewportWidth,width*scale+16)+"px"'),
+  "DOCX zoom must expand the scroll canvas so both left and right overflow remain reachable");
 assert(viewer.includes("function makePage(after)") && viewer.includes("function paginate()"),
   "DOCX viewer must create and paginate separate physical pages");
 const manualBreakStart = viewer.indexOf("var marker=children[breakIndex],following=children.slice(breakIndex+1);");

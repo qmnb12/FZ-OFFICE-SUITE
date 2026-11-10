@@ -534,6 +534,37 @@ class MainActivity : Activity() {
         launchDocument(uri, name, mime)
     }
 
+    /**
+     * Validate the selected file again because Android document providers may ignore
+     * or broaden the requested MIME filter.
+     */
+    private fun matchesPickerFilter(name: String?, mime: String?, filter: String?): Boolean {
+        val lower = name?.lowercase(Locale.ROOT).orEmpty()
+        val type = mime?.lowercase(Locale.ROOT).orEmpty()
+        return when (filter) {
+            null -> true
+            "DOCX" -> lower.endsWith(".docx") || type == MIME_DOCX
+            "PDF" -> lower.endsWith(".pdf") || type == MIME_PDF
+            "XLSX" -> lower.endsWith(".xlsx") || lower.endsWith(".xls") ||
+                lower.endsWith(".xlsm") || lower.endsWith(".xlsb") ||
+                lower.endsWith(".xltx") || lower.endsWith(".csv") ||
+                lower.endsWith(".ods") ||
+                type == MIME_XLSX || type == "application/vnd.ms-excel" ||
+                type == "application/vnd.ms-excel.sheet.macroenabled.12" ||
+                type == "application/vnd.ms-excel.sheet.binary.macroenabled.12" ||
+                type == "application/vnd.openxmlformats-officedocument.spreadsheetml.template" ||
+                type == "application/vnd.oasis.opendocument.spreadsheet" ||
+                type == "text/csv" || type == "text/comma-separated-values"
+            "PPTX" -> lower.endsWith(".pptx") || lower.endsWith(".ppsx") ||
+                lower.endsWith(".pptm") || lower.endsWith(".potx") ||
+                type == MIME_PPTX ||
+                type == "application/vnd.openxmlformats-officedocument.presentationml.slideshow" ||
+                type == "application/vnd.ms-powerpoint.presentation.macroenabled.12" ||
+                type == "application/vnd.openxmlformats-officedocument.presentationml.template"
+            else -> false
+        }
+    }
+
     private fun isSupportedDocument(name: String?, mime: String?, uri: Uri): Boolean =
         isPdfDocument(name, mime) || isOfficeViewerDocument(name, mime) ||
             isFzWriterViewerDocument(name, mime) || formatHint(uri, name) == "PDF"

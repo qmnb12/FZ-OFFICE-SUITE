@@ -15,7 +15,7 @@ html,body{margin:0;width:100%;height:100%;background:var(--canvas);color:var(--i
 body{display:flex;flex-direction:column;overflow:hidden}
 #legacyNotice{display:none;flex:0 0 auto;max-width:900px;margin:10px auto 0;padding:10px 13px;border-radius:10px;background:#fff4dc;color:#6c4c12;font-size:12px;line-height:1.5;border:1px solid #f0dfb9;width:calc(100% - 20px)}
 #legacyNotice strong{display:block;margin-bottom:3px}
-#viewer-scroll{width:100%;min-height:0;flex:1 1 auto;overflow:auto;overscroll-behavior:contain;padding:16px 8px 30px}
+#viewer-scroll{width:100%;min-height:0;flex:1 1 auto;overflow-x:auto;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;padding:16px 8px 30px}
 #pages{display:flex;flex-direction:column;align-items:center;width:100%}
 .page-shell{position:relative;flex:0 0 auto;width:var(--fz-shell-width,auto);height:var(--fz-shell-height,auto);margin:0 auto var(--fz-page-gap,28px)}
 .fz-page{position:absolute;left:0;top:0;width:var(--fz-page-width,auto);height:var(--fz-page-height,auto);padding:var(--fz-page-padding,0);transform:var(--fz-page-transform,scale(1));transform-origin:top left;overflow:hidden;background:var(--paper);border:1px solid var(--line);border-radius:2px;box-shadow:0 2px 12px rgba(23,55,43,.11);color:#202b26;font-size:11pt;line-height:1.2;overflow-wrap:break-word;word-break:normal;user-select:text;-webkit-user-select:text;font-family:var(--fz-page-font-family,"Noto Sans Devanagari",Arial,sans-serif);font-feature-settings:"kern" 1,"liga" 1}
@@ -58,6 +58,10 @@ function applyPageLayout(renumber){
  var width=px(layout.widthTwips),height=px(layout.heightTwips),top=px(layout.topTwips),right=px(layout.rightTwips);
  var bottom=px(layout.bottomTwips),left=px(layout.leftTwips),scale=widthScale();
  // One shared style update scales all Word pages; do not walk hundreds of page nodes for each zoom tap.
+ // Expand the scroll canvas with the scaled page width so flex centering cannot
+ // place the left half outside the horizontal scroll range at high zoom.
+ var viewportWidth=Math.max(1,(scroll.clientWidth||window.innerWidth)-16);
+ root.style.width=Math.max(viewportWidth,width*scale+16)+"px";
  root.style.setProperty("--fz-shell-width",(width*scale)+"px");
  root.style.setProperty("--fz-shell-height",(height*scale)+"px");
  root.style.setProperty("--fz-page-gap",(28*scale)+"px");
