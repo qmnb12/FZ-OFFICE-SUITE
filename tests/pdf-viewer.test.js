@@ -17,6 +17,15 @@ assert(main.includes('lower.endsWith(".pdf")'), "PDF filename route is missing")
 assert(main.includes("PdfViewerActivity::class.java"), "PDF must open in the built-in reader");
 
 assert(pdf.includes("FzPdfDocument.open(this, uri)"), "PDF activity must use the FZ Kotlin document core");
+assert(pdf.includes("pageSizeKnown") && pdf.includes("requestPageSize(position)"),
+  "PDF page dimensions must be resolved lazily as pages are bound");
+assert(pdf.includes("searchExecutor.execute") && pdf.includes("pendingPageSizes"),
+  "PDF text search and lazy page-size requests must not block each other on the render queue");
+const openStart = pdf.indexOf("private fun openPdf()");
+const openEnd = pdf.indexOf("private inner class PdfGestureHost", openStart);
+const openBlock = pdf.slice(openStart, openEnd);
+assert(!openBlock.includes("for (index in 0 until opened.pageCount)"),
+  "Opening a PDF must not synchronously inspect every page before first paint");
 assert(pdf.includes("RecyclerView") && pdf.includes("LinearLayoutManager"),
   "PDF pages must use a continuous, vertically scrolling page list");
 assert(!pdf.includes("PDFView") && !pdf.includes("FitPolicy") &&
