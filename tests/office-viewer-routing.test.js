@@ -22,7 +22,7 @@ for (const ext of [".pdf", ".docx", ".txt", ".xlsx", ".xls", ".xlsm", ".xlsb",
 }
 assert(main.includes("OfficeViewerActivity"), "Spreadsheet/presentation reader is not routed");
 assert(main.includes("isFzWriterViewerDocument"), "DOCX/TXT must use the FZ Writer reader");
-assert(main.includes("PdfViewerActivity::class.java"), "PDF reader is not routed");
+assert(main.includes("PdfJsViewerActivity::class.java"), "PDF must route to the Gander PDF.js reader");
 assert(main.includes("Choose DOCX/TXT, supported spreadsheets, presentations or PDF."),
   "Picker guidance must match supported view-only formats");
 assert(main.includes("FLAG_GRANT_READ_URI_PERMISSION"), "Document open must request read access");
@@ -115,7 +115,7 @@ assert(manifest.includes(".viewer.SpreadsheetEditorActivity"), "Spreadsheet edit
 assert(manifest.includes(".pdf.PdfJsViewerActivity"), "Gander PDF.js reader missing from manifest");
 assert(manifest.includes(".pdf.PdfViewerActivity"), "Legacy PDF compatibility fallback missing from manifest");
 assert(!manifest.includes('android.permission.INTERNET'), "Offline app must not request INTERNET");
-assert(gradle.includes("downloadGanderViewerAssets"), "Pinned Gander assets are missing from build");
+assert(gradle.includes("prepareGanderViewerAssets"), "Pinned Gander assets are missing from build");
 assert(gradle.includes("gitBlobSha"), "Viewer assets must be checksum verified");
 assert(gradle.includes('versionName = "0.9.7"'), "Version name must match the PDF.js viewer build");
 assert(gradle.includes("versionCode = 37"), "Version code must match the PDF.js viewer build");
