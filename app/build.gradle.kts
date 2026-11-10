@@ -231,8 +231,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 26
-        versionName = "0.7.7"
+        versionCode = 27
+        versionName = "0.7.8"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
