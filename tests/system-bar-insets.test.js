@@ -5,9 +5,9 @@ const path = require("path");
 const root = path.resolve(__dirname, "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
-const home = read("app/src/main/java/com/fz/office/MainActivity.java");
+const home = read("app/src/main/java/com/fz/office/MainActivity.kt");
 const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.kt");
-const office = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity.java");
+const office = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity.kt");
 const docxViewer = read("app/src/main/assets/writer/viewer.html");
 
 assert(home.includes("applySafeAreaInsets(scroll)"), "Home screen must apply system-bar insets");
