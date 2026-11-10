@@ -32,7 +32,7 @@ assert(!office.includes("private fun findText("), "Office viewer must not keep a
 assert(!pdf.includes("private fun showGoToPage()") && !pdf.includes("private fun shareDocument()"),
   "PDF must not keep separate page/share dialogs");
 assert(!pdf.includes('addToolbarAction("Fit"'), "PDF Fit must come from the shared controller");
-assert(!office.includes('addToolbarAction("Find"') && !writer.includes('addToolbarAction("Find"'),
+assert(!office.includes('addToolbarAction("Find"') && !writer.includes('addToolbarAction("Find"') && !writer.includes("showSearch()"),
   "Each format must not create its own Find toolbar control");
 
 console.log("Shared FZ document-viewer architecture checks passed.");
