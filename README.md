@@ -4,13 +4,13 @@
 
 ## Current build
 
-FZ Office is deliberately **view-only**. The native Collabora/LibreOffice engine and its long native compilation pipeline have been removed from this branch. The app builds as a normal Android Gradle project and does not require the LibreOffice C/C++ toolchain or Android NDK cross-compilation.
+FZ Office is deliberately **view-only**. The native Collabora/LibreOffice engine has been removed. FZ's new shared document core is Kotlin-only; the current PDF reader still uses its pinned PDFium dependency during the migration.
 
-## FZ Rust core
+## FZ Kotlin engine
 
-The in-repository Rust core is being introduced as the long-term document engine. Its first milestone provides native file-signature detection, bounded OOXML ZIP-package inspection, and an Android JNI bridge. Extensionless PDF detection is connected to the app. Existing readers remain available during the staged migration; no format renderer is removed until its Rust replacement is implemented and validated.
+The document-engine rewrite is **Kotlin-first and written inside FZ Office**. No Rust engine or JNI bridge is used. The first FZ-owned foundation is a pure Kotlin file-signature detector for PDF, ZIP-based Office formats and legacy OLE containers.
 
-Android native libraries are built in GitHub Actions for ARM and x86 ABIs and stored in app/src/main/jniLibs so Code On The Go can package them without compiling Rust locally.
+This is a staged replacement, not a destructive reset: existing PDF, spreadsheet and presentation readers remain in place until their FZ-owned Kotlin replacements are implemented, tested against real documents, and shown to preserve the current app's features. Third-party reader assets and rendering dependencies are temporary migration dependencies and will be removed format by format after validation.
 
 ## Supported readers
 
