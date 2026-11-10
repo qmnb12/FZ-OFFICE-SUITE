@@ -84,7 +84,10 @@ fun readOfflineVendorAssets(manifests: List<java.io.File>): List<OfflineVendorAs
 
 val offlineViewerManifests = listOf(
     layout.projectDirectory.file("vendor/offline-viewer-1.manifest").asFile,
-    layout.projectDirectory.file("vendor/offline-viewer-2.manifest").asFile
+    layout.projectDirectory.file("vendor/offline-viewer-2.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-viewer-1.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-viewer-2.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-viewer-3.manifest").asFile
 )
 val fontLicenseManifest = layout.projectDirectory.file("vendor/font-licenses.manifest").asFile
 val hindiFontPayloads = listOf(
@@ -157,6 +160,21 @@ val prepareGanderViewerAssets = tasks.register("prepareGanderViewerAssets") {
 
         readOfflineVendorAssets(offlineViewerManifests).filter { it.kind == "VIEWER" }.forEach { asset ->
             var outputBytes = asset.bytes
+            if (asset.path == "viewer/pdf.mjs") {
+                var script = String(outputBytes, Charsets.UTF_8)
+                val cMapConfig = """opts.cMapUrl = vwAssetUrl("./lib/cmaps/");
+  opts.cMapPacked = true;
+  """
+                if (!script.contains(cMapConfig) || !script.contains("opts.wasmUrl = vwAssetUrl(\"./lib/wasm/\");")) {
+                    throw GradleException("Unexpected pinned Gander PDF.js asset configuration.")
+                }
+                // CMaps are optional for PDFs with embedded fonts. Keep the bundled
+                // WASM decoders (JPEG 2000/JBIG2) but don't request a CMap directory
+                // that is not shipped in this compact offline bundle.
+                script = script.replace(cMapConfig, "")
+                outputBytes = script.toByteArray(Charsets.UTF_8)
+            }
+
             if (asset.path == "viewer/pptx.html" || asset.path == "viewer/xlsx.html") {
                 var html = String(outputBytes, Charsets.UTF_8)
                 val styleLink = "<link rel=\"stylesheet\" href=\"app.css\">"
@@ -229,8 +247,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 36
-        versionName = "0.9.6"
+        versionCode = 37
+        versionName = "0.9.7"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
