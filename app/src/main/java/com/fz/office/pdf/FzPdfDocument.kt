@@ -57,17 +57,20 @@ class FzPdfDocument private constructor(
         require(targetWidthPx > 0) { "Render width must be positive." }
 
         renderer.openPage(index).use { page ->
-            var width = targetWidthPx.coerceIn(MIN_RENDER_WIDTH_PX, MAX_RENDER_DIMENSION_PX)
-            var height = (width.toDouble() * page.height / page.width)
-                .coerceIn(1.0, MAX_RENDER_DIMENSION_PX.toDouble())
-                .roundToInt()
+            var scale = targetWidthPx.coerceIn(
+                MIN_RENDER_WIDTH_PX,
+                MAX_RENDER_DIMENSION_PX
+            ).toDouble() / page.width.toDouble()
+            val largestPageDimension = maxOf(page.width, page.height).toDouble()
+            scale = minOf(
+                scale,
+                MAX_RENDER_DIMENSION_PX.toDouble() / largestPageDimension
+            )
+            val pagePixels = page.width.toDouble() * page.height.toDouble()
+            scale = minOf(scale, sqrt(MAX_BITMAP_PIXELS.toDouble() / pagePixels))
 
-            val requestedPixels = width.toLong() * height.toLong()
-            if (requestedPixels > MAX_BITMAP_PIXELS) {
-                val scale = sqrt(MAX_BITMAP_PIXELS.toDouble() / requestedPixels)
-                width = (width * scale).roundToInt().coerceAtLeast(1)
-                height = (height * scale).roundToInt().coerceAtLeast(1)
-            }
+            val width = (page.width * scale).roundToInt().coerceAtLeast(1)
+            val height = (page.height * scale).roundToInt().coerceAtLeast(1)
 
             val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
             return try {
