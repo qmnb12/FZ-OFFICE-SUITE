@@ -28,9 +28,15 @@ jobs:
           "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
             "platform-tools" \
             "platforms;android-36" \
-            "build-tools;36.0.0" \\\n            "ndk;30.0.14904198" \\\n            "cmake;3.31.1"\n          echo "$ANDROID_HOME/cmake/3.31.1/bin" >> "$GITHUB_PATH"
+            "build-tools;36.0.0" \
+            "ndk;30.0.14904198"
 
-      - name: Install MJ PDF native build prerequisites\n        run: |\n          sudo apt-get update\n          sudo apt-get install -y ninja-build python3-requests\n\n      - name: Set up Gradle 9.6.1
+      - name: Install MJ PDF native build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build python3-requests
+
+      - name: Set up Gradle 9.6.1
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.6.1"
