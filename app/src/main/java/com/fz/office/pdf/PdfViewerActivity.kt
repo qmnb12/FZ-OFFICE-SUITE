@@ -47,21 +47,26 @@ class PdfViewerActivity : Activity() {
         const val EXTRA_DOCUMENT_NAME = "document_name"
         private const val CANVAS = 0xffe9eeeb.toInt()
         private const val MAX_DISPLAY_WIDTH_PX = 8192
+        private val DEFAULT_PAGE_SIZE = FzPdfDocument.PageSize(612, 792)
         private const val BITMAP_CACHE_KB = 32 * 1024
         private const val MAX_SEARCH_HITS = 3000
     }
 
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val searchExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val bitmapCache = object : LruCache<String, Bitmap>(BITMAP_CACHE_KB) {
         override fun sizeOf(key: String, value: Bitmap): Int =
             (value.byteCount / 1024).coerceAtLeast(1)
     }
     private val pendingRenders = Collections.synchronizedSet(mutableSetOf<String>())
+    private val pendingPageSizes = Collections.synchronizedSet(mutableSetOf<Int>())
 
     private var documentUri: Uri? = null
     private var documentName = "PDF document"
     private var pdfDocument: FzPdfDocument? = null
     private var pageSizes: List<FzPdfDocument.PageSize> = emptyList()
+    private var pageSizeKnown = BooleanArray(0)
+    private var pendingBottomPage = -1
     private var recyclerView: RecyclerView? = null
     private var pageAdapter: PdfPageAdapter? = null
     private val horizontalScrollFractionsByPage = HashMap<Int, Float>()
@@ -171,14 +176,15 @@ class PdfViewerActivity : Activity() {
             var opened: FzPdfDocument? = null
             try {
                 opened = FzPdfDocument.open(this, uri)
-                val sizes = ArrayList<FzPdfDocument.PageSize>(opened.pageCount)
-                for (index in 0 until opened.pageCount) {
-                    if (closing) {
-                        opened.close()
-                        return@execute
-                    }
-                    sizes.add(opened.pageSize(index))
-                }
+                val pageCount = opened.pageCount
+                if (pageCount < 1) throw IllegalStateException("The PDF does not contain any pages.")
+
+                // Measure the page we are about to show first. Remaining page sizes are
+                // resolved on demand when RecyclerView binds those pages.
+                val initialPage = pageIndex.coerceIn(0, pageCount - 1)
+                val initialSize = opened.pageSize(initialPage)
+                val sizes = MutableList(pageCount) { DEFAULT_PAGE_SIZE }
+                sizes[initialPage] = initialSize
 
                 val readyDocument = checkNotNull(opened)
                 runOnUiThread {
@@ -188,7 +194,8 @@ class PdfViewerActivity : Activity() {
                     }
                     pdfDocument = readyDocument
                     pageSizes = sizes
-                    pageIndex = pageIndex.coerceIn(0, (sizes.size - 1).coerceAtLeast(0))
+                    pageSizeKnown = BooleanArray(pageCount).also { it[initialPage] = true }
+                    pageIndex = initialPage
                     pageAdapter?.submitPages(sizes)
                     shell?.setLoading(false)
                     shell?.setStatus("PDF ready · Scroll · Pinch to zoom")
@@ -356,6 +363,48 @@ class PdfViewerActivity : Activity() {
         }
     }
 
+    private fun requestPageSize(page: Int) {
+        if (closing || page !in pageSizes.indices || pageSizeKnown[page]) return
+        val document = pdfDocument ?: return
+        if (!pendingPageSizes.add(page)) return
+
+        try {
+            ioExecutor.execute {
+                val measuredSize = try {
+                    document.pageSize(page)
+                } catch (_: Exception) {
+                    null
+                }
+                pendingPageSizes.remove(page)
+
+                runOnUiThread {
+                    if (closing || isFinishing || isDestroyed || pdfDocument !== document ||
+                        page !in pageSizes.indices
+                    ) return@runOnUiThread
+
+                    pageSizeKnown[page] = true
+                    if (measuredSize != null) {
+                        val updatedSizes = pageSizes.toMutableList()
+                        updatedSizes[page] = measuredSize
+                        pageSizes = updatedSizes
+                    } else {
+                        shell?.setStatus("Could not read dimensions for PDF page " + (page + 1))
+                    }
+                    pageAdapter?.notifyItemChanged(page)
+
+                    if (pendingBottomPage == page) {
+                        pendingBottomPage = -1
+                        recyclerView?.post {
+                            if (!closing) jumpToPageEnd(page)
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            pendingPageSizes.remove(page)
+        }
+    }
+
     private fun requestRender(holder: PdfPageHolder, page: Int, renderWidth: Int, cacheKey: String) {
         val document = pdfDocument ?: return
         if (!pendingRenders.add(cacheKey)) return
@@ -433,7 +482,7 @@ class PdfViewerActivity : Activity() {
             refreshVisibleSearchHighlights()
             shell?.setStatus("Searching PDF text…")
 
-            ioExecutor.execute {
+            searchExecutor.execute {
                 val matches = ArrayList<PdfSearchHit>()
                 var failure: String? = null
                 val document = pdfDocument
@@ -531,6 +580,13 @@ class PdfViewerActivity : Activity() {
         val target = index.coerceIn(0, pageSizes.lastIndex)
         pageIndex = target
         val layout = recycler.layoutManager as? LinearLayoutManager ?: return
+        if (!pageSizeKnown[target]) {
+            pendingBottomPage = target
+            requestPageSize(target)
+            layout.scrollToPositionWithOffset(target, 0)
+            updatePageStatus()
+            return
+        }
         val size = pageSizes[target]
         val baseWidth = (resources.displayMetrics.widthPixels - dp(32)).coerceAtLeast(dp(220))
         val displayWidth = (baseWidth * zoomScale).roundToInt().coerceAtMost(MAX_DISPLAY_WIDTH_PX)
@@ -588,6 +644,8 @@ class PdfViewerActivity : Activity() {
         closing = true
         bitmapCache.evictAll()
         pendingRenders.clear()
+        pendingPageSizes.clear()
+        searchExecutor.shutdownNow()
         val document = pdfDocument
         pdfDocument = null
         try {
@@ -695,6 +753,12 @@ class PdfViewerActivity : Activity() {
                 holder.scroller.scrollTo((range * savedFraction).roundToInt(), 0)
             }
 
+            if (!pageSizeKnown[position]) {
+                holder.image.tag = null
+                holder.image.setImageDrawable(null)
+                requestPageSize(position)
+                return
+            }
             val renderWidth = displayWidth.coerceAtMost(4096)
             val cacheKey = "page:" + position + ":width:" + renderWidth
             holder.image.tag = cacheKey
