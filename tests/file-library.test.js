@@ -14,6 +14,9 @@ assert(main.includes('"DOCX" -> arrayOf(MIME_DOCX)') &&
   "DOCX and PDF tiles must filter the system picker to only their own MIME type");
 assert(main.includes("matchesPickerFilter(name, mime, requestedFilter)"),
   "Picker results must be checked against the selected format as a fallback");
+assert(main.includes("val resultIntent = data ?: return") &&
+  main.includes("resultIntent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION"),
+  "Filtered picker result must retain the returned URI grant flags");
 assert(main.includes("Search recent documents"), "Recent documents must be searchable");
 assert(main.includes('libraryTabButton("Recent files"'), "Recent files tab is missing");
 assert(main.includes('libraryTabButton("Starred files"'), "Starred files tab is missing");
