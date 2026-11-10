@@ -63,6 +63,8 @@ class WriterActivity : Activity() {
     private var viewer: WebView? = null
     private var titleView: TextView? = null
     private var statusView: TextView? = null
+    private var pageSizeAction: TextView? = null
+    private var selectedPageSizeKey = "original"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,6 +91,11 @@ class WriterActivity : Activity() {
         ) { finish() }
         titleView = shell.titleView
         statusView = shell.status
+        if (!plainText) {
+            pageSizeAction = shell.addToolbarAction("Size", "Choose Word page size") {
+                showPageSizeOptions()
+            }
+        }
         shell.addToolbarAction("Find", "Find text in document") { showSearch() }
 
         val documentWebView = WebView(this).apply {
@@ -121,6 +128,43 @@ class WriterActivity : Activity() {
         setContentView(shell.root)
         applySafeAreaInsets(shell.root)
         documentWebView.loadUrl("file:///android_asset/writer/viewer.html")
+    }
+
+    private fun showPageSizeOptions() {
+        if (plainText) return
+        val labels = arrayOf(
+            "Original document size",
+            "A4 · Portrait",
+            "A4 · Landscape",
+            "Letter",
+            "Legal",
+            "A3",
+            "A5"
+        )
+        val keys = arrayOf(
+            "original", "a4", "a4_landscape", "letter", "legal", "a3", "a5"
+        )
+        AlertDialog.Builder(this)
+            .setTitle("Word page size")
+            .setItems(labels) { _, selected ->
+                selectedPageSizeKey = keys[selected]
+                pageSizeAction?.text = if (keys[selected] == "original") {
+                    "Size"
+                } else {
+                    labels[selected].substringBefore(" ·")
+                }
+                runViewerScript(
+                    "FZViewer.setPageSize(" +
+                        JSONObject.quote(selectedPageSizeKey) + ");"
+                )
+                statusView?.text = if (keys[selected] == "original") {
+                    "Original document page size · View only"
+                } else {
+                    "Page size: " + labels[selected] + " · View only"
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showSearch() {
@@ -359,7 +403,10 @@ class WriterActivity : Activity() {
             JSONObject.quote(pendingLegacyProfile) + "," +
             JSONObject.quote(pendingLegacyFontName) + "," +
             pendingLegacyTextHint + "," +
-            pendingLegacyFontLoaded + "," + pageLayout.toString() + ");"
+            pendingLegacyFontLoaded + "," + pageLayout.toString() + ");" +
+            if (!plainText && selectedPageSizeKey != "original") {
+                "FZViewer.setPageSize(" + JSONObject.quote(selectedPageSizeKey) + ");"
+            } else ""
         web.evaluateJavascript(script, null)
     }
 
