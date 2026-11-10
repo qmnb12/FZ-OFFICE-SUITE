@@ -1,6 +1,10 @@
 import java.security.MessageDigest
 import java.util.Base64
 
+plugins {
+    id("com.android.application")
+}
+
 val hindiFontAssets = layout.buildDirectory.dir("generated/assets/hindiFonts")
 val ganderViewerAssets = layout.buildDirectory.dir("generated/assets/ganderViewer")
 
