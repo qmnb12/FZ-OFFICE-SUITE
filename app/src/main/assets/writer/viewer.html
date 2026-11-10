@@ -170,8 +170,26 @@ function setDocument(html,profile,fontName,legacyHint,fontAvailable,pageLayout){
  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){paginate()});
 }
 function zoom(direction){zoomLevel=Math.max(.7,Math.min(1.5,zoomLevel+(direction>0?.1:-.1)));applyPageLayout()}
+function fit(){zoomLevel=1;applyPageLayout()}
+function pageCount(){return root.querySelectorAll(".page-shell").length}
+function currentPage(){
+ var shells=root.querySelectorAll(".page-shell"),mark=scroll.scrollTop+Math.max(24,scroll.clientHeight*.28),current=0;
+ for(var i=0;i<shells.length;i++){if(shells[i].offsetTop<=mark)current=i;else break}
+ return current
+}
+function goToPage(index){
+ var shells=root.querySelectorAll(".page-shell");
+ if(!shells.length)return;
+ index=Math.max(0,Math.min(shells.length-1,Number(index)||0));
+ shells[index].scrollIntoView({behavior:"smooth",block:"start"});
+}
+function pageStep(delta){goToPage(currentPage()+(Number(delta)||0))}
 window.addEventListener("resize",applyPageLayout);
-window.FZViewer={registerFonts:registerFonts,setDefaultFont:setDefaultFont,setDocument:setDocument,zoom:zoom};
+window.FZViewer={
+ registerFonts:registerFonts,setDefaultFont:setDefaultFont,setDocument:setDocument,
+ zoom:zoom,fit:fit,pageCount:pageCount,currentPage:currentPage,
+ goToPage:goToPage,pageStep:pageStep
+};
 })();
 </script>
 </body>
