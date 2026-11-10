@@ -237,7 +237,7 @@ class PdfJsViewerActivity : Activity() {
                 val resume = currentPage.coerceAtLeast(1)
                 val url = "$ASSET_ORIGIN/assets/viewer/pdf.html" +
                     "?name=" + Uri.encode(documentName) +
-                    "&ext=pdf&ranged=" + if (useRanges) "1" else "0" +
+                    "&ext=pdf&ranged=" + (if (useRanges) "1" else "0") +
                     "&resume=" + resume
                 dashboard?.setStatus("Opening PDF with Gander PDF.js…")
                 webView?.loadUrl(url)
@@ -267,6 +267,7 @@ class PdfJsViewerActivity : Activity() {
             if (!useRanges || documentLength <= 0L || range.isNullOrBlank()) {
                 val input = contentResolver.openInputStream(uri) ?: return notFound()
                 val headers = commonHeaders()
+                if (useRanges) headers["Accept-Ranges"] = "bytes"
                 if (documentLength > 0) headers["Content-Length"] = documentLength.toString()
                 return WebResourceResponse("application/pdf", null, 200, "OK", headers, input)
             }
@@ -393,6 +394,7 @@ class PdfJsViewerActivity : Activity() {
                 handlePageMessage(message.data.orEmpty())
             }
         })
+        mine.start()
         appPort = mine
         pagePort = page
         try {
