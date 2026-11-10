@@ -2,18 +2,16 @@ package com.fz.office.pdf
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.content.Intent
+import android.app.AlertDialog
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
-import android.text.InputType
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.ScaleGestureDetector
-import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
@@ -22,6 +20,10 @@ import android.util.LruCache
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.fz.office.viewer.ReaderDashboard
+import com.fz.office.viewer.DocumentViewerController
+import com.fz.office.viewer.DocumentViewerSurface
+import com.fz.office.viewer.UriPdfPrintAdapter
+import android.print.PrintDocumentAdapter
 import java.util.Collections
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -86,8 +88,6 @@ class PdfViewerActivity : Activity() {
 
         val dashboard = ReaderDashboard(this, documentName, "PDF · FZ CORE · READ ONLY") { finish() }
         shell = dashboard
-        dashboard.addToolbarAction("Fit", "Fit page to screen width") { setZoom(1f) }
-        dashboard.addToolbarAction("↗", "Share PDF") { shareDocument() }
 
         val recycler = RecyclerView(this).apply {
             setBackgroundColor(CANVAS)
@@ -108,12 +108,33 @@ class PdfViewerActivity : Activity() {
         installZoomGestures(recycler)
 
         dashboard.setDocumentView(recycler)
+        DocumentViewerController(
+            this,
+            dashboard,
+            object : DocumentViewerSurface {
+                override val view: View = recycler
+                override val supportsZoom: Boolean = true
+                override val supportsPageNavigation: Boolean = true
+                override val supportsPrint: Boolean = true
+
+                override fun zoomIn() = setZoom(zoomScale * 1.2f)
+                override fun zoomOut() = setZoom(zoomScale / 1.2f)
+                override fun fitToWidth() = setZoom(1f)
+                override fun pageCount(onResult: (Int?) -> Unit) {
+                    onResult(pageSizes.size.takeIf { it > 0 })
+                }
+                override fun goToPage(index: Int) = jumpToPage(index)
+                override fun createPrintAdapter(jobName: String): PrintDocumentAdapter? {
+                    val uri = documentUri ?: return null
+                    return UriPdfPrintAdapter(this@PdfViewerActivity, uri, jobName)
+                }
+            },
+            documentUri,
+            documentName,
+            documentUri?.let { contentResolver.getType(it) } ?: "application/pdf"
+        )
         dashboard.setStatus("Opening PDF · Scroll to read · Pinch or double-tap to zoom")
         dashboard.setLoading(true)
-        dashboard.status.setOnLongClickListener {
-            showGoToPage()
-            true
-        }
 
         setContentView(dashboard.root)
         applySafeAreaInsets(dashboard.root)
@@ -270,44 +291,6 @@ class PdfViewerActivity : Activity() {
         (recyclerView?.layoutManager as? LinearLayoutManager)
             ?.scrollToPositionWithOffset(pageIndex, 0)
         updatePageStatus()
-    }
-
-    private fun showGoToPage() {
-        val total = pageSizes.size
-        if (total < 1) return
-        val input = EditText(this).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER
-            hint = "Page number (1-$total)"
-            setText((pageIndex + 1).toString())
-            setSelection(text.length)
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Go to page")
-            .setView(input)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Go") { _, _ ->
-                val requested = input.text.toString().toIntOrNull()
-                if (requested == null || requested !in 1..total) {
-                    Toast.makeText(this, "Enter a page from 1 to " + total + ".", Toast.LENGTH_SHORT).show()
-                } else {
-                    jumpToPage(requested - 1)
-                }
-            }
-            .show()
-    }
-
-    private fun shareDocument() {
-        val uri = documentUri ?: return
-        try {
-            val share = Intent(Intent.ACTION_SEND).apply {
-                type = "application/pdf"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            startActivity(Intent.createChooser(share, "Share PDF"))
-        } catch (_: Exception) {
-            Toast.makeText(this, "This PDF cannot be shared right now.", Toast.LENGTH_LONG).show()
-        }
     }
 
     private fun showError(error: Throwable) {

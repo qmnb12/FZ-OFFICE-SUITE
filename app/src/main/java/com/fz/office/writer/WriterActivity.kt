@@ -7,18 +7,18 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.Gravity
-import android.text.InputType
 import android.view.View
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
 import com.fz.office.fonts.FontManager
 import com.fz.office.viewer.ReaderDashboard
+import com.fz.office.viewer.DocumentViewerController
+import com.fz.office.viewer.WebViewDocumentSurface
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -45,6 +45,7 @@ class WriterActivity : Activity() {
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private var sourceUri: Uri? = null
     private var documentName = "Document"
+    private var documentMime: String? = null
     private var plainText = false
     private var pageReady = false
     private var viewerInitialized = false
@@ -73,9 +74,9 @@ class WriterActivity : Activity() {
             sourceUri = Uri.parse(uriValue)
             documentName = queryDisplayName(checkNotNull(sourceUri))
         }
-        val sourceMime = sourceUri?.let { contentResolver.getType(it) }
+        documentMime = sourceUri?.let { contentResolver.getType(it) }
         plainText = documentName.lowercase(Locale.ROOT).endsWith(".txt") ||
-            "text/plain".equals(sourceMime, ignoreCase = true)
+            "text/plain".equals(documentMime, ignoreCase = true)
         buildViewerScreen()
         loadDocument()
     }
@@ -125,6 +126,18 @@ class WriterActivity : Activity() {
 
         // Native WebView pinch and one-finger document scrolling are the only navigation controls.
         shell.setDocumentView(documentWebView)
+        DocumentViewerController(
+            this,
+            shell,
+            WebViewDocumentSurface(
+                documentWebView,
+                pageCountScript = "FZViewer.pageCount()",
+                pageCommand = { page -> "FZViewer.goToPage($page)" }
+            ),
+            sourceUri,
+            documentName,
+            documentMime
+        )
         setContentView(shell.root)
         applySafeAreaInsets(shell.root)
         documentWebView.loadUrl("file:///android_asset/writer/viewer.html")
@@ -165,53 +178,6 @@ class WriterActivity : Activity() {
             }
             .setNegativeButton("Cancel", null)
             .show()
-    }
-
-    private fun showSearch() {
-        val query = EditText(this).apply {
-            isSingleLine = true
-            hint = "Find text in this document"
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Find in document")
-            .setView(query)
-            .setNegativeButton("Close", null)
-            .setPositiveButton("Find") { _, _ ->
-                val value = query.text.toString().trim()
-                if (value.isNotEmpty()) viewer?.findAllAsync(value)
-            }
-            .setNeutralButton("Clear") { _, _ -> viewer?.clearMatches() }
-            .show()
-    }
-
-    private fun showGoToPage() {
-        val web = viewer ?: return
-        web.evaluateJavascript("FZViewer.pageCount()") { raw ->
-            val count = raw?.trim()?.trim('"')?.toIntOrNull() ?: 0
-            if (count < 1) {
-                Toast.makeText(this, "Pages are still being prepared.", Toast.LENGTH_SHORT).show()
-                return@evaluateJavascript
-            }
-            val input = EditText(this).apply {
-                inputType = InputType.TYPE_CLASS_NUMBER
-                hint = "Page number (1-$count)"
-                setText("1")
-                setSelection(text.length)
-            }
-            AlertDialog.Builder(this)
-                .setTitle("Go to page")
-                .setView(input)
-                .setNegativeButton("Cancel", null)
-                .setPositiveButton("Go") { _, _ ->
-                    val requested = input.text.toString().toIntOrNull()
-                    if (requested == null || requested !in 1..count) {
-                        Toast.makeText(this, "Enter a page from 1 to $count.", Toast.LENGTH_SHORT).show()
-                    } else {
-                        runViewerScript("FZViewer.goToPage(" + (requested - 1) + ")")
-                    }
-                }
-                .show()
-        }
     }
 
     private fun loadDocument() {

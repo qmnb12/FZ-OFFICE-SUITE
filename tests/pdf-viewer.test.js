@@ -26,12 +26,13 @@ assert(pdf.includes("ScaleGestureDetector") && pdf.includes("onDoubleTap"),
   "Pinch zoom and double-tap zoom must be available");
 assert(pdf.includes("ReaderDashboard") && pdf.includes("dashboard.setDocumentView(recycler)"),
   "PDF reader must retain the shared FZ dashboard");
-assert(pdf.includes("showGoToPage") && pdf.includes("jumpToPage"),
-  "Direct page navigation must remain available");
+assert(pdf.includes("jumpToPage") && pdf.includes("supportsPageNavigation"),
+  "Direct page navigation must be exposed through the shared document controller");
 assert(!pdf.includes('addToolbarAction("Pages"') &&
   !pdf.includes("toggleBookmark") && !pdf.includes("showBookmarks"),
   "PDF page previews and bookmarks must stay removed");
-assert(pdf.includes("shareDocument"), "PDF sharing must remain available");
+assert(pdf.includes("DocumentViewerController") && pdf.includes("UriPdfPrintAdapter"),
+  "PDF share and print actions must come from the shared document controller");
 assert(pdf.includes("applySafeAreaInsets") && pdf.includes("onSaveInstanceState"),
   "System insets and the last page/zoom position must be retained");
 assert(!pdf.includes("openOutputStream(documentUri)"),

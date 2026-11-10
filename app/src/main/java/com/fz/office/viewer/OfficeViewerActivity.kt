@@ -1,7 +1,6 @@
 package com.fz.office.viewer
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import android.database.Cursor
 import android.graphics.Color
@@ -18,13 +17,14 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import com.fz.office.fonts.FontManager
 import com.fz.office.viewer.ReaderDashboard
+import com.fz.office.viewer.DocumentViewerController
+import com.fz.office.viewer.WebViewDocumentSurface
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.IOException
@@ -125,7 +125,6 @@ class OfficeViewerActivity : Activity() {
                 startActivity(editorIntent)
             }
         }
-        shell.addToolbarAction("Find", "Find text in document") { showSearch() }
 
         val browser = WebView(this).apply {
             setBackgroundColor(0xffece8df.toInt())
@@ -211,6 +210,14 @@ class OfficeViewerActivity : Activity() {
 
         // Native WebView pinch zoom and finger scrolling; no redundant navigation buttons.
         shell.setDocumentView(browser)
+        DocumentViewerController(
+            this,
+            shell,
+            WebViewDocumentSurface(browser),
+            documentUri,
+            documentName,
+            documentUri?.let { contentResolver.getType(it) }
+        )
         setContentView(shell.root)
         applySafeAreaInsets(shell.root)
 
@@ -354,45 +361,6 @@ class OfficeViewerActivity : Activity() {
         val safe = value.orEmpty().replace("\\", "\\\\")
             .replace("\"", "\\\"").replace("\n", "").replace("\r", "")
         return "\"" + safe + "\""
-    }
-
-    private fun showSearch() {
-        val query = EditText(this).apply {
-            isSingleLine = true
-            hint = "Find text in this file"
-        }
-        val content = LinearLayout(this).apply {
-            setPadding(dp(20), dp(8), dp(20), dp(4))
-            addView(query, LinearLayout.LayoutParams(-1, -2))
-        }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Find in document")
-            .setView(content)
-            .setNegativeButton("Close") { _, _ -> webView?.clearMatches() }
-            .setNeutralButton("Previous", null)
-            .setPositiveButton("Next", null)
-            .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                findText(query.text.toString(), true)
-            }
-            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                findText(query.text.toString(), false)
-            }
-        }
-        dialog.show()
-        dialog.window?.setSoftInputMode(
-            android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE
-        )
-        query.requestFocus()
-    }
-
-    private fun findText(query: String?, forward: Boolean) {
-        val value = query?.trim().orEmpty()
-        val browser = webView ?: return
-        if (value.isEmpty()) return
-        browser.findAllAsync(value)
-        browser.findNext(forward)
     }
 
     private fun isPresentationExtension(ext: String): Boolean =
