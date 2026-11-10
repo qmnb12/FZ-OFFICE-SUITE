@@ -25,8 +25,18 @@ assert(pdf.includes("PdfHorizontalPanScrollView") && pdf.includes("horizontalPan
   "PDF horizontal panning must be disabled at fit width so it cannot intercept vertical swipes");
 assert(pdf.includes("dy >= dx") && pdf.includes("dx > touchSlop"),
   "Zoomed PDF pan container must intercept only clear horizontal drags");
-assert(pdf.includes("event.pointerCount > 1 && handled"),
-  "Single-finger PDF gestures must remain available to RecyclerView scrolling");
+assert(pdf.includes("if (event.pointerCount > 1)") &&
+  pdf.includes("horizontalDragging = false") &&
+  pdf.includes("return false"),
+  "Horizontal pan container must never intercept a multi-touch pinch stream");
+assert(pdf.includes("scalingGestureActive || (event.pointerCount > 1 && handled)") &&
+  pdf.includes("scalingGestureActive = false"),
+  "PDF pinch events must be consumed through the final ACTION_UP/CANCEL event");
+assert(pdf.includes("coerceIn(0.65f, 4f)"),
+  "PDF pinch zoom must support zoom-out below fit width as well as zoom-in");
+assert(pdf.includes("if (next <= 1.001f) 0") &&
+  pdf.includes("horizontal.post { horizontal.scrollTo(x, 0) }"),
+  "Zooming back to fit must clear stale horizontal scroll offsets");
 assert(pdf.includes("isNestedScrollingEnabled = false"),
   "PDF page list must own its vertical scroll gestures");
 assert(pdf.includes("ReaderDashboard") && pdf.includes("shell.setDocumentView(horizontal)"),
