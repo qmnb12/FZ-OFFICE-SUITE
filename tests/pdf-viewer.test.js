@@ -41,6 +41,9 @@ assert(pdf.includes("refreshForZoom") && pdf.includes("notifyItemRangeChanged"),
 assert(pdf.includes("visibleStartPage") && pdf.includes("visibleEndPage") &&
   pdf.includes("obsolete pages queued"),
   "Out-of-view PDF render jobs must be skipped after fast scrolling");
+assert(pdf.includes("visibleEndPage = minOf(count - 1, pageIndex + 5)") &&
+  pdf.includes("visibleEndPage = minOf(pageCount - 1, target + 5)"),
+  "Saved-page restore and direct page jumps must prime the render window before binding");
 assert(pdf.includes("showThumbnails") && pdf.includes("requestThumbnail"),
   "A lazily rendered page thumbnail grid is required");
 assert(pdf.includes("showGoToPage") && pdf.includes("jumpToPage"),
