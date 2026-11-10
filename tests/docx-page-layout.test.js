@@ -5,8 +5,8 @@ const activity = fs.readFileSync("app/src/main/java/com/fz/office/writer/WriterA
 const viewer = fs.readFileSync("app/src/main/assets/writer/viewer.html", "utf8");
 assert(codec.includes("readPageLayout(documentXml)"), "DOCX load must read section page geometry");
 assert(codec.includes("htmlToDocumentXml(html, pageLayout)"), "DOCX save must retain page geometry and margins");
-assert(codec.includes('parser.name == "pgSz"'), "DOCX parser must read page dimensions");
-assert(codec.includes('parser.name == "pgMar"'), "DOCX parser must read page margins");
+assert(codec.includes('"pgSz" -> {'), "DOCX parser must read page dimensions");
+assert(codec.includes('"pgMar" -> {'), "DOCX parser must read page margins");
 assert(codec.includes('orientation.equals("landscape", true)'), "landscape orientation must be honored");
 assert(codec.includes("boundedTwips"), "untrusted dimensions and margins must be bounded");
 assert(activity.includes("pendingPageLayout = loadedPageLayout"), "page layout must survive async DOCX loading");
