@@ -11,7 +11,8 @@ assert(engine.includes("ParcelFileDescriptor"), "FZ PDF core must own the seekab
 assert(engine.includes('contentResolver.openFileDescriptor(uri, "r")'), "FZ PDF core must first try the original SAF descriptor");
 assert(engine.includes("copyToPrivateCache"), "Non-seekable provider fallback must be available");
 assert(engine.includes("DEFAULT_MAX_PDF_BYTES"), "PDF cache copies must have a size limit");
-assert(engine.includes("MAX_BITMAP_PIXELS"), "Page raster dimensions must have a memory bound");
+assert(engine.includes("MAX_BITMAP_PIXELS = 6_000_000L"),
+  "A single ARGB page bitmap must fit inside the viewer's 32 MiB LRU cache");
 assert(engine.includes("page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)"),
   "The FZ PDF core must render pages through Android PdfRenderer");
 assert(engine.includes("@Synchronized"), "PdfRenderer access must be serialized");
