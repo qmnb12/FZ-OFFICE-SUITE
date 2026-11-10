@@ -54,12 +54,14 @@ private class PdfHorizontalPanScrollView(context: Context) : HorizontalScrollVie
     private var downX = 0f
     private var downY = 0f
     private var horizontalDragging = false
+    private var verticalGestureLocked = false
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
         // Never steal a multi-touch stream: RecyclerView's ScaleGestureDetector must
         // receive both pinch-in and pinch-out even when horizontal panning is enabled.
         if (event.pointerCount > 1) {
             horizontalDragging = false
+            verticalGestureLocked = false
             return false
         }
         if (!horizontalPanEnabled) return false
@@ -73,15 +75,22 @@ private class PdfHorizontalPanScrollView(context: Context) : HorizontalScrollVie
             MotionEvent.ACTION_DOWN -> {
                 downX = event.x
                 downY = event.y
+                verticalGestureLocked = false
                 super.onInterceptTouchEvent(event)
                 return false
             }
             MotionEvent.ACTION_MOVE -> {
+                if (verticalGestureLocked) return false
                 val dx = kotlin.math.abs(event.x - downX)
                 val dy = kotlin.math.abs(event.y - downY)
-                // A vertical swipe always belongs to RecyclerView, even when zoomed.
-                if (dy > touchSlop && dy >= dx) return false
-                if (dx > touchSlop && dx > dy) {
+                // Lock a clearly vertical gesture for its full lifetime. Tiny diagonal
+                // finger drift must not make the horizontal parent steal a page swipe.
+                if (dy > touchSlop && dy >= dx * 1.15f) {
+                    verticalGestureLocked = true
+                    return false
+                }
+                // Only intercept an unmistakably horizontal drag for zoomed page panning.
+                if (dx > touchSlop && dx >= dy * 1.35f) {
                     horizontalDragging = super.onInterceptTouchEvent(event)
                     return horizontalDragging
                 }
@@ -89,6 +98,7 @@ private class PdfHorizontalPanScrollView(context: Context) : HorizontalScrollVie
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 horizontalDragging = false
+                verticalGestureLocked = false
                 return false
             }
         }
@@ -229,8 +239,8 @@ class PdfViewerActivity : Activity() {
                 parent: RecyclerView,
                 state: RecyclerView.State
             ) {
-                outRect.top = dp(5)
-                outRect.bottom = dp(10)
+                outRect.top = dp(4)
+                outRect.bottom = dp(4)
             }
         })
         list.addOnScrollListener(object : RecyclerView.OnScrollListener() {
@@ -454,10 +464,10 @@ class PdfViewerActivity : Activity() {
             val height = (width * ratio).roundToInt().coerceAtLeast(dp(180))
             holder.image.layoutParams = FrameLayout.LayoutParams(width, height, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
             holder.loading.layoutParams = FrameLayout.LayoutParams(width, height, Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-            holder.caption.layoutParams = FrameLayout.LayoutParams(width, dp(25), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+            holder.caption.layoutParams = FrameLayout.LayoutParams(width, dp(20), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
                 .apply { topMargin = height }
             holder.itemView.layoutParams = RecyclerView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, height + dp(25)
+                ViewGroup.LayoutParams.MATCH_PARENT, height + dp(20)
             )
             holder.caption.text = if (bookmarks.contains(position)) {
                 "Page " + (position + 1) + "  ★"
