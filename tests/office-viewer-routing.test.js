@@ -74,8 +74,13 @@ assert(viewer.includes("builtInZoomControls = true") &&
   viewer.includes("displayZoomControls = false"),
   "Spreadsheet and slide readers must use native pinch zoom without zoom buttons");
 assert(viewer.includes("window.vwSheetZoom(z*1.2") &&
-  viewer.includes("window.vwSheetZoom(z/1.2"),
-  "Spreadsheet Tools zoom must route through the sheet's custom zoom engine");
+  viewer.includes("window.vwSheetZoom(z/1.2") &&
+  viewer.includes("vwSheetFitWidth") &&
+  viewer.includes("vwSheetPreparePrint"),
+  "Spreadsheet Tools zoom, fit-to-width and print preparation must route through the sheet's custom engine");
+assert(viewer.includes("document.querySelectorAll('#result .slide').length") &&
+  viewer.includes("scrollIntoView({behavior:'smooth',block:'start',inline:'nearest'})"),
+  "PowerPoint Tools must expose slide count and navigate to the requested slide");
 assert(gradle.includes('"output" to "viewer/xlsx.js"') &&
   gradle.includes('"output" to "viewer/pptx.js"'),
   "Gander spreadsheet and presentation gesture handlers must remain bundled");

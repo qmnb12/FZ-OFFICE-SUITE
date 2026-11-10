@@ -20,6 +20,19 @@ assert(controller.includes("class WebViewDocumentSurface"), "WebView-based forma
 assert(controller.includes("zoomInScript") && controller.includes("zoomOutScript") &&
   controller.includes("fitZoomScript") && controller.includes("view.evaluateJavascript(script, null)"),
   "WebView surfaces must allow renderer-owned zoom where native WebView zoom is disabled");
+assert(controller.includes("createWebMessageChannel()") &&
+  controller.includes("postWebMessage(WebMessage(") &&
+  controller.includes('postFindCommand("q" + value)') &&
+  controller.includes('postFindCommand("n")') &&
+  controller.includes('postFindCommand("p")') &&
+  controller.includes('postFindCommand("c")'),
+  "Office Find must use Gander's full-document message-port API, not only WebView's visible-DOM Find");
+assert(controller.includes("ClipData.newUri") &&
+  controller.includes("FLAG_GRANT_READ_URI_PERMISSION"),
+  "Share must grant the receiving app read access to the selected document URI");
+assert(controller.includes("preparePrint(onReady") &&
+  controller.includes("surface.preparePrint"),
+  "Format-specific print preparation must complete before opening Android Print");
 assert(office.includes("window.vwSheetZoom(z*1.2") &&
   office.includes("window.vwSheetZoom(z/1.2") &&
   office.includes("window.vwSheetZoom(1,"),
@@ -41,6 +54,9 @@ assert(pdf.includes("DocumentViewerController(") && pdf.includes("DocumentViewer
 assert(pdf.includes("override val supportsScrollNavigation: Boolean = true") &&
   pdf.includes("override fun scrollForward()") && pdf.includes("override fun scrollToEnd()"),
   "PDF must map the same common scroll actions to its native page list");
+assert(pdf.includes("jumpToPageEnd(pageSizes.lastIndex)") &&
+  pdf.includes("viewportHeight - page.height"),
+  "PDF Go to bottom must align the last page's bottom edge, not only jump to its top");
 assert(!writer.includes("private fun showSearch()") && !office.includes("private fun showSearch()"),
   "WebView readers must not keep separate Find dialogs");
 assert(!office.includes("private fun findText("), "Office viewer must not keep a duplicate find implementation");
