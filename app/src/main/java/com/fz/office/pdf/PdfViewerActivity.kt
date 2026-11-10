@@ -3,51 +3,64 @@ package com.fz.office.pdf
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.text.InputType
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
+import android.view.ScaleGestureDetector
 import android.widget.EditText
+import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.Toast
+import android.util.LruCache
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.fz.office.viewer.ReaderDashboard
-import com.github.barteksc.pdfviewer.PDFView
-import com.github.barteksc.pdfviewer.util.FitPolicy
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
+import java.util.Collections
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlin.math.roundToInt
 
 /**
- * FZ Office PDF screen backed by MJ PDF's PDFView and PDFium engine.
- * The library owns page layout, rendering, fling, pinch zoom and gesture arbitration.
+ * FZ Office's read-only PDF screen.
+ *
+ * Page rendering is handled by FzPdfDocument and Android's platform PdfRenderer.
+ * Only visible pages are rasterized; rendering is serialized on one worker and
+ * recently used page bitmaps are kept in a bounded LRU cache.
  */
 class PdfViewerActivity : Activity() {
 
     companion object {
         const val EXTRA_DOCUMENT_URI = "document_uri"
         const val EXTRA_DOCUMENT_NAME = "document_name"
-        private const val MAX_PDF_BYTES = 512L * 1024L * 1024L
         private const val CANVAS = 0xffe9eeeb.toInt()
-        private const val INK = 0xff18352d.toInt()
-        private const val MUTED = 0xff60766d.toInt()
+        private const val MAX_DISPLAY_WIDTH_PX = 8192
+        private const val BITMAP_CACHE_KB = 32 * 1024
     }
 
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val cacheWorker: ExecutorService = Executors.newSingleThreadExecutor()
+    private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val bitmapCache = object : LruCache<String, Bitmap>(BITMAP_CACHE_KB) {
+        override fun sizeOf(key: String, value: Bitmap): Int =
+            (value.byteCount / 1024).coerceAtLeast(1)
+    }
+    private val pendingRenders = Collections.synchronizedSet(mutableSetOf<String>())
+
     private var documentUri: Uri? = null
     private var documentName = "PDF document"
-    private var pdfView: PDFView? = null
+    private var pdfDocument: FzPdfDocument? = null
+    private var pageSizes: List<FzPdfDocument.PageSize> = emptyList()
+    private var recyclerView: RecyclerView? = null
+    private var pageAdapter: PdfPageAdapter? = null
     private var shell: ReaderDashboard? = null
-    private var cachedPdf: File? = null
-    private var pageCount = 0
     private var pageIndex = 0
-    private var savedZoom = 1f
-    private var fallbackStarted = false
-    @Volatile private var closing = false
+    private var zoomScale = 1f
+    private var closing = false
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -62,7 +75,7 @@ class PdfViewerActivity : Activity() {
             documentName = it
         }
         pageIndex = (state?.getInt("pdf_page") ?: 0).coerceAtLeast(0)
-        savedZoom = (state?.getFloat("pdf_zoom") ?: 1f).coerceIn(1f, 6f)
+        zoomScale = (state?.getFloat("pdf_zoom") ?: 1f).coerceIn(1f, 6f)
         buildScreen()
         openPdf()
     }
@@ -71,23 +84,31 @@ class PdfViewerActivity : Activity() {
         window.statusBarColor = 0xff151d1e.toInt()
         window.navigationBarColor = 0xff151d1e.toInt()
 
-        val dashboard = ReaderDashboard(this, documentName, "PDF · MJ PDFIUM · READ ONLY") { finish() }
+        val dashboard = ReaderDashboard(this, documentName, "PDF · FZ CORE · READ ONLY") { finish() }
         shell = dashboard
-        dashboard.addToolbarAction("Fit", "Fit page to screen width") {
-            pdfView?.resetZoom()
-        }
+        dashboard.addToolbarAction("Fit", "Fit page to screen width") { setZoom(1f) }
         dashboard.addToolbarAction("↗", "Share PDF") { shareDocument() }
 
-        val view = PDFView(this, null).apply {
+        val recycler = RecyclerView(this).apply {
             setBackgroundColor(CANVAS)
-            setLayerType(View.LAYER_TYPE_HARDWARE, null)
-            setMinZoom(1f)
-            setMidZoom(2f)
-            setMaxZoom(6f)
+            layoutManager = LinearLayoutManager(this@PdfViewerActivity, RecyclerView.VERTICAL, false)
+            clipToPadding = false
+            setPadding(dp(8), dp(12), dp(8), dp(12))
+            itemAnimator = null
+            setHasFixedSize(false)
         }
-        pdfView = view
-        dashboard.setDocumentView(view)
-        dashboard.setStatus("Preparing PDF · Scroll to read · Pinch to zoom")
+        recyclerView = recycler
+        pageAdapter = PdfPageAdapter()
+        recycler.adapter = pageAdapter
+        recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(view: RecyclerView, dx: Int, dy: Int) {
+                updatePageStatus()
+            }
+        })
+        installZoomGestures(recycler)
+
+        dashboard.setDocumentView(recycler)
+        dashboard.setStatus("Opening PDF · Scroll to read · Pinch or double-tap to zoom")
         dashboard.setLoading(true)
         dashboard.status.setOnLongClickListener {
             showGoToPage()
@@ -98,153 +119,165 @@ class PdfViewerActivity : Activity() {
         applySafeAreaInsets(dashboard.root)
     }
 
-    private fun openPdf(sourceFile: File? = null) {
-        val view = pdfView ?: return
-        if (closing || isFinishing || isDestroyed) return
+    private fun openPdf() {
+        val uri = documentUri ?: return
         shell?.setLoading(true)
-        shell?.setStatus(if (sourceFile == null) "Opening PDF with MJ PDFium…" else "Opening cached PDF…")
+        shell?.setStatus("Opening PDF with FZ Core…")
 
-        try {
-            val config = if (sourceFile == null) {
-                view.fromUri(checkNotNull(documentUri))
-            } else {
-                view.fromFile(sourceFile)
-            }
-            config
-                .enableSwipe(true)
-                .swipeHorizontal(false)
-                .enableDoubleTap(true)
-                .defaultPage(pageIndex)
-                .enableAnnotationRendering(true)
-                .enableTextSelection(true)
-                .enableAntialiasing(true)
-                .spacing(dp(9))
-                .autoSpacing(false)
-                .pageFitPolicy(FitPolicy.WIDTH)
-                .fitEachPage(false)
-                .pageSnap(false)
-                .pageFling(false)
-                .onLoad { total -> onPdfLoaded(total) }
-                .onPageChange { page, total -> onPdfPageChanged(page, total) }
-                .onError { error -> onPdfError(error, sourceFile != null) }
-                .load()
-        } catch (error: Throwable) {
-            onPdfError(error, sourceFile != null)
-        }
-    }
+        ioExecutor.execute {
+            var opened: FzPdfDocument? = null
+            try {
+                opened = FzPdfDocument.open(this, uri)
+                val sizes = ArrayList<FzPdfDocument.PageSize>(opened.pageCount)
+                for (index in 0 until opened.pageCount) {
+                    if (closing) {
+                        opened.close()
+                        return@execute
+                    }
+                    sizes.add(opened.pageSize(index))
+                }
 
-    private fun onPdfLoaded(total: Int) {
-        if (closing) return
-        runOnUiThread {
-            if (isFinishing || isDestroyed) return@runOnUiThread
-            pageCount = total
-            shell?.setLoading(false)
-            val view = pdfView ?: return@runOnUiThread
-            view.setMinZoom(1f)
-            view.setMidZoom(2f)
-            view.setMaxZoom(6f)
-            view.post {
-                if (closing || isFinishing || isDestroyed) return@post
-                view.zoomTo(savedZoom)
-                view.jumpTo(pageIndex.coerceIn(0, (pageCount - 1).coerceAtLeast(0)), false)
-                updatePageStatus()
+                val readyDocument = checkNotNull(opened)
+                runOnUiThread {
+                    if (closing || isFinishing || isDestroyed) {
+                        readyDocument.close()
+                        return@runOnUiThread
+                    }
+                    pdfDocument = readyDocument
+                    pageSizes = sizes
+                    pageIndex = pageIndex.coerceIn(0, (sizes.size - 1).coerceAtLeast(0))
+                    pageAdapter?.submitPages(sizes)
+                    shell?.setLoading(false)
+                    shell?.setStatus("PDF ready · Scroll · Pinch to zoom")
+                    recyclerView?.post {
+                        if (closing) return@post
+                        (recyclerView?.layoutManager as? LinearLayoutManager)
+                            ?.scrollToPositionWithOffset(pageIndex, 0)
+                        updatePageStatus()
+                    }
+                }
+                opened = null
+            } catch (error: Exception) {
+                opened?.close()
+                runOnUiThread {
+                    if (!closing && !isFinishing && !isDestroyed) showError(error)
+                }
             }
         }
     }
 
-    private fun onPdfPageChanged(page: Int, total: Int) {
-        if (closing) return
-        runOnUiThread {
-            if (isFinishing || isDestroyed) return@runOnUiThread
-            pageIndex = page.coerceAtLeast(0)
-            pageCount = total.coerceAtLeast(0)
+    private fun installZoomGestures(recycler: RecyclerView) {
+        var startZoom = zoomScale
+        var previewZoom = zoomScale
+        val scaleDetector = ScaleGestureDetector(
+            this,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                    startZoom = zoomScale
+                    previewZoom = zoomScale
+                    return true
+                }
+
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    previewZoom = (startZoom * detector.scaleFactor).coerceIn(1f, 6f)
+                    return true
+                }
+
+                override fun onScaleEnd(detector: ScaleGestureDetector) {
+                    setZoom(previewZoom)
+                }
+            }
+        )
+        val doubleTapDetector = android.view.GestureDetector(
+            this,
+            object : android.view.GestureDetector.SimpleOnGestureListener() {
+                override fun onDoubleTap(event: android.view.MotionEvent): Boolean {
+                    setZoom(if (zoomScale < 1.4f) 2f else 1f)
+                    return true
+                }
+            }
+        )
+        recycler.setOnTouchListener { _, event ->
+            val scaling = scaleDetector.onTouchEvent(event)
+            val doubleTap = doubleTapDetector.onTouchEvent(event)
+            scaling || scaleDetector.isInProgress || doubleTap
+        }
+    }
+
+    private fun setZoom(value: Float) {
+        zoomScale = value.coerceIn(1f, 6f)
+        val anchor = pageIndex
+        pageAdapter?.notifyDataSetChanged()
+        recyclerView?.post {
+            if (closing) return@post
+            (recyclerView?.layoutManager as? LinearLayoutManager)
+                ?.scrollToPositionWithOffset(anchor, 0)
             updatePageStatus()
         }
     }
 
-    private fun onPdfError(error: Throwable, fromCache: Boolean) {
-        if (closing || isFinishing || isDestroyed) return
-        if (!fromCache && !fallbackStarted) {
-            fallbackStarted = true
-            runOnUiThread {
-                shell?.setLoading(true)
-                shell?.setStatus("Preparing a local copy for this PDF provider…")
+    private fun requestRender(holder: PdfPageHolder, page: Int, renderWidth: Int, cacheKey: String) {
+        val document = pdfDocument ?: return
+        if (!pendingRenders.add(cacheKey)) return
+        ioExecutor.execute {
+            if (closing) {
+                pendingRenders.remove(cacheKey)
+                return@execute
             }
-            cacheWorker.execute {
-                val result = try {
-                    copyToPrivateCache()
-                } catch (_: Exception) {
-                    null
-                }
-                mainHandler.post {
-                    if (closing || isFinishing || isDestroyed) {
-                        result?.delete()
-                        return@post
-                    }
-                    if (result != null) {
-                        cachedPdf = result
-                        openPdf(result)
-                    } else {
-                        showError(error)
+            val bitmap = try {
+                document.renderPage(page, renderWidth)
+            } catch (_: Exception) {
+                null
+            }
+            pendingRenders.remove(cacheKey)
+            if (bitmap != null) {
+                bitmapCache.put(cacheKey, bitmap)
+                runOnUiThread {
+                    if (!closing && holder.image.tag == cacheKey) {
+                        holder.image.setImageBitmap(bitmap)
                     }
                 }
-            }
-            return
-        }
-        runOnUiThread { showError(error) }
-    }
-
-    @Throws(IOException::class)
-    private fun copyToPrivateCache(): File {
-        val target = File.createTempFile("fz-office-pdf-", ".pdf", cacheDir)
-        var total = 0L
-        try {
-            val input = contentResolver.openInputStream(checkNotNull(documentUri))
-                ?: throw IOException("The selected PDF cannot be read.")
-            input.use { source ->
-                FileOutputStream(target).use { output ->
-                    val buffer = ByteArray(32 * 1024)
-                    while (true) {
-                        val count = source.read(buffer)
-                        if (count == -1) break
-                        total += count
-                        if (total > MAX_PDF_BYTES) {
-                            throw IOException("PDF is larger than the 512 MB safety limit.")
-                        }
-                        output.write(buffer, 0, count)
+            } else {
+                runOnUiThread {
+                    if (!closing && holder.image.tag == cacheKey) {
+                        shell?.setStatus("Could not render PDF page " + (page + 1))
                     }
-                    output.flush()
                 }
             }
-            return target
-        } catch (error: Exception) {
-            target.delete()
-            if (error is IOException) throw error
-            throw IOException("Could not prepare the selected PDF.", error)
         }
     }
 
     private fun updatePageStatus() {
-        val message = if (pageCount > 0) {
-            "Page " + (pageIndex + 1) + " / " + pageCount + " · Scroll · Pinch to zoom"
-        } else {
-            "Preparing PDF…"
+        val total = pageSizes.size
+        if (total < 1) {
+            shell?.setStatus("Preparing PDF…")
+            return
         }
-        shell?.setStatus(message)
+        val visible = (recyclerView?.layoutManager as? LinearLayoutManager)
+            ?.findFirstVisibleItemPosition()
+        if (visible != null && visible != RecyclerView.NO_POSITION) {
+            pageIndex = visible.coerceIn(0, total - 1)
+        }
+        shell?.setStatus(
+            "Page " + (pageIndex + 1) + " / " + total + " · " +
+                (zoomScale * 100).roundToInt() + "% · Scroll · Pinch to zoom"
+        )
     }
 
     private fun jumpToPage(index: Int) {
-        if (pageCount < 1) return
-        pageIndex = index.coerceIn(0, pageCount - 1)
-        pdfView?.jumpTo(pageIndex, true)
+        if (pageSizes.isEmpty()) return
+        pageIndex = index.coerceIn(0, pageSizes.lastIndex)
+        (recyclerView?.layoutManager as? LinearLayoutManager)
+            ?.scrollToPositionWithOffset(pageIndex, 0)
         updatePageStatus()
     }
 
     private fun showGoToPage() {
-        if (pageCount < 1) return
+        val total = pageSizes.size
+        if (total < 1) return
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER
-            hint = "Page number (1-" + pageCount + ")"
+            hint = "Page number (1-$total)"
             setText((pageIndex + 1).toString())
             setSelection(text.length)
         }
@@ -254,8 +287,8 @@ class PdfViewerActivity : Activity() {
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Go") { _, _ ->
                 val requested = input.text.toString().toIntOrNull()
-                if (requested == null || requested !in 1..pageCount) {
-                    Toast.makeText(this, "Enter a page from 1 to " + pageCount + ".", Toast.LENGTH_SHORT).show()
+                if (requested == null || requested !in 1..total) {
+                    Toast.makeText(this, "Enter a page from 1 to " + total + ".", Toast.LENGTH_SHORT).show()
                 } else {
                     jumpToPage(requested - 1)
                 }
@@ -309,18 +342,95 @@ class PdfViewerActivity : Activity() {
         (value * resources.displayMetrics.density + 0.5f).roundToInt()
 
     override fun onSaveInstanceState(outState: Bundle) {
-        pageIndex = pdfView?.currentPage?.coerceAtLeast(0) ?: pageIndex
-        savedZoom = pdfView?.zoom?.coerceIn(1f, 6f) ?: savedZoom
+        val visible = (recyclerView?.layoutManager as? LinearLayoutManager)
+            ?.findFirstVisibleItemPosition()
+        if (visible != null && visible != RecyclerView.NO_POSITION) pageIndex = visible
         outState.putInt("pdf_page", pageIndex)
-        outState.putFloat("pdf_zoom", savedZoom)
+        outState.putFloat("pdf_zoom", zoomScale)
         super.onSaveInstanceState(outState)
     }
 
     override fun onDestroy() {
         closing = true
-        pdfView?.recycle()
-        cacheWorker.shutdownNow()
-        cachedPdf?.delete()
+        bitmapCache.evictAll()
+        pendingRenders.clear()
+        val document = pdfDocument
+        pdfDocument = null
+        try {
+            ioExecutor.execute { document?.close() }
+        } catch (_: Exception) {
+            document?.close()
+        }
+        ioExecutor.shutdown()
         super.onDestroy()
     }
+
+    private inner class PdfPageAdapter : RecyclerView.Adapter<PdfPageHolder>() {
+        private var pages: List<FzPdfDocument.PageSize> = emptyList()
+
+        fun submitPages(newPages: List<FzPdfDocument.PageSize>) {
+            pages = newPages
+            notifyDataSetChanged()
+        }
+
+        override fun getItemCount(): Int = pages.size
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PdfPageHolder {
+            val image = ImageView(this@PdfViewerActivity).apply {
+                scaleType = ImageView.ScaleType.FIT_XY
+                background = GradientDrawable().apply {
+                    setColor(Color.WHITE)
+                    cornerRadius = dp(2).toFloat()
+                }
+                elevation = dp(2).toFloat()
+                contentDescription = "PDF page"
+            }
+            val scroller = HorizontalScrollView(this@PdfViewerActivity).apply {
+                isHorizontalScrollBarEnabled = false
+                isFillViewport = true
+                clipToPadding = false
+                setPadding(dp(8), dp(8), dp(8), dp(14))
+                setBackgroundColor(CANVAS)
+                addView(image, FrameLayout.LayoutParams(1, 1, Gravity.CENTER))
+            }
+            return PdfPageHolder(scroller, image)
+        }
+
+        override fun onBindViewHolder(holder: PdfPageHolder, position: Int) {
+            val size = pages[position]
+            val baseWidth = (resources.displayMetrics.widthPixels - dp(32)).coerceAtLeast(dp(220))
+            val displayWidth = (baseWidth * zoomScale).roundToInt().coerceAtMost(MAX_DISPLAY_WIDTH_PX)
+            val displayHeight = (displayWidth.toDouble() * size.height / size.width)
+                .coerceAtMost(16_000.0)
+                .roundToInt()
+                .coerceAtLeast(1)
+            holder.image.layoutParams = FrameLayout.LayoutParams(
+                displayWidth,
+                displayHeight,
+                Gravity.CENTER
+            )
+            holder.scroller.layoutParams = RecyclerView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                displayHeight + dp(22)
+            )
+
+            val renderWidth = displayWidth.coerceAtMost(4096)
+            val cacheKey = "page:" + position + ":width:" + renderWidth
+            holder.image.tag = cacheKey
+            val cached = bitmapCache.get(cacheKey)
+            holder.image.setImageBitmap(cached)
+            if (cached == null) requestRender(holder, position, renderWidth, cacheKey)
+        }
+
+        override fun onViewRecycled(holder: PdfPageHolder) {
+            holder.image.tag = null
+            holder.image.setImageDrawable(null)
+            super.onViewRecycled(holder)
+        }
+    }
+
+    private class PdfPageHolder(
+        val scroller: HorizontalScrollView,
+        val image: ImageView
+    ) : RecyclerView.ViewHolder(scroller)
 }
