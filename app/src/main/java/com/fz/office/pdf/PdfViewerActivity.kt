@@ -56,6 +56,12 @@ private class PdfHorizontalPanScrollView(context: Context) : HorizontalScrollVie
     private var horizontalDragging = false
 
     override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+        // Never steal a multi-touch stream: RecyclerView's ScaleGestureDetector must
+        // receive both pinch-in and pinch-out even when horizontal panning is enabled.
+        if (event.pointerCount > 1) {
+            horizontalDragging = false
+            return false
+        }
         if (!horizontalPanEnabled) return false
         if (horizontalDragging) {
             if (event.actionMasked == MotionEvent.ACTION_UP ||
@@ -160,7 +166,7 @@ class PdfViewerActivity : Activity() {
             documentName = it
         }
         pageIndex = state?.getInt("pdf_page", 0) ?: 0
-        zoom = (state?.getFloat("pdf_zoom", 1f) ?: 1f).coerceIn(1f, 4f)
+        zoom = (state?.getFloat("pdf_zoom", 1f) ?: 1f).coerceIn(0.65f, 4f)
         renderBucket = qualityBucket(zoom)
         loadBookmarks()
         buildScreen()
@@ -264,7 +270,7 @@ class PdfViewerActivity : Activity() {
                 }
 
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    previewZoom = (previewZoom * detector.scaleFactor).coerceIn(1f, 4f)
+                    previewZoom = (previewZoom * detector.scaleFactor).coerceIn(0.65f, 4f)
                     focusX = detector.focusX
                     focusY = detector.focusY
                     list.pivotX = focusX
@@ -284,9 +290,21 @@ class PdfViewerActivity : Activity() {
         )
         // A one-finger event is always left to RecyclerView for vertical scrolling.
         // Only a two-finger gesture is consumed by the scale detector.
+        var scalingGestureActive = false
         list.setOnTouchListener { _, event ->
+            if (event.actionMasked == MotionEvent.ACTION_POINTER_DOWN &&
+                event.pointerCount > 1
+            ) scalingGestureActive = true
+
             val handled = detector.onTouchEvent(event)
-            event.pointerCount > 1 && handled
+            when (event.actionMasked) {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val consume = scalingGestureActive || handled
+                    scalingGestureActive = false
+                    consume
+                }
+                else -> scalingGestureActive || (event.pointerCount > 1 && handled)
+            }
         }
     }
 
@@ -568,7 +586,7 @@ class PdfViewerActivity : Activity() {
         list.scaleY = 1f
         if (pageCount < 1) return
 
-        val next = (value.coerceIn(1f, 4f) * 40f).roundToInt() / 40f
+        val next = (value.coerceIn(0.65f, 4f) * 40f).roundToInt() / 40f
         if (abs(next - zoom) < 0.001f) return
 
         val manager = list.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return
@@ -599,10 +617,16 @@ class PdfViewerActivity : Activity() {
                 anchoredTop
             )
             if (horizontal != null) {
-                val x = ((oldScrollX + anchorX) * ratio - anchorX)
-                    .roundToInt().coerceAtLeast(0)
-                horizontal.scrollTo(x, 0)
+                // At fit/zoom-out levels the page is narrower than the viewport.
+                // Reset horizontal pan explicitly so an old offset cannot leave it
+                // stranded outside the visible page after the layout shrinks.
+                val x = if (next <= 1.001f) 0 else {
+                    ((oldScrollX + anchorX) * ratio - anchorX)
+                        .roundToInt().coerceAtLeast(0)
+                }
+                horizontal.post { horizontal.scrollTo(x, 0) }
             }
+            updatePageLabel()
         }
     }
 
