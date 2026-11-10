@@ -56,8 +56,9 @@ assert(wordHtml.includes("function currentPage()") && wordHtml.includes("functio
 assert(writer.includes("builtInZoomControls = true") && writer.includes("displayZoomControls = false"),
   "Word/TXT reader must use native WebView pinch zoom without overlay controls");
 assert(wordHtml.includes('maximum-scale=4, user-scalable=yes') &&
-  wordHtml.includes("touch-action:manipulation"),
-  "Word/TXT pages must allow native pinch zoom while keeping one-finger scrolling");
+  wordHtml.includes("touch-action:pan-x pan-y pinch-zoom") &&
+  wordHtml.includes("body{display:block;min-height:100vh;overflow:visible"),
+  "Word/TXT pages must allow native pinch zoom and root-level two-axis scrolling");
 const wordZoomLayout = wordHtml.slice(
   wordHtml.indexOf("function applyPageLayout"),
   wordHtml.indexOf("function makePage")
@@ -72,6 +73,9 @@ assert(wordHtml.includes("applyPageLayout(true)"),
 assert(viewer.includes("builtInZoomControls = true") &&
   viewer.includes("displayZoomControls = false"),
   "Spreadsheet and slide readers must use native pinch zoom without zoom buttons");
+assert(viewer.includes("window.vwSheetZoom(z*1.2") &&
+  viewer.includes("window.vwSheetZoom(z/1.2"),
+  "Spreadsheet Tools zoom must route through the sheet's custom zoom engine");
 assert(gradle.includes('"output" to "viewer/xlsx.js"') &&
   gradle.includes('"output" to "viewer/pptx.js"'),
   "Gander spreadsheet and presentation gesture handlers must remain bundled");

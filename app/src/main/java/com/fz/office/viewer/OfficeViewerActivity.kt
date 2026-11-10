@@ -213,7 +213,23 @@ class OfficeViewerActivity : Activity() {
         DocumentViewerController(
             this,
             shell,
-            WebViewDocumentSurface(browser),
+            WebViewDocumentSurface(
+                browser,
+                zoomInScript = if (!presentation) {
+                    "(function(){if(typeof window.vwSheetZoom!=='function')return;" +
+                        "var z=window.vwSheetZoom();" +
+                        "window.vwSheetZoom(z*1.2,window.innerWidth/2,window.innerHeight/2);})()"
+                } else null,
+                zoomOutScript = if (!presentation) {
+                    "(function(){if(typeof window.vwSheetZoom!=='function')return;" +
+                        "var z=window.vwSheetZoom();" +
+                        "window.vwSheetZoom(z/1.2,window.innerWidth/2,window.innerHeight/2);})()"
+                } else null,
+                fitZoomScript = if (!presentation) {
+                    "if(typeof window.vwSheetZoom==='function')" +
+                        "window.vwSheetZoom(1,window.innerWidth/2,window.innerHeight/2);"
+                } else null
+            ),
             documentUri,
             documentName,
             documentUri?.let { contentResolver.getType(it) }

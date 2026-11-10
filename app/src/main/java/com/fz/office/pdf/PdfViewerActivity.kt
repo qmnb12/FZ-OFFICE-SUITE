@@ -336,14 +336,19 @@ class PdfViewerActivity : Activity() {
 
     private fun setZoom(value: Float) {
         val horizontalPositions = captureHorizontalScrollFractions()
-        zoomScale = value.coerceIn(1f, 6f)
-        val anchor = pageIndex
-        pageAdapter?.notifyDataSetChanged()
         val recycler = recyclerView ?: return
+        val layoutManager = recycler.layoutManager as? LinearLayoutManager
+        val anchor = layoutManager?.findFirstVisibleItemPosition()
+            ?.takeIf { it != RecyclerView.NO_POSITION } ?: pageIndex
+        val anchorView = layoutManager?.findViewByPosition(anchor)
+        val verticalOffset = anchorView?.top?.minus(recycler.paddingTop) ?: 0
+
+        zoomScale = value.coerceIn(1f, 6f)
+        pageAdapter?.notifyDataSetChanged()
         recycler.post {
             if (closing) return@post
             (recycler.layoutManager as? LinearLayoutManager)
-                ?.scrollToPositionWithOffset(anchor, 0)
+                ?.scrollToPositionWithOffset(anchor, verticalOffset)
             recycler.post {
                 if (closing) return@post
                 restoreHorizontalScrollFractions(horizontalPositions)

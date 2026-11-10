@@ -17,6 +17,13 @@ for (const feature of ["Find", "Scroll up", "Scroll down", "Go to top", "Go to b
 assert(controller.includes("class DocumentViewerController"), "The one common document controller must exist");
 assert(controller.includes("interface DocumentViewerSurface"), "All formats must implement the common surface contract");
 assert(controller.includes("class WebViewDocumentSurface"), "WebView-based formats must reuse one surface adapter");
+assert(controller.includes("zoomInScript") && controller.includes("zoomOutScript") &&
+  controller.includes("fitZoomScript") && controller.includes("view.evaluateJavascript(script, null)"),
+  "WebView surfaces must allow renderer-owned zoom where native WebView zoom is disabled");
+assert(office.includes("window.vwSheetZoom(z*1.2") &&
+  office.includes("window.vwSheetZoom(z/1.2") &&
+  office.includes("window.vwSheetZoom(1,"),
+  "XLSX Tools zoom must call the sheet's own CSS zoom engine rather than the disabled WebView zoom");
 assert(controller.includes("view.pageUp(true)") && controller.includes("view.pageDown(true)"),
   "DOCX/TXT/XLSX/PPTX must use the shared WebView scroll adapter");
 assert(controller.includes("fun scrollBackward()") && controller.includes("fun scrollForward()"),

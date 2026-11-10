@@ -192,7 +192,10 @@ class DocumentViewerController(
 class WebViewDocumentSurface(
     override val view: android.webkit.WebView,
     private val pageCountScript: String? = null,
-    private val pageCommand: ((Int) -> String)? = null
+    private val pageCommand: ((Int) -> String)? = null,
+    private val zoomInScript: String? = null,
+    private val zoomOutScript: String? = null,
+    private val fitZoomScript: String? = null
 ) : DocumentViewerSurface {
     private var lastQuery = ""
 
@@ -240,14 +243,21 @@ class WebViewDocumentSurface(
     }
 
     override fun zoomIn() {
-        view.zoomIn()
+        val script = zoomInScript
+        if (script.isNullOrBlank()) view.zoomIn() else view.evaluateJavascript(script, null)
     }
 
     override fun zoomOut() {
-        view.zoomOut()
+        val script = zoomOutScript
+        if (script.isNullOrBlank()) view.zoomOut() else view.evaluateJavascript(script, null)
     }
 
     override fun fitToWidth() {
+        val script = fitZoomScript
+        if (!script.isNullOrBlank()) {
+            view.evaluateJavascript(script, null)
+            return
+        }
         val currentScale = view.scale
         if (currentScale > 0f) view.zoomBy(1f / currentScale)
     }
