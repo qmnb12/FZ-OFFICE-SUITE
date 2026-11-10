@@ -60,6 +60,13 @@ assert(settings.includes("repository/archive.zip?sha=") &&
   settings.includes("mjPdfRevision") &&
   settings.includes("buildMjPdfNativeDependencies"),
   "The pinned upstream sources and native build step must be bootstrapped");
+const bootstrapStart = settings.indexOf("fun patchMjPdfModuleBuildFiles(root: File)");
+const bootstrapEnd = settings.indexOf("val mjPdfAlreadyPrepared");
+const bootstrapPatch = settings.slice(bootstrapStart, bootstrapEnd);
+assert(bootstrapPatch.includes("DefaultScrollHandle.java") &&
+  bootstrapPatch.includes("com.google.android.material.R.attr.colorOnSurface"),
+  "MJ PDF Material color attribute compatibility patch must run during source bootstrap.");
+
 assert(workflow.includes('ndk;30.0.14904198') && workflow.includes("python3-requests"),
   "CI must install the NDK and Python native-build dependency");
 assert(notices.includes("Apache License 2.0") && notices.includes("GPLv3") &&
