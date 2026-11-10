@@ -14,11 +14,11 @@ import java.util.Locale
 import java.util.zip.ZipInputStream
 
 /**
- * Small offline DOCX bridge.
+ * FZ Office's read-only Kotlin OOXML reader.
  *
- * It deliberately handles a documented subset of WordprocessingML instead of
- * pretending to preserve features it does not understand. Existing package
- * parts are retained, while word/document.xml is rebuilt from the editable HTML.
+ * It handles a documented subset of WordprocessingML and converts document,
+ * style, image and page-geometry data into the viewer's internal representation.
+ * The original package is never rewritten or retained after parsing.
  */
 object DocxCodec {
     private const val WORD_NS =
