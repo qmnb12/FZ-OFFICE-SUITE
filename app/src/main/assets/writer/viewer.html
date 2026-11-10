@@ -131,7 +131,7 @@ function splitLongBlock(page,block){
  var low=1,high=map.total-1,best=0;
  for(var n=0;n<18&&low<=high;n++){var mid=Math.floor((low+high)/2);if(prefixFits(page,block,map,mid)){best=mid;low=mid+1}else high=mid-1}
  if(best<24||best>=map.total-8)return null;
- while(best>24&&!/\\s/.test(map.text.charAt(best-1)))best--;
+ while(best>24&&!/\s/.test(map.text.charAt(best-1)))best--;
  if(best<24)return null;
  var first=fragment(block,map,0,best),second=fragment(block,map,best,map.total);
  var continuation=block.cloneNode(false);continuation.appendChild(second);
