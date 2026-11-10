@@ -465,8 +465,9 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Android API; retained for compatibility with the existing document picker flow")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        val uri = data?.data
-        if (requestCode != REQUEST_OPEN_DOCUMENT || resultCode != RESULT_OK || uri == null) return
+        val resultIntent = data ?: return
+        val uri = resultIntent.data ?: return
+        if (requestCode != REQUEST_OPEN_DOCUMENT || resultCode != RESULT_OK) return
         val name = queryDisplayName(uri)
         val mime = contentResolver.getType(uri)
         if (!isSupportedDocument(name, mime)) {
@@ -476,7 +477,7 @@ class MainActivity : Activity() {
             ).show()
             return
         }
-        val flags = data.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
+        val flags = resultIntent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
         try {
             contentResolver.takePersistableUriPermission(uri, flags)
         } catch (_: Exception) {
