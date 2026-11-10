@@ -1,11 +1,16 @@
 package com.fz.office.pdf
 
 import android.app.Activity
+import android.content.Context
 import android.app.AlertDialog
 import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -43,6 +48,7 @@ class PdfViewerActivity : Activity() {
         private const val CANVAS = 0xffe9eeeb.toInt()
         private const val MAX_DISPLAY_WIDTH_PX = 8192
         private const val BITMAP_CACHE_KB = 32 * 1024
+        private const val MAX_SEARCH_HITS = 3000
     }
 
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -62,6 +68,13 @@ class PdfViewerActivity : Activity() {
     private var pageIndex = 0
     private var zoomScale = 1f
     private var closing = false
+    private var activeSearchQuery = ""
+    private var searchHits: List<PdfSearchHit> = emptyList()
+    private var searchHitIndex = -1
+    private var searchGeneration = 0
+    private var searchPending = false
+    private var pendingSearchForward = true
+    private var searchHighlightsByPage: Map<Int, List<PdfSearchHighlight>> = emptyMap()
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -112,6 +125,7 @@ class PdfViewerActivity : Activity() {
             dashboard,
             object : DocumentViewerSurface {
                 override val view: View = recycler
+                override val supportsFind: Boolean = Build.VERSION.SDK_INT >= 35
                 override val supportsScrollNavigation: Boolean = true
                 override val supportsZoom: Boolean = true
                 override val supportsPageNavigation: Boolean = true
@@ -121,6 +135,8 @@ class PdfViewerActivity : Activity() {
                 override fun scrollForward() = jumpToPage((pageIndex + 1).coerceAtMost(pageSizes.lastIndex))
                 override fun scrollToStart() = jumpToPage(0)
                 override fun scrollToEnd() = jumpToPage(pageSizes.lastIndex)
+                override fun find(query: String, forward: Boolean) = findPdfText(query, forward)
+                override fun clearFind() = clearPdfFind()
 
                 override fun zoomIn() = setZoom(zoomScale * 1.2f)
                 override fun zoomOut() = setZoom(zoomScale / 1.2f)
@@ -284,10 +300,119 @@ class PdfViewerActivity : Activity() {
         if (visible != null && visible != RecyclerView.NO_POSITION) {
             pageIndex = visible.coerceIn(0, total - 1)
         }
+        val matchStatus = if (searchHits.isNotEmpty() && searchHitIndex >= 0) {
+            " · Match " + (searchHitIndex + 1) + "/" + searchHits.size
+        } else {
+            ""
+        }
         shell?.setStatus(
             "Page " + (pageIndex + 1) + " / " + total + " · " +
-                (zoomScale * 100).roundToInt() + "% · Scroll · Pinch to zoom"
+                (zoomScale * 100).roundToInt() + "%" + matchStatus + " · Scroll · Pinch to zoom"
         )
+    }
+
+    private fun findPdfText(query: String, forward: Boolean) {
+        val normalized = query.trim()
+        if (normalized.isEmpty()) return
+        if (Build.VERSION.SDK_INT < 35) {
+            Toast.makeText(this, "PDF text search requires Android 15 or later.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        if (normalized != activeSearchQuery) {
+            activeSearchQuery = normalized
+            searchGeneration += 1
+            val generation = searchGeneration
+            searchPending = true
+            pendingSearchForward = forward
+            searchHits = emptyList()
+            searchHitIndex = -1
+            searchHighlightsByPage = emptyMap()
+            pageAdapter?.notifyDataSetChanged()
+            shell?.setStatus("Searching PDF text…")
+
+            ioExecutor.execute {
+                val matches = ArrayList<PdfSearchHit>()
+                var failure: String? = null
+                val document = pdfDocument
+                if (document == null) {
+                    failure = "PDF is not ready for text search."
+                } else {
+                    for (page in pageSizes.indices) {
+                        if (closing || generation != searchGeneration) return@execute
+                        try {
+                            val pageMatches = document.searchPage(page, normalized)
+                            for (match in pageMatches) {
+                                if (matches.size >= MAX_SEARCH_HITS) break
+                                matches.add(PdfSearchHit(page, match.bounds))
+                            }
+                        } catch (error: Exception) {
+                            failure = error.message ?: "PDF text search failed."
+                            break
+                        }
+                        if (matches.size >= MAX_SEARCH_HITS) break
+                    }
+                }
+
+                runOnUiThread {
+                    if (closing || isFinishing || isDestroyed || generation != searchGeneration) return@runOnUiThread
+                    searchPending = false
+                    searchHits = matches
+                    searchHitIndex = when {
+                        matches.isEmpty() -> -1
+                        pendingSearchForward -> 0
+                        else -> matches.lastIndex
+                    }
+                    refreshSearchHighlights()
+                    if (matches.isEmpty()) {
+                        shell?.setStatus(
+                            failure ?: "No text matches found · Scanned-only pages may not be searchable"
+                        )
+                    } else {
+                        navigateToSearchHit()
+                    }
+                }
+            }
+        } else if (searchPending) {
+            pendingSearchForward = forward
+        } else if (searchHits.isNotEmpty()) {
+            searchHitIndex = if (forward) {
+                (searchHitIndex + 1) % searchHits.size
+            } else {
+                (searchHitIndex - 1 + searchHits.size) % searchHits.size
+            }
+            refreshSearchHighlights()
+            navigateToSearchHit()
+        } else {
+            shell?.setStatus("No text matches found for this search.")
+        }
+    }
+
+    private fun clearPdfFind() {
+        searchGeneration += 1
+        activeSearchQuery = ""
+        searchPending = false
+        searchHits = emptyList()
+        searchHitIndex = -1
+        searchHighlightsByPage = emptyMap()
+        pageAdapter?.notifyDataSetChanged()
+        updatePageStatus()
+    }
+
+    private fun refreshSearchHighlights() {
+        val grouped = HashMap<Int, MutableList<PdfSearchHighlight>>()
+        searchHits.forEachIndexed { index, hit ->
+            grouped.getOrPut(hit.pageIndex) { ArrayList() }.add(
+                PdfSearchHighlight(hit.bounds, index == searchHitIndex)
+            )
+        }
+        searchHighlightsByPage = grouped
+        pageAdapter?.notifyDataSetChanged()
+    }
+
+    private fun navigateToSearchHit() {
+        val hit = searchHits.getOrNull(searchHitIndex) ?: return
+        jumpToPage(hit.pageIndex)
     }
 
     private fun jumpToPage(index: Int) {
@@ -373,15 +498,20 @@ class PdfViewerActivity : Activity() {
                 elevation = dp(2).toFloat()
                 contentDescription = "PDF page"
             }
+            val overlay = PdfMatchOverlayView(this@PdfViewerActivity)
+            val pageContent = FrameLayout(this@PdfViewerActivity).apply {
+                addView(image, FrameLayout.LayoutParams(1, 1))
+                addView(overlay, FrameLayout.LayoutParams(1, 1))
+            }
             val scroller = HorizontalScrollView(this@PdfViewerActivity).apply {
                 isHorizontalScrollBarEnabled = false
                 isFillViewport = true
                 clipToPadding = false
                 setPadding(dp(8), dp(8), dp(8), dp(14))
                 setBackgroundColor(CANVAS)
-                addView(image, FrameLayout.LayoutParams(1, 1, Gravity.CENTER))
+                addView(pageContent, FrameLayout.LayoutParams(1, 1, Gravity.CENTER))
             }
-            return PdfPageHolder(scroller, image)
+            return PdfPageHolder(scroller, pageContent, image, overlay)
         }
 
         override fun onBindViewHolder(holder: PdfPageHolder, position: Int) {
@@ -392,10 +522,23 @@ class PdfViewerActivity : Activity() {
                 .coerceAtMost(16_000.0)
                 .roundToInt()
                 .coerceAtLeast(1)
-            holder.image.layoutParams = FrameLayout.LayoutParams(
+            holder.pageContent.layoutParams = FrameLayout.LayoutParams(
                 displayWidth,
                 displayHeight,
                 Gravity.CENTER
+            )
+            holder.image.layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            holder.overlay.layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            holder.overlay.setHighlights(
+                size.width,
+                size.height,
+                searchHighlightsByPage[position].orEmpty()
             )
             holder.scroller.layoutParams = RecyclerView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -413,12 +556,73 @@ class PdfViewerActivity : Activity() {
         override fun onViewRecycled(holder: PdfPageHolder) {
             holder.image.tag = null
             holder.image.setImageDrawable(null)
+            holder.overlay.setHighlights(1, 1, emptyList())
             super.onViewRecycled(holder)
         }
     }
 
     private class PdfPageHolder(
         val scroller: HorizontalScrollView,
-        val image: ImageView
+        val pageContent: FrameLayout,
+        val image: ImageView,
+        val overlay: PdfMatchOverlayView
     ) : RecyclerView.ViewHolder(scroller)
+}
+
+private data class PdfSearchHit(
+    val pageIndex: Int,
+    val bounds: List<RectF>
+)
+
+private data class PdfSearchHighlight(
+    val bounds: List<RectF>,
+    val active: Boolean
+)
+
+private class PdfMatchOverlayView(context: Context) : View(context) {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var pageWidth = 1f
+    private var pageHeight = 1f
+    private var highlights: List<PdfSearchHighlight> = emptyList()
+
+    init {
+        isClickable = false
+        isFocusable = false
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+
+    fun setHighlights(
+        sourceWidth: Int,
+        sourceHeight: Int,
+        values: List<PdfSearchHighlight>
+    ) {
+        pageWidth = sourceWidth.coerceAtLeast(1).toFloat()
+        pageHeight = sourceHeight.coerceAtLeast(1).toFloat()
+        highlights = values
+        invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        if (width <= 0 || height <= 0 || highlights.isEmpty()) return
+        val scaleX = width / pageWidth
+        val scaleY = height / pageHeight
+        paint.style = Paint.Style.FILL
+        highlights.forEach { highlight ->
+            paint.color = if (highlight.active) {
+                Color.argb(145, 255, 145, 0)
+            } else {
+                Color.argb(92, 255, 226, 58)
+            }
+            highlight.bounds.forEach { bounds ->
+                val rect = RectF(
+                    bounds.left * scaleX,
+                    bounds.top * scaleY,
+                    bounds.right * scaleX,
+                    bounds.bottom * scaleY
+                )
+                canvas.drawRoundRect(rect, 3f, 3f, paint)
+            }
+        }
+    }
 }

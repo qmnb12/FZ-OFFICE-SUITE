@@ -3,6 +3,7 @@ package com.fz.office.pdf
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.graphics.RectF
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
@@ -28,6 +29,7 @@ class FzPdfDocument private constructor(
 ) : Closeable {
 
     data class PageSize(val width: Int, val height: Int)
+    data class TextMatch(val bounds: List<RectF>)
 
     private var closed = false
 
@@ -43,6 +45,28 @@ class FzPdfDocument private constructor(
         require(index in 0 until renderer.pageCount) { "PDF page index is out of range." }
         renderer.openPage(index).use { page ->
             return PageSize(page.width.coerceAtLeast(1), page.height.coerceAtLeast(1))
+        }
+    }
+
+    /**
+     * Search the page's embedded text using Android 15's platform PDF search.
+     * This operation can be expensive and must be called from a worker thread.
+     */
+    @Suppress("NewApi")
+    @Synchronized
+    fun searchPage(index: Int, query: String): List<TextMatch> {
+        checkOpen()
+        val normalized = query.trim()
+        if (normalized.isEmpty()) return emptyList()
+        check(android.os.Build.VERSION.SDK_INT >= 35) {
+            "PDF text search requires Android 15 or later."
+        }
+        require(index in 0 until renderer.pageCount) { "PDF page index is out of range." }
+
+        renderer.openPage(index).use { page ->
+            return page.searchText(normalized).map { match ->
+                TextMatch(match.bounds.map { RectF(it) })
+            }
         }
     }
 

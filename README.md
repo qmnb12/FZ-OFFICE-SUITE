@@ -17,13 +17,13 @@ This is a staged replacement, not a destructive reset: PDF rendering is now hand
 - **DOCX and TXT:** FZ Writer's Hindi-aware read-only reader.
 - **XLSX, XLS, XLSM, XLSB, XLTX, CSV and ODS:** offline Gander/SheetJS spreadsheet preview.
 - **PPTX, PPSX, PPTM and POTX:** offline Gander/PPTXjs presentation preview.
-- **PDF:** built-in offline PDF reader with page navigation and bounded zoom.
+- **PDF:** built-in offline PDF reader with page navigation, bounded zoom and native text Find on Android 15+.
 
 DOCX, TXT, PPTX and PDF screens are read-only. The spreadsheet reader is also read-only by default; only `.xlsx` files offer an optional **Edit a copy** screen. Edited workbooks are saved as a separate new file through Save As. The original file is never overwritten and the app does not request write permission for the source document.
 
 ## Current limitations
 
-The DOCX reader uses a lightweight, offline OOXML-aware layout layer over the original DOCX. It reads page geometry, inherited styles, run fonts/sizes, paragraph spacing/line height/indents, and paginates paragraphs and table rows without bundling a native office suite. This is designed to retain the source document's physical page size and formatting rather than shrinking text to force a fit. It is not a full Microsoft Word layout engine: mixed section sizes, headers/footers, floating objects, advanced numbering, and complex table-cell splitting can still render differently. Spreadsheet and presentation previews also have format-specific fidelity limits. Legacy Word formats such as DOC/ODT/RTF and legacy presentation formats such as PPT/ODP are not supported by the current built-in readers; convert those files to a supported format before opening them.
+The DOCX reader uses a lightweight, offline OOXML-aware layout layer over the original DOCX. It reads page geometry, inherited styles, run fonts/sizes, paragraph spacing/line height/indents, and paginates paragraphs and table rows without bundling a native office suite. This is designed to retain the source document's physical page size and formatting rather than shrinking text to force a fit. It is not a full Microsoft Word layout engine: mixed section sizes, headers/footers, floating objects, advanced numbering, and complex table-cell splitting can still render differently. Spreadsheet and presentation previews also have format-specific fidelity limits. Legacy Word formats such as DOC/ODT/RTF and legacy presentation formats such as PPT/ODP are not supported by the current built-in readers; convert those files to a supported format before opening them. PDF text Find uses Android 15 platform support; scanned-only pages without an embedded text layer cannot be searched.
 
 ## FZ app features
 

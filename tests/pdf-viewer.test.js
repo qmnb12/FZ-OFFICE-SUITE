@@ -22,6 +22,9 @@ assert(pdf.includes("RecyclerView") && pdf.includes("LinearLayoutManager"),
 assert(!pdf.includes("PDFView") && !pdf.includes("FitPolicy") &&
   !pdf.includes("com.github.barteksc") && !pdf.includes("PdfiumAndroid"),
   "PDF activity must not directly use MJ PDF/PDFium classes");
+assert(pdf.includes("supportsFind: Boolean = Build.VERSION.SDK_INT >= 35") &&
+  pdf.includes("findPdfText(query, forward)") && pdf.includes("PdfMatchOverlayView"),
+  "PDF Find must use Android 15+ text search and highlight the current match");
 assert(pdf.includes("renderPage(page, renderWidth)") && pdf.includes("bitmapCache"),
   "PDF page rendering must be demand-driven and cached");
 assert(pdf.includes("ScaleGestureDetector") && pdf.includes("onDoubleTap"),

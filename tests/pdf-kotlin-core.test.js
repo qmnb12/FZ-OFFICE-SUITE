@@ -15,6 +15,10 @@ assert(engine.includes("MAX_BITMAP_PIXELS"), "Page raster dimensions must have a
 assert(engine.includes("page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)"),
   "The FZ PDF core must render pages through Android PdfRenderer");
 assert(engine.includes("@Synchronized"), "PdfRenderer access must be serialized");
+assert(engine.includes("fun searchPage(index: Int, query: String)") &&
+  engine.includes("page.searchText(normalized)") &&
+  engine.includes("Build.VERSION.SDK_INT >= 35"),
+  "PDF text search must use Android 15+ platform PdfRenderer search on a worker thread");
 assert(engine.includes("cachedCopy?.delete()"), "Temporary cache files must be deleted when the document closes");
 assert(!engine.includes("com.github.barteksc") && !engine.includes("PdfiumAndroid"),
   "FZ PDF core must not depend on MJ PDF/PDFium");
