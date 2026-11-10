@@ -7,6 +7,10 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
 const main = read("app/src/main/java/com/fz/office/MainActivity.kt");
 const pdf = read("app/src/main/java/com/fz/office/pdf/PdfViewerActivity.kt");
+const pdfJs = read("app/src/main/java/com/fz/office/pdf/PdfJsViewerActivity.kt");
+const pdfManifest = read("app/vendor/offline-pdf-viewer-1.manifest");
+const pdfWorkerManifest = read("app/vendor/offline-pdf-viewer-2.manifest");
+const pdfWasmManifest = read("app/vendor/offline-pdf-viewer-3.manifest");
 const pdfCore = read("app/src/main/java/com/fz/office/pdf/FzPdfDocument.kt");
 const appGradle = read("app/build.gradle.kts");
 const settings = read("settings.gradle.kts");
@@ -14,7 +18,27 @@ const workflow = read(".github/workflows/android-build.yml");
 
 assert(main.includes('"application/pdf"'), "PDF must be in the document picker");
 assert(main.includes('lower.endsWith(".pdf")'), "PDF filename route is missing");
-assert(main.includes("PdfViewerActivity::class.java"), "PDF must open in the built-in reader");
+assert(main.includes("PdfJsViewerActivity::class.java"), "PDF must open in the Gander PDF.js reader");
+assert(pdfJs.includes("PdfViewerActivity::class.java") && pdfJs.includes("supportsBundledPdfJs()"),
+  "Older WebViews must retain the native PDF compatibility fallback");
+assert(pdfJs.includes("pdf.html") && pdfJs.includes("pdf.worker") &&
+  pdfJs.includes("wasm") && pdfJs.includes("blockNetworkLoads = true"),
+  "PDF.js, worker and image decoders must load locally with network blocked");
+assert(pdfJs.includes("createWebMessageChannel") && pdfJs.includes('postCommand("q" + value)') &&
+  pdfJs.includes('postCommand("g" +'),
+  "PDF Find and page navigation must use the safe WebMessagePort bridge");
+assert(pdfJs.includes("Accept-Ranges") && pdfJs.includes("Content-Range") &&
+  pdfJs.includes("openAssetFileDescriptor") && pdfJs.includes("openInputStream"),
+  "Large PDFs must stream read-only with HTTP range support");
+assert(!pdfJs.includes("openOutputStream") && pdfJs.includes("UriPdfPrintAdapter"),
+  "The PDF.js reader must never write into the original PDF");
+assert(pdfManifest.includes("viewer/pdf.html") && pdfManifest.includes("viewer/lib/pdf.min.mjs"),
+  "Pinned Gander PDF.js page and core must be bundled");
+assert(pdfWorkerManifest.includes("viewer/lib/pdf.worker.min.mjs"),
+  "The matching pinned PDF.js worker must be bundled");
+assert(pdfWasmManifest.includes("viewer/lib/wasm/openjpeg.wasm") &&
+  pdfWasmManifest.includes("viewer/lib/wasm/jbig2.wasm"),
+  "PDF.js JPEG 2000 and JBIG2 decoders must be bundled");
 
 assert(pdf.includes("FzPdfDocument.open(this, uri)"), "PDF activity must use the FZ Kotlin document core");
 assert(pdf.includes("pageSizeKnown") && pdf.includes("requestPageSize(position)"),
@@ -82,7 +106,12 @@ assert(pdfCore.includes("android.graphics.pdf.PdfRenderer"), "The FZ PDF core mu
 assert(pdfCore.includes("MAX_BITMAP_PIXELS"), "The FZ PDF core must keep a memory bound");
 assert(pdfCore.includes("copyToPrivateCache"), "The FZ PDF core must handle non-seekable SAF providers");
 assert(appGradle.includes('implementation("androidx.recyclerview:recyclerview:1.4.0")'),
-  "RecyclerView must be available for the native PDF page list");
+  "RecyclerView must remain available for the native compatibility reader");
+assert(appGradle.includes("offline-pdf-viewer-1.manifest") &&
+  appGradle.includes("offline-pdf-viewer-2.manifest") &&
+  appGradle.includes("offline-pdf-viewer-3.manifest") &&
+  appGradle.includes('versionName = "0.9.7"') && appGradle.includes("versionCode = 37"),
+  "PDF.js assets must be checksum-verified and included in the new app version");
 assert(!appGradle.includes("third_party:mj_pdf") && !settings.includes("mj_pdf") &&
   !settings.includes("PdfiumAndroid"),
   "The app and Gradle settings must not include the unused MJ PDF/PDFium modules");
