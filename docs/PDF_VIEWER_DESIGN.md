@@ -1,27 +1,26 @@
 # FZ Office PDF viewer design
 
-## Implementation choices
+## Primary PDF reader
 
-FZ Office keeps Android's platform `PdfRenderer` as its rendering engine. The reader now uses a vertical `RecyclerView` for continuous pages instead of replacing one page in a single `ImageView`.
+PDF documents open in the pinned Gander PDF.js viewer, bundled completely offline in the APK. The matching PDF.js module and worker, Gander page styles/scripts, and PDF.js image decoders are checksum-verified from the same Gander revision already used by the spreadsheet and presentation viewers.
 
-Rendering is deliberately demand-driven:
-- The adapter binds the visible and nearby pages; it does not render every page in the document. The opening pass measures only the page that will be shown first; other page dimensions are resolved lazily as RecyclerView binds those pages. Until measured, pages use the first page’s aspect ratio to avoid unnecessary layout shifts in same-size documents, so a long PDF does not need a full metadata scan before its first page appears.
-- A single background executor serializes page access, page-size requests and rendering. A separate search worker prevents a full-document Find scan from sitting ahead of visible-page rendering.
-- Page bitmaps are stored in an LRU cache with a memory limit.
-- Zoom uses quality buckets. The existing lower-resolution bitmap stays visible while a sharper bitmap is generated.
-- Thumbnail bitmaps are small and are generated only when the thumbnail grid is opened.
-- Page dimensions are learned when a page is rendered, and the item is resized to the page's actual aspect ratio.
+The original SAF PDF is exposed to the local WebView origin at `/doc/file.pdf` as a read-only stream. Small files use one sequential response; larger files advertise byte ranges so PDF.js can fetch only the pieces it needs. The app never opens an output stream to the source document and does not rewrite, convert, or re-save its bytes.
 
-The reader also includes direct page navigation, a thumbnail grid, per-document local bookmarks, sharing, fit-width reset and pinch/button zoom. The original SAF document is opened read-only; a private cache copy is used only when the provider cannot supply a seekable descriptor.
+The page renderer is demand-driven:
+- Pages near the viewport are queued and rendered; work outside the keep band is cancelled or released.
+- PDF.js can draw a sharper tile at the zoom the reader is actually using, rather than stretching a permanently low-resolution Android bitmap.
+- A bounded number of renders run concurrently; off-screen canvas and text-layer data are released.
+- PDF text selection, Find, password prompts, continuous scrolling and PDF page tracking are supplied by the pinned Gander page.
+- Pinch and double-tap zoom are handled by the viewer/WebView. The shared FZ Tools menu provides zoom, fit, page navigation, Find, print and share.
 
-## Open-source research references
+The Android bridge uses a one-way-origin-checked `WebMessagePort` channel. It carries only fixed commands and status strings; no JavaScript interface exposes Android objects to the document. WebView file/content access is disabled, runtime network loads are blocked, and the viewer's CSP restricts scripts, workers and resources to the local asset origin.
 
-The implementation was reviewed against these public projects. Their architecture and user-facing behavior were used as references; FZ Office's PDF activity was written for its existing Android Views app and does not embed their source files.
+## Compatibility fallback
 
-- [danjdt/android-pdfviewer](https://github.com/danjdt/android-pdfviewer) — MIT licensed. Its README describes PdfRenderer + RecyclerView, background rendering, page quality settings and zoom.
-- [codegeasse1/docreader](https://github.com/codegeasse1/docreader) — MIT licensed. Its ReaderScreen demonstrates continuous pages, focal-point zoom, thumbnail navigation, bookmarks and quality-bucket rendering.
-- [Android PdfRenderer API](https://developer.android.com/reference/android/graphics/pdf/PdfRenderer) — platform renderer used by FZ Office.
+On a WebView older than the PDF.js bundle's supported Chromium floor, FZ opens the native `PdfRenderer` reader instead. That fallback remains demand-driven, uses bounded bitmap caching and does not modify the source PDF. The modern PDF.js path is the default on supported WebViews.
 
-## Deliberate exclusions for the fast reader
+## Vendored assets and limitations
 
-Text search, annotations, form editing and encrypted-PDF password entry are not part of this rendering pass. They need a separate text/annotation or document-processing layer and should not be simulated with expensive full-page raster scans. The current reader stays lightweight and read-only.
+The PDF.js bundle is pinned to Gander revision `73cf325435868cab1683d8de8cc1b89533e767b3`. Its upstream license and bundled third-party notices are shipped under `viewer/licences.md`; the PDF image-decoder notices are shipped beside their WASM files.
+
+CMaps are not part of the compact bundle. PDFs with embedded fonts and normal Hindi/English text are supported by PDF.js; a PDF that depends on a missing external CMap (usually certain non-embedded East Asian fonts) may show incomplete glyphs. The source bytes remain unchanged either way.
