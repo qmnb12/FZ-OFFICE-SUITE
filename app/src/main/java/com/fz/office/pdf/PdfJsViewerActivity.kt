@@ -55,17 +55,16 @@ class PdfJsViewerActivity : Activity() {
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private var documentUri: Uri? = null
     private var documentName = "PDF document"
-    private var documentLength = -1L
-    private var useRanges = false
+    @Volatile private var documentLength = -1L
+    @Volatile private var useRanges = false
     private var webView: WebView? = null
     private var dashboard: ReaderDashboard? = null
     private var surface: PdfJsSurface? = null
     private var appPort: WebMessagePort? = null
-    private var pagePort: WebMessagePort? = null
     private var pageReady = false
     private var currentPage = 1
     private var totalPages = 0
-    private var locked = false
+    @Volatile private var locked = false
     private var baseScale = 0f
     private var lastQuery = ""
     private val pendingCommands = ArrayList<String>()
@@ -394,9 +393,7 @@ class PdfJsViewerActivity : Activity() {
                 handlePageMessage(message.data.orEmpty())
             }
         })
-        mine.start()
         appPort = mine
-        pagePort = page
         try {
             browser.postWebMessage(WebMessage("fz-pdf-tools", arrayOf(page)), Uri.parse(ASSET_ORIGIN))
             val queued = pendingCommands.toList()
@@ -406,7 +403,6 @@ class PdfJsViewerActivity : Activity() {
             runCatching { mine.close() }
             runCatching { page.close() }
             appPort = null
-            pagePort = null
         }
     }
 
@@ -512,9 +508,7 @@ class PdfJsViewerActivity : Activity() {
 
         override fun dispose() {
             runCatching { appPort?.close() }
-            runCatching { pagePort?.close() }
             appPort = null
-            pagePort = null
             pendingCommands.clear()
         }
     }
