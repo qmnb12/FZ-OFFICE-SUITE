@@ -128,7 +128,9 @@ val prepareHindiFonts = tasks.register("prepareHindiFonts") {
                 throw GradleException("Bundled Hindi font payload is missing: " + payload.name)
             }
             val bytes = try {
-                Base64.getDecoder().decode(payload.readText(Charsets.UTF_8).trim())
+                Base64.getDecoder().decode(
+                    payload.readText(Charsets.UTF_8).filterNot { it.isWhitespace() }
+                )
             } catch (exception: IllegalArgumentException) {
                 throw GradleException("Invalid Base64 Hindi font payload: " + payload.name, exception)
             }
