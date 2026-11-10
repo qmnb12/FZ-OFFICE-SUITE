@@ -7,14 +7,17 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.Gravity
+import android.text.InputType
 import android.view.View
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import org.json.JSONObject
 import com.fz.office.fonts.FontManager
+import com.fz.office.viewer.ReaderDashboard
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -75,60 +78,17 @@ class WriterActivity : Activity() {
     }
 
     private fun buildViewerScreen() {
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(0xFFF1F4F2.toInt())
-        }
+        window.statusBarColor = 0xff151d1e.toInt()
+        window.navigationBarColor = 0xff151d1e.toInt()
 
-        val top = LinearLayout(this).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(7), dp(10), dp(7))
-            setBackgroundColor(0xFFFFFFFF.toInt())
-        }
-        root.addView(
-            top,
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(54))
-        )
-
-        val back = control("‹", 27, 0xFF1D5145.toInt()).apply {
-            gravity = Gravity.CENTER
-            setOnClickListener { finish() }
-        }
-        top.addView(back, LinearLayout.LayoutParams(dp(42), dp(42)))
-
-        val titleColumn = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(7), 0, dp(5), 0)
-        }
-        top.addView(
-            titleColumn,
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
-        )
-
-        val title = control(documentName, 14, 0xFF18352D.toInt()).apply {
-            isSingleLine = true
-            ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
-        }
-        titleView = title
-        titleColumn.addView(title)
-
-        val viewOnly = control("VIEW ONLY", 9, 0xFF176B5B.toInt()).apply {
-            letterSpacing = 0.12f
-        }
-        titleColumn.addView(viewOnly)
-
-        val zoomOut = control("A−", 15, 0xFF1D5145.toInt()).apply {
-            gravity = Gravity.CENTER
-            setOnClickListener { runViewerScript("FZViewer.zoom(-1)") }
-        }
-        top.addView(zoomOut, LinearLayout.LayoutParams(dp(42), dp(42)))
-
-        val zoomIn = control("A+", 15, 0xFF1D5145.toInt()).apply {
-            gravity = Gravity.CENTER
-            setOnClickListener { runViewerScript("FZViewer.zoom(1)") }
-        }
-        top.addView(zoomIn, LinearLayout.LayoutParams(dp(42), dp(42)))
+        val shell = ReaderDashboard(
+            this,
+            documentName,
+            if (plainText) "TEXT · VIEW ONLY" else "WORD · VIEW ONLY"
+        ) { finish() }
+        titleView = shell.titleView
+        statusView = shell.status
+        shell.addToolbarAction("Find", "Find text in document") { showSearch() }
 
         val documentWebView = WebView(this).apply {
             setBackgroundColor(0xFFF1F4F2.toInt())
@@ -155,30 +115,68 @@ class WriterActivity : Activity() {
             }
         }
 
-        root.addView(
-            documentWebView,
-            LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
-        )
-
-        val bottomStatus = control(
-            "Read only · Original document is never changed", 10, 0xFF60766D.toInt()
-        ).apply {
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(13), dp(8), dp(13), dp(8))
-            setBackgroundColor(0xFFFFFFFF.toInt())
+        shell.addControl("‹ Prev", 1.05f) {
+            runViewerScript("FZViewer.pageStep(-1)")
         }
-        statusView = bottomStatus
-        root.addView(
-            bottomStatus,
-            LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
+        shell.addControl("Page", 0.9f) { showGoToPage() }
+        shell.addControl("Next ›", 1.05f) {
+            runViewerScript("FZViewer.pageStep(1)")
+        }
+        shell.addControl("−", 0.62f) { runViewerScript("FZViewer.zoom(-1)") }
+        shell.addControl("Fit", 0.72f) { runViewerScript("FZViewer.fit()") }
+        shell.addControl("+", 0.62f) { runViewerScript("FZViewer.zoom(1)") }
 
-        setContentView(root)
-        applySafeAreaInsets(root)
+        shell.setDocumentView(documentWebView)
+        setContentView(shell.root)
+        applySafeAreaInsets(shell.root)
         documentWebView.loadUrl("file:///android_asset/writer/viewer.html")
+    }
+
+    private fun showSearch() {
+        val query = EditText(this).apply {
+            isSingleLine = true
+            hint = "Find text in this document"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Find in document")
+            .setView(query)
+            .setNegativeButton("Close", null)
+            .setPositiveButton("Find") { _, _ ->
+                val value = query.text.toString().trim()
+                if (value.isNotEmpty()) viewer?.findAllAsync(value)
+            }
+            .setNeutralButton("Clear") { _, _ -> viewer?.clearMatches() }
+            .show()
+    }
+
+    private fun showGoToPage() {
+        val web = viewer ?: return
+        web.evaluateJavascript("FZViewer.pageCount()") { raw ->
+            val count = raw?.trim()?.trim('"')?.toIntOrNull() ?: 0
+            if (count < 1) {
+                Toast.makeText(this, "Pages are still being prepared.", Toast.LENGTH_SHORT).show()
+                return@evaluateJavascript
+            }
+            val input = EditText(this).apply {
+                inputType = InputType.TYPE_CLASS_NUMBER
+                hint = "Page number (1-$count)"
+                setText("1")
+                setSelection(text.length)
+            }
+            AlertDialog.Builder(this)
+                .setTitle("Go to page")
+                .setView(input)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Go") { _, _ ->
+                    val requested = input.text.toString().toIntOrNull()
+                    if (requested == null || requested !in 1..count) {
+                        Toast.makeText(this, "Enter a page from 1 to $count.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        runViewerScript("FZViewer.goToPage(" + (requested - 1) + ")")
+                    }
+                }
+                .show()
+        }
     }
 
     private fun loadDocument() {
