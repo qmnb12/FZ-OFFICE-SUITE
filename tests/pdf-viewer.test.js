@@ -19,6 +19,8 @@ assert(main.includes("PdfViewerActivity::class.java"), "PDF must open in the bui
 assert(pdf.includes("FzPdfDocument.open(this, uri)"), "PDF activity must use the FZ Kotlin document core");
 assert(pdf.includes("pageSizeKnown") && pdf.includes("requestPageSize(position)"),
   "PDF page dimensions must be resolved lazily as pages are bound");
+assert(pdf.includes("MutableList(pageCount) { initialSize }"),
+  "Unmeasured pages must temporarily preserve the first page aspect ratio");
 assert(pdf.includes("searchExecutor.execute") && pdf.includes("pendingPageSizes"),
   "PDF text search and lazy page-size requests must not block each other on the render queue");
 const openStart = pdf.indexOf("private fun openPdf()");
