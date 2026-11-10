@@ -57,8 +57,9 @@ assert(viewer.includes("function setPageSize(preset)") &&
   viewer.includes("a5:[8391,11906]"),
   "Word viewer must support standard paper-size presets");
 assert(viewer.includes("originalPageLayout:copyLayout(original)") &&
-  viewer.includes("renderDocument(lastDocument,false)"),
-  "Changing paper size must repaginate from the untouched source document and retain Original");
+  viewer.includes("renderDocument(lastDocument)") &&
+  viewer.includes("paginateWhenFontsReady(state)"),
+  "Changing paper size must repaginate from the untouched source document and wait for its actual font");
 assert(viewer.includes("window.addEventListener(\"resize\""), "page layout must adapt to viewport changes");
 assert(viewer.includes("overflow-wrap:break-word;word-break:normal"), "normal words should not be split unnecessarily");
 assert(codec.includes('endTag: String = "body"') &&
