@@ -4,6 +4,50 @@ var workbook=null,activeSheet="",activeAddress="A1",dirty=false;
 var gridWrap=document.getElementById("gridWrap"),tabs=document.getElementById("tabs");
 var formulaInput=document.getElementById("formulaInput"),addressLabel=document.getElementById("address"),footer=document.getElementById("footer");
 var MAX_ROWS=500,MAX_COLS=40;
+var sheetZoom=1,pinchStart=null;
+function touchDistance(touches){
+ var dx=touches[0].clientX-touches[1].clientX;
+ var dy=touches[0].clientY-touches[1].clientY;
+ return Math.sqrt(dx*dx+dy*dy);
+}
+function applySheetZoom(requested,focusX,focusY){
+ var table=gridWrap.querySelector("table");
+ if(!table)return;
+ var next=Math.max(.65,Math.min(2.5,Math.round(requested*20)/20));
+ if(Math.abs(next-sheetZoom)<.01)return;
+ var ratio=next/sheetZoom;
+ var left=gridWrap.scrollLeft,top=gridWrap.scrollTop;
+ sheetZoom=next;
+ table.style.zoom=String(sheetZoom);
+ // Keep the cell under the user's fingers stationary while the sheet changes scale.
+ gridWrap.scrollLeft=Math.max(0,(left+focusX)*ratio-focusX);
+ gridWrap.scrollTop=Math.max(0,(top+focusY)*ratio-focusY);
+}
+function handlePinchStart(event){
+ if(event.touches.length!==2)return;
+ var rect=gridWrap.getBoundingClientRect();
+ pinchStart={
+  distance:Math.max(1,touchDistance(event.touches)),
+  zoom:sheetZoom,
+  centerX:(event.touches[0].clientX+event.touches[1].clientX)/2-rect.left,
+  centerY:(event.touches[0].clientY+event.touches[1].clientY)/2-rect.top
+ };
+ event.preventDefault();
+}
+function handlePinchMove(event){
+ if(!pinchStart||event.touches.length!==2)return;
+ event.preventDefault();
+ var rect=gridWrap.getBoundingClientRect();
+ var centerX=(event.touches[0].clientX+event.touches[1].clientX)/2-rect.left;
+ var centerY=(event.touches[0].clientY+event.touches[1].clientY)/2-rect.top;
+ var next=pinchStart.zoom*touchDistance(event.touches)/pinchStart.distance;
+ applySheetZoom(next,centerX,centerY);
+}
+function handlePinchEnd(event){
+ if(!pinchStart||event.touches.length>=2)return;
+ pinchStart=null;
+ status("Sheet zoom "+Math.round(sheetZoom*100)+"% · Edit cells and formulas as usual.");
+}
 function status(message){
  footer.textContent=message;
  if(window.AndroidBridge&&AndroidBridge.setStatus)AndroidBridge.setStatus(message);
@@ -66,6 +110,7 @@ function renderGrid(){
  var lastRow=Math.min(MAX_ROWS-1,Math.max(29,range.e.r));
  var lastCol=Math.min(MAX_COLS-1,Math.max(11,range.e.c));
  var table=document.createElement("table");
+ table.style.zoom=String(sheetZoom);
  var thead=document.createElement("thead"),head=document.createElement("tr");
  var corner=document.createElement("th");corner.className="corner rowhead";head.appendChild(corner);
  for(var c=0;c<=lastCol;c++){
@@ -166,6 +211,10 @@ function loadWorkbook(){
  });
 }
 gridWrap.addEventListener("click",handleGridClick);
+gridWrap.addEventListener("touchstart",handlePinchStart,{passive:false});
+gridWrap.addEventListener("touchmove",handlePinchMove,{passive:false});
+gridWrap.addEventListener("touchend",handlePinchEnd,{passive:false});
+gridWrap.addEventListener("touchcancel",handlePinchEnd,{passive:false});
 formulaInput.addEventListener("keydown",function(event){
  if(event.key==="Enter"){
   event.preventDefault();commitInput();
