@@ -51,6 +51,9 @@ jobs:
       - name: Verify shared document viewer architecture
         run: node tests/common-viewer.test.js
 
+      - name: Verify cross-format zoom and two-axis scrolling
+        run: node tests/scroll-pan.test.js
+
       - name: Verify edge-to-edge insets and document zoom
         run: node tests/system-bar-insets.test.js
 

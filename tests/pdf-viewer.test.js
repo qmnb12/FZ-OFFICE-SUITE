@@ -33,6 +33,13 @@ assert(pdf.includes("ScaleGestureDetector") && pdf.includes("onDoubleTap") &&
 assert(pdf.includes("previewZoom * detector.scaleFactor") &&
   pdf.includes("event.pointerCount >= 2 || scaleDetector.isInProgress"),
   "PDF pinch zoom must accumulate incremental scale factors and intercept the two-finger stream");
+assert(pdf.includes("captureHorizontalScrollFractions") &&
+  pdf.includes("restoreHorizontalScrollFractions") &&
+  pdf.includes("scroller.scrollTo((range * fraction).roundToInt(), 0)"),
+  "PDF zoom must retain each visible page's horizontal position after its width is re-laid out");
+assert(pdf.includes("refreshVisibleSearchHighlights()") &&
+  !pdf.includes("pageAdapter?.notifyDataSetChanged()\n        updatePageStatus()"),
+  "PDF Find highlight refreshes must not rebind pages and reset horizontal scroll");
 assert(!pdf.includes("recycler.setOnTouchListener"),
   "PDF pinch gesture handling must not depend on the RecyclerView touch listener");
 assert(pdf.includes("ReaderDashboard") && pdf.includes("dashboard.setDocumentView(zoomHost)"),

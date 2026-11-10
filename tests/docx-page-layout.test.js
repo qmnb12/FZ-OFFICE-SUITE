@@ -22,6 +22,16 @@ assert(codec.includes("var inFirstSection = false") &&
 assert(activity.includes("pendingPageLayout = loadedPageLayout"), "page layout must survive async DOCX loading");
 assert(activity.includes('pageLayout.put("widthTwips"'), "page geometry must be sent to the viewer");
 assert(viewer.includes("function applyPageLayout(renumber)"), "viewer must apply page geometry through shared layout styles");
+assert(viewer.includes("overflow-x:auto;overflow-y:auto") &&
+  viewer.includes("touch-action:pan-x pan-y pinch-zoom"),
+  "DOCX must allow native two-axis document panning and pinch zoom at the viewport");
+assert(viewer.includes("body{display:block;min-height:100vh;overflow:visible") &&
+  viewer.includes("#viewer-scroll{width:100%;min-height:100vh;overflow:visible"),
+  "DOCX must not trap native WebView pan inside a nested overflow scroller");
+assert(viewer.includes("scrollTop=window.scrollY||document.documentElement.scrollTop"),
+  "DOCX current-page tracking must follow the document viewport after scroll ownership moves to the root");
+assert(viewer.includes("(window.innerWidth||document.documentElement.clientWidth)-36"),
+  "DOCX page fit must use the stable layout viewport rather than nested scroll dimensions");
 assert(viewer.includes("overflow-x:auto") &&
   viewer.includes("touch-action:pan-x pan-y pinch-zoom"),
   "DOCX viewer must allow horizontal touch scrolling and native pinch zoom");

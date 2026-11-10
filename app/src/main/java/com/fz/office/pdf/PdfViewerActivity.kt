@@ -285,15 +285,70 @@ class PdfViewerActivity : Activity() {
         }
     }
 
+    private fun captureHorizontalScrollFractions(): Map<Int, Float> {
+        val recycler = recyclerView ?: return emptyMap()
+        val positions = LinkedHashMap<Int, Float>()
+        for (index in 0 until recycler.childCount) {
+            val scroller = recycler.getChildAt(index) as? HorizontalScrollView ?: continue
+            val position = recycler.getChildAdapterPosition(scroller)
+            if (position == RecyclerView.NO_POSITION) continue
+            val content = scroller.getChildAt(0) ?: continue
+            val range = (
+                content.width + scroller.paddingLeft + scroller.paddingRight - scroller.width
+            ).coerceAtLeast(0)
+            if (range > 0) {
+                positions[position] = (scroller.scrollX.toFloat() / range).coerceIn(0f, 1f)
+            }
+        }
+        return positions
+    }
+
+    private fun restoreHorizontalScrollFractions(positions: Map<Int, Float>) {
+        val recycler = recyclerView ?: return
+        for ((position, fraction) in positions) {
+            val holder = recycler.findViewHolderForAdapterPosition(position) ?: continue
+            val scroller = holder.itemView as? HorizontalScrollView ?: continue
+            scroller.post {
+                val content = scroller.getChildAt(0) ?: return@post
+                val range = (
+                    content.width + scroller.paddingLeft + scroller.paddingRight - scroller.width
+                ).coerceAtLeast(0)
+                scroller.scrollTo((range * fraction).roundToInt(), 0)
+            }
+        }
+    }
+
+    private fun refreshVisibleSearchHighlights() {
+        val recycler = recyclerView ?: return
+        for (index in 0 until recycler.childCount) {
+            val child = recycler.getChildAt(index)
+            val position = recycler.getChildAdapterPosition(child)
+            if (position == RecyclerView.NO_POSITION || position !in pageSizes.indices) continue
+            val holder = recycler.getChildViewHolder(child) as? PdfPageHolder ?: continue
+            val size = pageSizes[position]
+            holder.overlay.setHighlights(
+                size.width,
+                size.height,
+                searchHighlightsByPage[position].orEmpty()
+            )
+        }
+    }
+
     private fun setZoom(value: Float) {
+        val horizontalPositions = captureHorizontalScrollFractions()
         zoomScale = value.coerceIn(1f, 6f)
         val anchor = pageIndex
         pageAdapter?.notifyDataSetChanged()
-        recyclerView?.post {
+        val recycler = recyclerView ?: return
+        recycler.post {
             if (closing) return@post
-            (recyclerView?.layoutManager as? LinearLayoutManager)
+            (recycler.layoutManager as? LinearLayoutManager)
                 ?.scrollToPositionWithOffset(anchor, 0)
-            updatePageStatus()
+            recycler.post {
+                if (closing) return@post
+                restoreHorizontalScrollFractions(horizontalPositions)
+                updatePageStatus()
+            }
         }
     }
 
@@ -371,7 +426,7 @@ class PdfViewerActivity : Activity() {
             searchHits = emptyList()
             searchHitIndex = -1
             searchHighlightsByPage = emptyMap()
-            pageAdapter?.notifyDataSetChanged()
+            refreshVisibleSearchHighlights()
             shell?.setStatus("Searching PDF text…")
 
             ioExecutor.execute {
@@ -438,7 +493,7 @@ class PdfViewerActivity : Activity() {
         searchHits = emptyList()
         searchHitIndex = -1
         searchHighlightsByPage = emptyMap()
-        pageAdapter?.notifyDataSetChanged()
+        refreshVisibleSearchHighlights()
         updatePageStatus()
     }
 
@@ -450,7 +505,7 @@ class PdfViewerActivity : Activity() {
             )
         }
         searchHighlightsByPage = grouped
-        pageAdapter?.notifyDataSetChanged()
+        refreshVisibleSearchHighlights()
     }
 
     private fun navigateToSearchHit() {
