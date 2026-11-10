@@ -91,11 +91,29 @@ function gitBlobSha(bytes) {
   const header = Buffer.from("blob " + bytes.length + "\0", "utf8");
   return crypto.createHash("sha1").update(header).update(bytes).digest("hex");
 }
+function readManifestRows(file) {
+  const rows = [];
+  let pending = "";
+  for (const rawLine of read(file).split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line.includes("|")) {
+      if (pending) rows.push(pending);
+      pending = line;
+    } else {
+      assert(pending, "Manifest continuation without an asset row in " + file);
+      pending += line;
+    }
+  }
+  if (pending) rows.push(pending);
+  return rows;
+}
+
 function verifyManifest(file, expectedKind, expectedCount) {
-  const lines = read(file).trim().split(/\r?\n/);
-  assert.strictEqual(lines.length, expectedCount, "Unexpected asset count in " + file);
-  for (const line of lines) {
-    const parts = line.split("|");
+  const rows = readManifestRows(file);
+  assert.strictEqual(rows.length, expectedCount, "Unexpected asset count in " + file);
+  for (const row of rows) {
+    const parts = row.split("|");
     assert.strictEqual(parts.length, 5, "Malformed local asset manifest row");
     assert.strictEqual(parts[0], expectedKind, "Unexpected asset type in " + file);
     const bytes = Buffer.from(parts[4], "base64");
