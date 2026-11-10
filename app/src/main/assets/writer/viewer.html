@@ -221,18 +221,60 @@ function renderDocument(state,watchFont){
   }catch(_){}
  }
 }
+function copyLayout(source){
+ var fallback={widthTwips:11906,heightTwips:16838,topTwips:1440,rightTwips:1440,bottomTwips:1440,leftTwips:1440};
+ var result={};
+ Object.keys(fallback).forEach(function(key){
+  var value=source&&Number(source[key]);
+  result[key]=Number.isFinite(value)&&value>0?value:fallback[key];
+ });
+ return result;
+}
 function setDocument(html,profile,fontName,legacyHint,fontAvailable,pageLayout){
+ var original=copyLayout(pageLayout);
  lastDocument={
   html:html||"<p></p>",
   profile:profile||"",
   fontName:fontName||"",
   legacyHint:!!legacyHint,
   fontAvailable:!!fontAvailable,
-  pageLayout:pageLayout||null,
+  pageLayout:copyLayout(original),
+  originalPageLayout:copyLayout(original),
+  selectedPageSize:"original",
   fontWatchStarted:false,
   fontRefreshDone:false
  };
  renderDocument(lastDocument,true);
+}
+function setPageSize(preset){
+ if(!lastDocument)return false;
+ var paper={
+  a4:[11906,16838],
+  a4_landscape:[16838,11906],
+  letter:[12240,15840],
+  legal:[12240,20160],
+  a3:[16838,23811],
+  a5:[8391,11906]
+ };
+ if(preset==="original"){
+  lastDocument.pageLayout=copyLayout(lastDocument.originalPageLayout);
+ }else{
+  var dimensions=paper[preset];
+  if(!dimensions)return false;
+  var next=copyLayout(lastDocument.pageLayout||lastDocument.originalPageLayout);
+  next.widthTwips=dimensions[0];
+  next.heightTwips=dimensions[1];
+  var maxHorizontal=Math.max(0,Math.floor(next.widthTwips/2)-360);
+  var maxVertical=Math.max(0,Math.floor(next.heightTwips/2)-360);
+  next.leftTwips=Math.min(next.leftTwips,maxHorizontal);
+  next.rightTwips=Math.min(next.rightTwips,maxHorizontal);
+  next.topTwips=Math.min(next.topTwips,maxVertical);
+  next.bottomTwips=Math.min(next.bottomTwips,maxVertical);
+  lastDocument.pageLayout=next;
+ }
+ lastDocument.selectedPageSize=preset;
+ renderDocument(lastDocument,false);
+ return true;
 }
 function zoom(direction){zoomLevel=Math.max(.7,Math.min(1.5,zoomLevel+(direction>0?.1:-.1)));applyPageLayout()}
 function fit(){zoomLevel=1;applyPageLayout()}
@@ -252,7 +294,7 @@ function pageStep(delta){goToPage(currentPage()+(Number(delta)||0))}
 window.addEventListener("resize",applyPageLayout);
 window.FZViewer={
  registerFonts:registerFonts,setDefaultFont:setDefaultFont,setDocument:setDocument,
- zoom:zoom,fit:fit,pageCount:pageCount,currentPage:currentPage,
+ setPageSize:setPageSize,zoom:zoom,fit:fit,pageCount:pageCount,currentPage:currentPage,
  goToPage:goToPage,pageStep:pageStep
 };
 })();
