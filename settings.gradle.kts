@@ -9,41 +9,53 @@ val mjPdfProjectPath = "mudlej_android%2Fmj_pdf_reader"
 val mjPdfRoot = File(settingsDir, "third_party/mj_pdf")
 val mjPdfRevisionFile = File(mjPdfRoot, "SOURCE_REVISION")
 
-fun downloadMjPdfSubtree(repositoryPath: String, destination: File, requiredRelativePath: String) {
+fun downloadMjPdfSourceArchive(destination: File) {
     val archiveUrl = URL(
         "https://gitlab.com/api/v4/projects/" + mjPdfProjectPath +
-            "/repository/archive.zip?sha=" + mjPdfRevision + "&path=" + repositoryPath
+            "/repository/archive.zip?sha=" + mjPdfRevision
     )
     val connection = archiveUrl.openConnection() as HttpURLConnection
     connection.connectTimeout = 25000
-    connection.readTimeout = 120000
+    connection.readTimeout = 180000
     connection.instanceFollowRedirects = true
     connection.setRequestProperty("User-Agent", "FZ-Office-MJ-PDF-bootstrap")
+    val wantedRoots = setOf("AndroidPdfViewer", "PdfiumAndroid", "build_dependencies")
+    val requiredFiles = setOf(
+        "AndroidPdfViewer/LICENSE",
+        "PdfiumAndroid/LICENSE",
+        "build_dependencies/values.py"
+    )
+    val extracted = HashSet<String>()
     try {
         connection.connect()
         if (connection.responseCode != HttpURLConnection.HTTP_OK) {
             throw GradleException(
-                "Could not download pinned MJ PDF source folder " + repositoryPath +
-                    " (HTTP " + connection.responseCode + "). Check internet access and retry Gradle sync."
+                "Could not download pinned MJ PDF source archive (HTTP " +
+                    connection.responseCode + "). Check internet access and retry Gradle sync."
             )
         }
         ZipInputStream(connection.inputStream).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                val normalizedName = entry.name.replace('\\', '/')
-                val marker = repositoryPath + "/"
-                val markerIndex = normalizedName.indexOf(marker)
-                if (!entry.isDirectory && markerIndex >= 0) {
-                    val relative = normalizedName.substring(markerIndex + marker.length)
-                    if (relative.isNotBlank()) {
-                        val target = File(destination, relative).canonicalFile
-                        val root = destination.canonicalFile
-                        if (!target.path.startsWith(root.path + File.separator)) {
-                            throw GradleException("Unsafe path in pinned MJ PDF source archive.")
-                        }
-                        target.parentFile.mkdirs()
-                        target.outputStream().use { output -> zip.copyTo(output) }
+                val normalizedName = entry.name.replace('\\', '/').trimStart('/')
+                val parts = normalizedName.split('/').filter { it.isNotBlank() }
+                val rootIndex = parts.indexOfFirst { it in wantedRoots }
+                val relative = if (rootIndex >= 0) {
+                    parts.drop(rootIndex).joinToString("/")
+                } else if (parts.lastOrNull() == "build_dependencies.py") {
+                    "build_dependencies.py"
+                } else {
+                    ""
+                }
+                if (!entry.isDirectory && relative.isNotBlank()) {
+                    val target = File(destination, relative).canonicalFile
+                    val root = destination.canonicalFile
+                    if (!target.path.startsWith(root.path + File.separator)) {
+                        throw GradleException("Unsafe path in pinned MJ PDF source archive.")
                     }
+                    target.parentFile.mkdirs()
+                    target.outputStream().use { output -> zip.copyTo(output) }
+                    extracted.add(relative)
                 }
                 zip.closeEntry()
             }
@@ -51,36 +63,13 @@ fun downloadMjPdfSubtree(repositoryPath: String, destination: File, requiredRela
     } finally {
         connection.disconnect()
     }
-    if (!File(destination, requiredRelativePath).isFile) {
+    val missing = requiredFiles.filterNot { it in extracted }
+    if (missing.isNotEmpty() || "build_dependencies.py" !in extracted) {
         throw GradleException(
-            "Pinned MJ PDF archive did not contain " + repositoryPath + "/" + requiredRelativePath
+            "Pinned MJ PDF archive is incomplete. Missing: " +
+                (missing + if ("build_dependencies.py" !in extracted) listOf("build_dependencies.py") else emptyList())
+                    .joinToString(", ")
         )
-    }
-}
-
-fun downloadMjPdfBuildEntrypoint(destination: File) {
-    val rawUrl = URL(
-        "https://gitlab.com/api/v4/projects/" + mjPdfProjectPath +
-            "/repository/files/build_dependencies.py/raw?ref=" + mjPdfRevision
-    )
-    val connection = rawUrl.openConnection() as HttpURLConnection
-    connection.connectTimeout = 25000
-    connection.readTimeout = 60000
-    connection.instanceFollowRedirects = true
-    connection.setRequestProperty("User-Agent", "FZ-Office-MJ-PDF-bootstrap")
-    try {
-        connection.connect()
-        if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-            throw GradleException("Could not download the pinned MJ PDF native build entrypoint.")
-        }
-        val source = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-        if (!source.startsWith("#!/usr/bin/env python3") || !source.contains("build_dependencies.pdfium")) {
-            throw GradleException("The downloaded MJ PDF native build entrypoint failed validation.")
-        }
-        destination.parentFile.mkdirs()
-        destination.writeText(source, Charsets.UTF_8)
-    } finally {
-        connection.disconnect()
     }
 }
 
@@ -179,10 +168,7 @@ if (!mjPdfAlreadyPrepared) {
     val staging = File(settingsDir, ".gradle/mj-pdf-bootstrap")
     if (staging.exists()) staging.deleteRecursively()
     staging.mkdirs()
-    downloadMjPdfSubtree("AndroidPdfViewer", File(staging, "AndroidPdfViewer"), "LICENSE")
-    downloadMjPdfSubtree("PdfiumAndroid", File(staging, "PdfiumAndroid"), "LICENSE")
-    downloadMjPdfSubtree("build_dependencies", File(staging, "build_dependencies"), "values.py")
-    downloadMjPdfBuildEntrypoint(File(staging, "build_dependencies.py"))
+    downloadMjPdfSourceArchive(staging)
     patchMjPdfModuleBuildFiles(staging)
     File(staging, "SOURCE_REVISION").writeText(mjPdfRevision + "\n", Charsets.UTF_8)
 
