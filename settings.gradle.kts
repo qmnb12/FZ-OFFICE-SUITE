@@ -180,6 +180,22 @@ if (!mjPdfAlreadyPrepared) {
     }
 }
 
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
 include(":app")
 include(":third_party:mj_pdf:PdfiumAndroid")
 include(":third_party:mj_pdf:AndroidPdfViewer:android-pdf-viewer")
