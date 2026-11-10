@@ -21,7 +21,7 @@ assert(main.includes('lower.endsWith(".pdf")'), "PDF filename route is missing")
 assert(main.includes("PdfJsViewerActivity::class.java"), "PDF must open in the Gander PDF.js reader");
 assert(pdfJs.includes("PdfViewerActivity::class.java") && pdfJs.includes("supportsBundledPdfJs()"),
   "Older WebViews must retain the native PDF compatibility fallback");
-assert(pdfJs.includes("pdf.html") && pdfJs.includes("pdf.worker") &&
+assert(pdfJs.includes("pdf.html") && pdfWorkerManifest.includes("viewer/lib/pdf.worker.min.mjs") &&
   pdfJs.includes("wasm") && pdfJs.includes("blockNetworkLoads = true"),
   "PDF.js, worker and image decoders must load locally with network blocked");
 assert(pdfJs.includes("createWebMessageChannel") && pdfJs.includes('postCommand("q" + value)') &&
