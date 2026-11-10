@@ -3,6 +3,23 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.zip.ZipInputStream
 
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+
 // MJ PDF 3.1 source pin supplied for FZ Office integration.
 val mjPdfRevision = "286277c6a85a4068cbbfbd18c93a742f0b2087ed"
 val mjPdfProjectPath = "mudlej_android%2Fmj_pdf_reader"
@@ -177,22 +194,6 @@ if (!mjPdfAlreadyPrepared) {
     if (!staging.renameTo(mjPdfRoot)) {
         staging.copyRecursively(mjPdfRoot, overwrite = true)
         staging.deleteRecursively()
-    }
-}
-
-pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories {
-        google()
-        mavenCentral()
     }
 }
 
