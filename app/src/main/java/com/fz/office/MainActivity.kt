@@ -68,7 +68,7 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(30), dp(22), dp(28))
         }
-        scroll.addView(page, ScrollView.LayoutParams(-1, -1))
+        scroll.addView(page, android.widget.FrameLayout.LayoutParams(-1, -1))
         setContentView(scroll)
         applySafeAreaInsets(scroll)
 
@@ -153,7 +153,7 @@ class MainActivity : Activity() {
             textSize = 14f
             setTextColor(TEXT)
             setHintTextColor(MUTED)
-            hint = "Search recent documents"
+            this.hint = "Search recent documents"
             setPadding(dp(15), dp(12), dp(15), dp(12))
             background = round(SURFACE, 14)
         }
