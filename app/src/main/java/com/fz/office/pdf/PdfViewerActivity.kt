@@ -47,7 +47,6 @@ class PdfViewerActivity : Activity() {
         const val EXTRA_DOCUMENT_NAME = "document_name"
         private const val CANVAS = 0xffe9eeeb.toInt()
         private const val MAX_DISPLAY_WIDTH_PX = 8192
-        private val DEFAULT_PAGE_SIZE = FzPdfDocument.PageSize(612, 792)
         private const val BITMAP_CACHE_KB = 32 * 1024
         private const val MAX_SEARCH_HITS = 3000
     }
@@ -183,7 +182,7 @@ class PdfViewerActivity : Activity() {
                 // resolved on demand when RecyclerView binds those pages.
                 val initialPage = pageIndex.coerceIn(0, pageCount - 1)
                 val initialSize = opened.pageSize(initialPage)
-                val sizes = MutableList(pageCount) { DEFAULT_PAGE_SIZE }
+                val sizes = MutableList(pageCount) { initialSize }
                 sizes[initialPage] = initialSize
 
                 val readyDocument = checkNotNull(opened)
@@ -370,6 +369,10 @@ class PdfViewerActivity : Activity() {
 
         try {
             ioExecutor.execute {
+                if (closing) {
+                    pendingPageSizes.remove(page)
+                    return@execute
+                }
                 val measuredSize = try {
                     document.pageSize(page)
                 } catch (_: Exception) {
