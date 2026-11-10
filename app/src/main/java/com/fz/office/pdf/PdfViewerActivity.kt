@@ -212,20 +212,19 @@ class PdfViewerActivity : Activity() {
         context: Context,
         private val recycler: RecyclerView
     ) : FrameLayout(context) {
-        private var startZoom = zoomScale
         private var previewZoom = zoomScale
 
         private val scaleDetector = ScaleGestureDetector(
             context,
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
                 override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-                    startZoom = zoomScale
                     previewZoom = zoomScale
                     return true
                 }
 
                 override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    previewZoom = (startZoom * detector.scaleFactor).coerceIn(1f, 6f)
+                    // ScaleGestureDetector reports the incremental factor since the previous move.
+                    previewZoom = (previewZoom * detector.scaleFactor).coerceIn(1f, 6f)
                     applyPreviewZoom(previewZoom)
                     return true
                 }
@@ -265,8 +264,9 @@ class PdfViewerActivity : Activity() {
         }
 
         override fun onInterceptTouchEvent(event: android.view.MotionEvent): Boolean {
-            // Intercept only a real multi-touch scale; one-finger page scrolling remains native.
-            return scaleDetector.isInProgress
+            // Capture the stream as soon as a second finger lands, before nested page scrollers consume it.
+            // Single-finger vertical scrolling continues through RecyclerView unchanged.
+            return event.pointerCount >= 2 || scaleDetector.isInProgress
         }
 
         override fun onTouchEvent(event: android.view.MotionEvent): Boolean = true
@@ -278,6 +278,8 @@ class PdfViewerActivity : Activity() {
         for (index in 0 until (recyclerView?.childCount ?: 0)) {
             val pageScroller = recyclerView?.getChildAt(index) as? HorizontalScrollView ?: continue
             val pageContent = pageScroller.getChildAt(0) ?: continue
+            pageContent.pivotX = pageContent.width / 2f
+            pageContent.pivotY = pageContent.height / 2f
             pageContent.scaleX = factor
             pageContent.scaleY = factor
         }

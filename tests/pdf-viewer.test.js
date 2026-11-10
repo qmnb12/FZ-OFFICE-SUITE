@@ -30,6 +30,9 @@ assert(pdf.includes("renderPage(page, renderWidth)") && pdf.includes("bitmapCach
 assert(pdf.includes("ScaleGestureDetector") && pdf.includes("onDoubleTap") &&
   pdf.includes("class PdfGestureHost") && pdf.includes("applyPreviewZoom(previewZoom)"),
   "PDF pinch zoom must observe touches above page scrollers and preview continuously");
+assert(pdf.includes("previewZoom * detector.scaleFactor") &&
+  pdf.includes("event.pointerCount >= 2 || scaleDetector.isInProgress"),
+  "PDF pinch zoom must accumulate incremental scale factors and intercept the two-finger stream");
 assert(!pdf.includes("recycler.setOnTouchListener"),
   "PDF pinch gesture handling must not depend on the RecyclerView touch listener");
 assert(pdf.includes("ReaderDashboard") && pdf.includes("dashboard.setDocumentView(zoomHost)"),

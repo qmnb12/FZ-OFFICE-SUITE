@@ -8,6 +8,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.text.Editable
 import android.text.TextWatcher
@@ -32,6 +33,9 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_OPEN_DOCUMENT = 101
+        private const val REQUEST_PICK_FORMAT_FOLDER = 102
+        private const val FORMAT_PICKER_PREFS = "fz_format_picker"
+        private const val FORMAT_PICKER_TREE_URI = "tree_uri"
         private val BG = Color.rgb(15, 20, 22)
         private val SURFACE = Color.rgb(29, 37, 39)
         private val TEXT = Color.WHITE
@@ -48,6 +52,18 @@ class MainActivity : Activity() {
     private var showStarredOnly = false
     private var libraryQuery = ""
     private var pendingPickerFilter: String? = null
+    private var pendingFormatFolderFilter: String? = null
+
+    private data class FormatFolderNode(val documentId: String, val name: String)
+
+    private data class FormatPickerRow(
+        val documentId: String,
+        val name: String,
+        val mimeType: String,
+        val isDirectory: Boolean,
+        val isParent: Boolean = false,
+        val isEmptyState: Boolean = false
+    )
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -448,20 +464,171 @@ class MainActivity : Activity() {
     }
 
     private fun openDocumentPicker(filter: String? = null) {
-        pendingPickerFilter = filter?.uppercase(Locale.ROOT)
-        val mimeTypes = pickerMimeTypes(pendingPickerFilter)
+        val normalizedFilter = filter?.uppercase(Locale.ROOT)
+        if (normalizedFilter != null) {
+            openFormatFolderPicker(normalizedFilter)
+            return
+        }
+
+        pendingPickerFilter = null
+        val mimeTypes = pickerMimeTypes(null)
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
-            type = if (mimeTypes.size == 1) mimeTypes[0] else "*/*"
-            if (mimeTypes.size > 1) putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
         }
         try {
             startActivityForResult(intent, REQUEST_OPEN_DOCUMENT)
         } catch (_: Exception) {
-            pendingPickerFilter = null
             Toast.makeText(this, "No compatible file picker was found.", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun openFormatFolderPicker(filter: String) {
+        val saved = getSharedPreferences(FORMAT_PICKER_PREFS, MODE_PRIVATE)
+            .getString(FORMAT_PICKER_TREE_URI, null)
+        val treeUri = saved?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        val hasReadGrant = treeUri != null && contentResolver.persistedUriPermissions.any {
+            it.uri == treeUri && it.isReadPermission
+        }
+        if (treeUri != null && hasReadGrant) {
+            showFormatFolderPicker(treeUri, filter, emptyList())
+        } else {
+            requestFormatFolder(filter)
+        }
+    }
+
+    private fun requestFormatFolder(filter: String) {
+        pendingFormatFolderFilter = filter
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+        }
+        try {
+            Toast.makeText(
+                this,
+                "एक बार वह folder चुनें जिसमें आपकी ${filter} files हैं। अगली बार यह याद रहेगा।",
+                Toast.LENGTH_LONG
+            ).show()
+            startActivityForResult(intent, REQUEST_PICK_FORMAT_FOLDER)
+        } catch (_: Exception) {
+            pendingFormatFolderFilter = null
+            Toast.makeText(this, "Folder access is not available on this device.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showFormatFolderPicker(
+        treeUri: Uri,
+        filter: String,
+        path: List<FormatFolderNode>
+    ) {
+        val parentId = path.lastOrNull()?.documentId ?: runCatching {
+            DocumentsContract.getTreeDocumentId(treeUri)
+        }.getOrElse {
+            runCatching { DocumentsContract.getDocumentId(treeUri) }.getOrDefault("")
+        }
+        if (parentId.isBlank()) {
+            requestFormatFolder(filter)
+            return
+        }
+
+        val rows = ArrayList<FormatPickerRow>()
+        if (path.isNotEmpty()) {
+            rows.add(FormatPickerRow("", "⬆  Parent folder", "", false, isParent = true))
+        }
+        rows.addAll(queryFormatPickerChildren(treeUri, parentId, filter))
+        if (rows.isEmpty()) {
+            rows.add(
+                FormatPickerRow(
+                    "",
+                    "इस folder में कोई ${filter} file नहीं है",
+                    "",
+                    false,
+                    isEmptyState = true
+                )
+            )
+        }
+
+        val rootName = queryDisplayName(treeUri).ifBlank { "Selected folder" }
+        val currentName = path.lastOrNull()?.name ?: rootName
+        val labels = rows.map { row ->
+            when {
+                row.isParent -> row.name
+                row.isEmptyState -> row.name
+                row.isDirectory -> "📁  ${row.name}"
+                else -> "📄  ${row.name}"
+            }
+        }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle("${filter} files · ${currentName}")
+            .setItems(labels) { _, index ->
+                val row = rows.getOrNull(index) ?: return@setItems
+                when {
+                    row.isParent -> showFormatFolderPicker(treeUri, filter, path.dropLast(1))
+                    row.isEmptyState -> Unit
+                    row.isDirectory -> showFormatFolderPicker(
+                        treeUri,
+                        filter,
+                        path + FormatFolderNode(row.documentId, row.name)
+                    )
+                    else -> {
+                        val fileUri = DocumentsContract.buildDocumentUriUsingTree(
+                            treeUri,
+                            row.documentId
+                        )
+                        launchDocument(fileUri, row.name, row.mimeType)
+                    }
+                }
+            }
+            .setNeutralButton("Change folder") { _, _ ->
+                getSharedPreferences(FORMAT_PICKER_PREFS, MODE_PRIVATE)
+                    .edit()
+                    .remove(FORMAT_PICKER_TREE_URI)
+                    .apply()
+                requestFormatFolder(filter)
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun queryFormatPickerChildren(
+        treeUri: Uri,
+        parentDocumentId: String,
+        filter: String
+    ): List<FormatPickerRow> {
+        val result = ArrayList<FormatPickerRow>()
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(
+            treeUri,
+            parentDocumentId
+        )
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE
+        )
+        try {
+            contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+                val idColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+                val nameColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+                val mimeColumn = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+                if (idColumn < 0 || nameColumn < 0 || mimeColumn < 0) return@use
+                while (cursor.moveToNext()) {
+                    val documentId = cursor.getString(idColumn) ?: continue
+                    val name = cursor.getString(nameColumn)?.takeIf { it.isNotBlank() } ?: continue
+                    val mime = cursor.getString(mimeColumn).orEmpty()
+                    val isDirectory = mime == DocumentsContract.Document.MIME_TYPE_DIR
+                    if (isDirectory || matchesPickerFilter(name, mime, filter)) {
+                        result.add(FormatPickerRow(documentId, name, mime, isDirectory))
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            Toast.makeText(this, "Could not read this folder. Try another folder.", Toast.LENGTH_LONG).show()
+        }
+        return result.sortedWith(
+            compareBy<FormatPickerRow>({ !it.isDirectory }, { it.name.lowercase(Locale.ROOT) })
+        )
     }
 
     private fun matchesPickerFilter(name: String?, mime: String?, filter: String?): Boolean {
@@ -517,6 +684,26 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Android API; retained for compatibility with the existing document picker flow")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_PICK_FORMAT_FOLDER) {
+            val filter = pendingFormatFolderFilter
+            pendingFormatFolderFilter = null
+            if (resultCode != RESULT_OK || filter == null) return
+            val resultIntent = data ?: return
+            val treeUri = resultIntent.data ?: return
+            val readGrant = resultIntent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION
+            try {
+                contentResolver.takePersistableUriPermission(treeUri, readGrant)
+            } catch (_: Exception) {
+                Toast.makeText(this, "Folder permission could not be saved. Please choose again.", Toast.LENGTH_LONG).show()
+                return
+            }
+            getSharedPreferences(FORMAT_PICKER_PREFS, MODE_PRIVATE)
+                .edit()
+                .putString(FORMAT_PICKER_TREE_URI, treeUri.toString())
+                .apply()
+            showFormatFolderPicker(treeUri, filter, emptyList())
+            return
+        }
         if (requestCode != REQUEST_OPEN_DOCUMENT) return
         val requestedFilter = pendingPickerFilter
         pendingPickerFilter = null

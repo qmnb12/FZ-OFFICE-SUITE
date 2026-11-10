@@ -9,11 +9,16 @@ const main = read("app/src/main/java/com/fz/office/MainActivity.kt");
 const store = read("app/src/main/java/com/fz/office/library/RecentDocumentsStore.kt");
 assert(main.includes("addLibrarySection(page)"), "Home screen must include the local library");
 assert(main.includes("openDocumentPicker(type)"), "Each format tile must open its own filtered picker");
-assert(main.includes('"DOCX" -> arrayOf(MIME_DOCX)') &&
-  main.includes('"PDF" -> arrayOf(MIME_PDF)'),
-  "DOCX and PDF tiles must filter the system picker to only their own MIME type");
-assert(main.includes("matchesPickerFilter(name, mime, requestedFilter)"),
-  "Picker results must be checked against the selected format as a fallback");
+assert(main.includes("Intent.ACTION_OPEN_DOCUMENT_TREE") &&
+  main.includes("DocumentsContract.buildChildDocumentsUriUsingTree") &&
+  main.includes("DocumentsContract.buildDocumentUriUsingTree"),
+  "Format tiles must use the in-app SAF folder browser instead of relying on providers to honor MIME filters");
+assert(main.includes("matchesPickerFilter(name, mime, filter)"),
+  "Only files matching the selected format may be listed in the format folder browser");
+assert(main.includes("FORMAT_PICKER_TREE_URI") && main.includes("takePersistableUriPermission(treeUri, readGrant)"),
+  "The selected folder and read permission must be remembered for the next visit");
+assert(main.includes('setNeutralButton("Change folder")'),
+  "Users must be able to change the remembered folder");
 assert(main.includes("val resultIntent = data ?: return") &&
   main.includes("resultIntent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION"),
   "Filtered picker result must retain the returned URI grant flags");
