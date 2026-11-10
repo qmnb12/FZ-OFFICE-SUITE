@@ -34,9 +34,10 @@ assert(pdf.includes("ReaderDashboard") && pdf.includes("shell.setDocumentView(ho
 assert(pdf.includes("pageLabel = shell.status") && !pdf.includes('shell.addControl("‹ Prev"') &&
   !pdf.includes('shell.addControl("−"') && !pdf.includes('shell.addControl("Fit"'),
   "PDF page movement and zoom must be touch-only, with no redundant buttons");
-assert(dashboard.includes("fun addControl") && dashboard.includes("fun addToolbarAction") &&
-  dashboard.includes("val content = FrameLayout") && dashboard.includes("val status = TextView"),
-  "Shared dashboard must provide matching toolbar, content, control strip and status row");
+assert(!dashboard.includes("fun addControl") && dashboard.includes("fun addToolbarAction") &&
+  dashboard.includes("val content = FrameLayout") && dashboard.includes("val status = TextView") &&
+  !dashboard.includes("val controls"),
+  "Shared dashboard must provide matching toolbar, content area and compact status footer without zoom buttons");
 assert(pdf.includes("requestPageRender(position, renderBucket)"),
   "Page bitmaps must be rendered on demand for bound pages");
 assert(pdf.includes("LruCache<String, Bitmap>") && pdf.includes("pageCacheSizeKb()"),
