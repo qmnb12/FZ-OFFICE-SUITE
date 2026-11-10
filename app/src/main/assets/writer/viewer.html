@@ -34,7 +34,7 @@ body{display:flex;flex-direction:column;overflow:hidden}
 .fz-page a{color:#176b5b;text-decoration:underline}
 .page-number{position:absolute;right:8px;bottom:4px;color:#738078;font:10px Arial,sans-serif;pointer-events:none;transform:var(--fz-page-number-transform,scale(1));transform-origin:bottom right}
 .fz-measure{position:fixed!important;left:-100000px!important;top:0!important;transform:none!important;visibility:hidden!important;box-shadow:none!important;border:0!important}
-.page-shell[data-overflow="true"] .fz-page{outline:2px solid #c96f38}
+.page-shell[data-overflow="true"] .fz-page{outline:2px solid #c96f38;overflow:visible;height:auto!important;min-height:var(--fz-page-height)}
 @media print{html,body{height:auto;overflow:visible;background:#fff}#legacyNotice{display:none!important}#viewer-scroll{overflow:visible;padding:0}#pages{display:block}.page-shell{break-after:page;margin:0!important}.fz-page{border:0;box-shadow:none;transform:none!important}}
 </style>
 </head>
@@ -122,12 +122,13 @@ function prefixFits(page,block,map,count){
  var fits=temp.scrollHeight<=temp.clientHeight+2;temp.remove();return fits;
 }
 function splitLongBlock(page,block){
+ if(block&&block.getAttribute&&block.getAttribute("data-fz-keep-lines")==="true")return null;
  if(!/^(p|h1|h2|h3|h4|blockquote)$/i.test(block.tagName||""))return null;
  var map=textMap(block);if(map.total<80||!map.nodes.length)return null;
  var low=1,high=map.total-1,best=0;
  for(var n=0;n<18&&low<=high;n++){var mid=Math.floor((low+high)/2);if(prefixFits(page,block,map,mid)){best=mid;low=mid+1}else high=mid-1}
  if(best<24||best>=map.total-8)return null;
- while(best>24&&!/\s/.test(map.text.charAt(best-1)))best--;
+ while(best>24&&!/\\s/.test(map.text.charAt(best-1)))best--;
  if(best<24)return null;
  var first=fragment(block,map,0,best),second=fragment(block,map,best,map.total);
  var continuation=block.cloneNode(false);continuation.appendChild(second);
@@ -135,6 +136,35 @@ function splitLongBlock(page,block){
  var list=pages(),index=list.indexOf(page),next=list[index+1]||addPageAfter(page);
  next.insertBefore(continuation,next.firstChild);
  return continuation;
+}
+function splitTableOverflow(page,table){
+ if(!table||String(table.tagName).toUpperCase()!=="TABLE")return false;
+ var body=table.tBodies&&table.tBodies[0];
+ if(!body||body.rows.length<2)return false;
+ var continuation=table.cloneNode(false),nextBody=document.createElement("tbody"),moved=0;
+ continuation.appendChild(nextBody);
+ // Keep at least one row on this page. Move complete rows in reverse order,
+ // then prepend them to the next page so reading order remains unchanged.
+ while(overflows(page)&&body.rows.length>1){
+  var row=body.rows[body.rows.length-1];
+  nextBody.insertBefore(row,nextBody.firstChild);
+  moved++;
+ }
+ if(!moved)return false;
+ var list=pages(),index=list.indexOf(page),next=list[index+1]||addPageAfter(page);
+ next.insertBefore(continuation,next.firstChild);
+ return true;
+}
+function markOverflow(page){
+ var shell=shellOf(page);if(!shell)return;
+ shell.setAttribute("data-overflow","true");
+ // An indivisible Word block (for example one extremely tall table row) must
+ // remain readable. Expand this exceptional page instead of silently clipping it.
+ page.style.height="auto";
+ page.style.minHeight="var(--fz-page-height)";
+ page.style.overflow="visible";
+ var required=Math.max(px(layout.heightTwips),page.scrollHeight+8);
+ shell.style.height=Math.ceil(required*widthScale())+"px";
 }
 function processPage(page){
  var guard=0;
@@ -156,17 +186,22 @@ function processPage(page){
    continue;
   }
   if(!overflows(page))break;
+  var last=children[children.length-1];
+  if(last.tagName&&last.tagName.toUpperCase()==="TABLE"&&splitTableOverflow(page,last))continue;
+  if(last.tagName&&/^(P|H1|H2|H3|H4|BLOCKQUOTE)$/i.test(last.tagName)&&
+     last.getAttribute("data-fz-keep-lines")!=="true"&&splitLongBlock(page,last))continue;
   if(children.length===1){
-   if(!splitLongBlock(page,children[0])){
-    shellOf(page).setAttribute("data-overflow","true");
-    break;
-   }
-  }else{
-   var nextPage=pages()[pages().indexOf(page)+1]||addPageAfter(page);
-   nextPage.insertBefore(children[children.length-1],nextPage.firstChild);
+   markOverflow(page);
+   break;
   }
+  var moveFrom=children.length-1;
+  if(moveFrom>0&&children[moveFrom-1].getAttribute&&
+     children[moveFrom-1].getAttribute("data-fz-keep-next")==="true")moveFrom--;
+  var nextPage=pages()[pages().indexOf(page)+1]||addPageAfter(page);
+  for(var m=children.length-1;m>=moveFrom;m--)nextPage.insertBefore(children[m],nextPage.firstChild);
  }
  if(!overflows(page))shellOf(page).removeAttribute("data-overflow");
+ else markOverflow(page);
 }
 function paginate(){
  if(!ready)return;
