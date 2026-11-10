@@ -2,7 +2,6 @@ package com.fz.office.pdf
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.app.AlertDialog
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
