@@ -29,6 +29,10 @@ assert(pdf.includes("if (event.pointerCount > 1)") &&
   pdf.includes("horizontalDragging = false") &&
   pdf.includes("return false"),
   "Horizontal pan container must never intercept a multi-touch pinch stream");
+assert(pdf.includes("cancel.action = MotionEvent.ACTION_CANCEL") &&
+  pdf.includes("list.onTouchEvent(cancel)") &&
+  pdf.includes("!scalingGestureActive"),
+  "Starting a pinch must cancel RecyclerView's pending one-finger scroll gesture");
 assert(pdf.includes("scalingGestureActive || (event.pointerCount > 1 && handled)") &&
   pdf.includes("scalingGestureActive = false"),
   "PDF pinch events must be consumed through the final ACTION_UP/CANCEL event");
