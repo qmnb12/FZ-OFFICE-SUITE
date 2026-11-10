@@ -27,6 +27,20 @@ assert(pdf.includes("LruCache<String, Bitmap>") && pdf.includes("pageCacheSizeKb
 assert(pdf.includes("qualityBucket") && pdf.includes("bestCachedPage"),
   "Zoom must use render-quality buckets and keep a previous bitmap while sharper output loads");
 assert(pdf.includes("ScaleGestureDetector"), "Pinch-to-zoom must be supported");
+assert(pdf.includes("override fun onScaleBegin") && pdf.includes("override fun onScaleEnd"),
+  "Pinch zoom must preview with a transform and commit once on gesture end");
+assert(pdf.includes("list.scaleX = previewScale") && pdf.includes("list.scaleY = previewScale"),
+  "Pinch movement must scale the cached page layer without re-layout");
+const scaleStart = pdf.indexOf("override fun onScale(detector: ScaleGestureDetector)");
+const scaleEnd = pdf.indexOf("override fun onScaleEnd(detector: ScaleGestureDetector)", scaleStart);
+assert(scaleStart >= 0 && scaleEnd > scaleStart &&
+  !pdf.slice(scaleStart, scaleEnd).includes("setZoom("),
+  "Pinch motion must not trigger expensive page layout on every event");
+assert(pdf.includes("refreshForZoom") && pdf.includes("notifyItemRangeChanged"),
+  "Page holders must refresh only once after zoom settles");
+assert(pdf.includes("visibleStartPage") && pdf.includes("visibleEndPage") &&
+  pdf.includes("obsolete pages queued"),
+  "Out-of-view PDF render jobs must be skipped after fast scrolling");
 assert(pdf.includes("showThumbnails") && pdf.includes("requestThumbnail"),
   "A lazily rendered page thumbnail grid is required");
 assert(pdf.includes("showGoToPage") && pdf.includes("jumpToPage"),
