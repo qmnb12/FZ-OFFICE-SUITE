@@ -44,5 +44,24 @@ assert(viewer.includes("originalPageLayout:copyLayout(original)") &&
   "Changing paper size must repaginate from the untouched source document and retain Original");
 assert(viewer.includes("window.addEventListener(\"resize\""), "page layout must adapt to viewport changes");
 assert(viewer.includes("overflow-wrap:break-word;word-break:normal"), "normal words should not be split unnecessarily");
+assert(codec.includes('"spacing" ->') && codec.includes('"ind" ->') &&
+  codec.includes('lineRule') && codec.includes('margin-top:') &&
+  codec.includes('text-indent:') && codec.includes('resolveParagraphCss'),
+  "DOCX parser must preserve Word paragraph spacing, line height, indentation and inherited styles");
+assert(codec.includes('"keepNext" ->') && codec.includes('"keepLines" ->') &&
+  codec.includes('data-fz-keep-next') && codec.includes('data-fz-keep-lines'),
+  "Word keep-with-next and keep-lines rules must reach the page layout engine");
+assert(viewer.includes('font-size:11pt;line-height:1.15') &&
+  viewer.includes('.fz-page p,.fz-page div{margin:0}'),
+  "Word page defaults must use Word-like 11pt typography and compact normal line spacing");
+assert(viewer.includes('function splitTableOverflow') &&
+  viewer.includes('nextBody.insertBefore(row,nextBody.firstChild)'),
+  "Tables must continue row-by-row across physical pages instead of being clipped");
+assert(viewer.includes('function markOverflow') &&
+  viewer.includes('data-overflow-expanded') &&
+  viewer.includes('page.style.overflow="visible"'),
+  "An indivisible oversized block must remain visible instead of losing its trailing text");
+assert(viewer.includes('data-fz-keep-lines') && viewer.includes('data-fz-keep-next'),
+  "Pagination must respect paragraph keep rules");
 assert(!viewer.includes("overflow-wrap:anywhere"), "avoid breaking every word at arbitrary positions");
-console.log("DOCX page-layout regression checks passed (11 assertions).");
+console.log("DOCX page-layout and lightweight layout-engine regression checks passed.");
