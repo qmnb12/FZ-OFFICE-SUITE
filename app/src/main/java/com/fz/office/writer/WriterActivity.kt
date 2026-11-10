@@ -15,6 +15,7 @@ import android.webkit.WebViewClient
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import org.json.JSONObject
 import com.fz.office.fonts.FontManager
 import com.fz.office.viewer.ReaderDashboard
