@@ -548,14 +548,42 @@ object DocxCodec {
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
         parser.setInput(ByteArrayInputStream(stylesXml), "UTF-8")
         var currentStyle: String? = null
+        var propertyContext: String? = null
         var inDocDefaults = false
+
+        fun appendCss(key: String, declaration: String) {
+            if (declaration.isBlank()) return
+            result[key] = (result[key] ?: "") + declaration
+        }
+        fun twips(raw: String?): Float? =
+            raw?.toFloatOrNull()?.takeIf { it.isFinite() }?.div(15f)
+        fun safeFamily(value: String): String =
+            value.replace("\\", "\\\\").replace("'", "\\'")
+
         while (parser.next() != XmlPullParser.END_DOCUMENT) {
             if (parser.eventType == XmlPullParser.START_TAG) {
                 when (parser.name) {
                     "docDefaults" -> inDocDefaults = true
-                    "style" -> currentStyle = attribute(parser, "styleId")
+                    "style" -> {
+                        currentStyle = attribute(parser, "styleId")
+                        if (attribute(parser, "type") == "paragraph" &&
+                            enabled(attribute(parser, "default"))
+                        ) {
+                            currentStyle?.let { result["defaultParagraphStyle"] = it }
+                        }
+                    }
+                    "pPrDefault" -> {
+                        currentStyle = "__default__"
+                        propertyContext = "p"
+                    }
+                    "rPrDefault" -> {
+                        currentStyle = "__default__"
+                        propertyContext = "r"
+                    }
+                    "pPr" -> propertyContext = "p"
+                    "rPr" -> propertyContext = "r"
                     "basedOn" -> {
-                        if (currentStyle != null) {
+                        if (currentStyle != null && currentStyle != "__default__") {
                             val parent = attribute(parser, "val")
                             if (parent != null) result["parent:" + currentStyle] = parent
                         }
@@ -569,14 +597,135 @@ object DocxCodec {
                             attribute(parser, "cs")
                         )
                         if (font != null) {
-                            if (currentStyle != null) result["font:" + currentStyle] = font
-                            else if (inDocDefaults) result["default"] = font
+                            if (currentStyle != null && currentStyle != "__default__") {
+                                result["font:" + currentStyle] = font
+                            } else if (inDocDefaults) {
+                                result["default"] = font
+                            }
+                            if (propertyContext == "r" || propertyContext == "p") {
+                                val key = (if (propertyContext == "p") "pCss:" else "rCss:") +
+                                    (currentStyle ?: "__default__")
+                                appendCss(key, "font-family:'" + safeFamily(font) +
+                                    "','Noto Sans Devanagari',Arial,sans-serif;")
+                            }
+                        }
+                        skipElement(parser)
+                    }
+                    "sz" -> {
+                        val size = attribute(parser, "val")?.toFloatOrNull()
+                        if (size != null && size in 2f..288f && propertyContext != null) {
+                            val key = (if (propertyContext == "p") "pCss:" else "rCss:") +
+                                (currentStyle ?: "__default__")
+                            appendCss(key, "font-size:" + (size / 2f) + "pt;")
+                        }
+                        skipElement(parser)
+                    }
+                    "b", "i", "u", "strike", "dstrike" -> {
+                        if (propertyContext != null) {
+                            val key = (if (propertyContext == "p") "pCss:" else "rCss:") +
+                                (currentStyle ?: "__default__")
+                            val value = when (parser.name) {
+                                "b" -> "font-weight:" + if (enabled(attribute(parser, "val"))) "700" else "400" + ";"
+                                "i" -> "font-style:" + if (enabled(attribute(parser, "val"))) "italic" else "normal" + ";"
+                                "u" -> if (attribute(parser, "val") == "none") "text-decoration:none;" else "text-decoration:underline;"
+                                else -> if (enabled(attribute(parser, "val"))) "text-decoration:line-through;" else ""
+                            }
+                            appendCss(key, value)
+                        }
+                        skipElement(parser)
+                    }
+                    "color" -> {
+                        val color = attribute(parser, "val")
+                        if (propertyContext != null && color != null &&
+                            Regex("(?i)[0-9a-f]{6}").matches(color)
+                        ) {
+                            val key = (if (propertyContext == "p") "pCss:" else "rCss:") +
+                                (currentStyle ?: "__default__")
+                            appendCss(key, "color:#" + color + ";")
+                        }
+                        skipElement(parser)
+                    }
+                    "jc" -> {
+                        val value = when (attribute(parser, "val")) {
+                            "center" -> "center"
+                            "right", "end" -> "right"
+                            "both", "distribute" -> "justify"
+                            else -> "left"
+                        }
+                        if (propertyContext == "p") {
+                            appendCss("pCss:" + (currentStyle ?: "__default__"),
+                                "text-align:" + value + ";")
+                        }
+                        skipElement(parser)
+                    }
+                    "spacing" -> {
+                        if (propertyContext == "p") {
+                            val key = "pCss:" + (currentStyle ?: "__default__")
+                            twips(attribute(parser, "before"))?.let {
+                                appendCss(key, "margin-top:" + it + "px;")
+                            }
+                            twips(attribute(parser, "after"))?.let {
+                                appendCss(key, "margin-bottom:" + it + "px;")
+                            }
+                            val line = attribute(parser, "line")?.toFloatOrNull()
+                            if (line != null && line > 0f) {
+                                val rule = attribute(parser, "lineRule") ?: "auto"
+                                val lineCss = when (rule) {
+                                    "auto" -> "line-height:" + (line / 240f) + ";"
+                                    "exact" -> "line-height:" + (line / 15f) + "px;"
+                                    "atLeast" -> "line-height:max(1.15em," + (line / 15f) + "px);"
+                                    else -> ""
+                                }
+                                appendCss(key, lineCss)
+                            }
+                        }
+                        skipElement(parser)
+                    }
+                    "ind" -> {
+                        if (propertyContext == "p") {
+                            val key = "pCss:" + (currentStyle ?: "__default__")
+                            twips(attribute(parser, "left"))?.let {
+                                appendCss(key, "margin-left:" + it + "px;")
+                            }
+                            twips(attribute(parser, "right"))?.let {
+                                appendCss(key, "margin-right:" + it + "px;")
+                            }
+                            val first = twips(attribute(parser, "firstLine"))
+                            val hanging = twips(attribute(parser, "hanging"))
+                            when {
+                                first != null -> appendCss(key, "text-indent:" + first + "px;")
+                                hanging != null -> appendCss(key, "text-indent:-" + hanging + "px;")
+                            }
+                        }
+                        skipElement(parser)
+                    }
+                    "pageBreakBefore" -> {
+                        if (propertyContext == "p" && enabled(attribute(parser, "val"))) {
+                            result["pageBreak:" + (currentStyle ?: "__default__")] = "true"
+                        }
+                        skipElement(parser)
+                    }
+                    "keepNext" -> {
+                        if (propertyContext == "p" && enabled(attribute(parser, "val"))) {
+                            result["keepNext:" + (currentStyle ?: "__default__")] = "true"
+                        }
+                        skipElement(parser)
+                    }
+                    "keepLines" -> {
+                        if (propertyContext == "p" && enabled(attribute(parser, "val"))) {
+                            result["keepLines:" + (currentStyle ?: "__default__")] = "true"
                         }
                         skipElement(parser)
                     }
                 }
             } else if (parser.eventType == XmlPullParser.END_TAG) {
                 when (parser.name) {
+                    "pPr" -> if (propertyContext == "p") propertyContext = null
+                    "rPr" -> if (propertyContext == "r") propertyContext = null
+                    "pPrDefault", "rPrDefault" -> {
+                        propertyContext = null
+                        currentStyle = null
+                    }
                     "style" -> currentStyle = null
                     "docDefaults" -> inDocDefaults = false
                 }
@@ -585,16 +734,49 @@ object DocxCodec {
         return result
     }
 
-    private fun resolveParagraphFont(styleFonts: Map<String, String>?, styleId: String?): String? {
-        if (styleFonts == null) return null
-        var current = styleId
+    private fun styleChain(styles: Map<String, String>, styleId: String?): List<String> {
+        var current = styleId ?: styles["defaultParagraphStyle"]
+        val chain = ArrayList<String>()
+        val visited = HashSet<String>()
         for (depth in 0 until 24) {
-            if (current.isNullOrEmpty()) break
-            val font = styleFonts["font:" + current]
-            if (!font.isNullOrEmpty()) return font
-            current = styleFonts["parent:" + current]
+            if (current.isNullOrEmpty() || current == "__default__" ||
+                !visited.add(current)
+            ) break
+            chain.add(current)
+            current = styles["parent:" + current]
         }
-        return styleFonts["default"]
+        return chain.asReversed()
+    }
+
+    private fun resolveParagraphFont(styles: Map<String, String>?, styleId: String?): String? {
+        if (styles == null) return null
+        val chain = styleChain(styles, styleId)
+        for (id in chain.asReversed()) {
+            styles["font:" + id]?.let { return it }
+        }
+        return styles["default"]
+    }
+
+    private fun resolveParagraphCss(styles: Map<String, String>?, styleId: String?): String {
+        if (styles == null) return ""
+        val css = StringBuilder()
+        styles["rCss:__default__"]?.let { css.append(it) }
+        styles["pCss:__default__"]?.let { css.append(it) }
+        for (id in styleChain(styles, styleId)) {
+            styles["rCss:" + id]?.let { css.append(it) }
+            styles["pCss:" + id]?.let { css.append(it) }
+        }
+        return css.toString()
+    }
+
+    private fun resolveParagraphFlag(
+        styles: Map<String, String>?,
+        styleId: String?,
+        prefix: String
+    ): Boolean {
+        if (styles == null) return false
+        if (styles[prefix + "__default__"] == "true") return true
+        return styleChain(styles, styleId).any { styles[prefix + it] == "true" }
     }
 
     private fun chooseFontFamily(
