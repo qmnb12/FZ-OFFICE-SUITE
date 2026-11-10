@@ -1,0 +1,13 @@
+[package]
+name = "fz-office-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT"
+description = "FZ Office document-format detection and shared document primitives"
+
+[lib]
+name = "fz_office_core"
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
