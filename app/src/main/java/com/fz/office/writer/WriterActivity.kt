@@ -271,7 +271,7 @@ class WriterActivity : Activity() {
         val bundledFamilies = FontManager.getBundledFonts()
             .map { normalizeFontFamily(it.cssFamily) }.toHashSet()
         val systemFamilies = setOf(
-            "arial", "arialunicodems", "calibri", "cambri", "cambria",
+            "arial", "arialunicodems", "calibri", "cambria",
             "aptos", "aptosdisplay", "timesnewroman", "georgia", "tahoma",
             "verdana", "trebuchetms", "couriernew", "helvetica",
             "sansserif", "serif", "monospace", "symbol", "wingdings"
