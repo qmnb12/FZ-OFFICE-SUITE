@@ -24,7 +24,7 @@ assert(pdfJs.includes("PdfViewerActivity::class.java") && pdfJs.includes("suppor
 assert(pdfJs.includes("pdf.html") && pdfWorkerManifest.includes("viewer/lib/pdf.worker.min.mjs") &&
   pdfJs.includes("wasm") && pdfJs.includes("blockNetworkLoads = true"),
   "PDF.js, worker and image decoders must load locally with network blocked");
-assert(pdfJs.includes("createWebMessageChannel") && pdfJs.includes('postCommand("q" + value)') &&
+assert(pdfJs.includes("createWebMessageChannel") && pdfJs.includes('postCommand("q$value")') &&
   pdfJs.includes('postCommand("g" +'),
   "PDF Find and page navigation must use the safe WebMessagePort bridge");
 assert(pdfJs.includes("Accept-Ranges") && pdfJs.includes("Content-Range") &&
