@@ -43,6 +43,17 @@ assert(writer.includes("builtInZoomControls = true") && writer.includes("display
 assert(wordHtml.includes('maximum-scale=4, user-scalable=yes') &&
   wordHtml.includes("touch-action:manipulation"),
   "Word/TXT pages must allow native pinch zoom while keeping one-finger scrolling");
+const wordZoomLayout = wordHtml.slice(
+  wordHtml.indexOf("function applyPageLayout"),
+  wordHtml.indexOf("function makePage")
+);
+assert(wordZoomLayout.length > 0 &&
+  !wordZoomLayout.includes("pages().forEach") &&
+  wordZoomLayout.includes("--fz-shell-width") &&
+  wordZoomLayout.includes("--fz-page-transform"),
+  "Word zoom must update shared CSS variables instead of iterating every page");
+assert(wordHtml.includes("applyPageLayout(true)"),
+  "Word page numbers must refresh after pagination");
 assert(viewer.includes("webView?.zoomIn()") && viewer.includes("webView?.zoomOut()"),
   "Spreadsheet and slide zoom controls must remain available");
 assert(gradle.includes('"output" to "viewer/xlsx.js"') &&
