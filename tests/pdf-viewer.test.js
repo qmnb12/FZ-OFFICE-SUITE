@@ -31,6 +31,10 @@ assert(pdfJs.includes("PdfJsDoubleTapZoom") && pdfJs.includes("PdfJsWebView") &&
   pdfJs.includes("ValueAnimator") && pdfJs.includes("leftToPage") &&
   pdfJs.includes("computeHorizontalScrollRange"),
   "PDF double-tap zoom must be smooth, anchored and coordinated with PDF.js pinch-out");
+assert(pdfJs.includes("window.vwPdfShrink(1") &&
+  pdfJs.includes("override fun zoomIn()") && pdfJs.includes("override fun zoomOut()") &&
+  pdfJs.includes("view.zoomIn()") && pdfJs.includes("view.zoomOut()"),
+  "PDF Tools zoom must coordinate the PDF.js shrink range and native WebView zoom");
 assert(pdfJs.includes("Accept-Ranges") && pdfJs.includes("Content-Range") &&
   pdfJs.includes("openAssetFileDescriptor") && pdfJs.includes("openInputStream"),
   "Large PDFs must stream read-only with HTTP range support");
