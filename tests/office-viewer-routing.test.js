@@ -41,10 +41,16 @@ assert(writer.includes("VIEW ONLY"), "Writer reader must show view-only status")
 const dashboard = read("app/src/main/java/com/fz/office/viewer/ReaderDashboard.kt");
 assert(writer.includes("ReaderDashboard") && writer.includes("shell.setDocumentView(documentWebView)"),
   "Word/TXT must use the shared reader dashboard");
+assert(!writer.includes('shell.addControl("−"') && !writer.includes('shell.addControl("Next ›"'),
+  "Word/TXT must use finger zoom and continuous scrolling, not navigation buttons");
 assert(viewer.includes("ReaderDashboard") && viewer.includes("shell.setDocumentView(browser)"),
   "Excel/PowerPoint must use the shared reader dashboard");
-assert(dashboard.includes("addControl") && dashboard.includes("addToolbarAction"),
-  "All viewers must share the same header and bottom action strip component");
+assert(!viewer.includes('shell.addControl("−"') && !viewer.includes('shell.addControl("Next ›"'),
+  "Excel/PowerPoint must use finger zoom and scrolling, not navigation buttons");
+assert(!dashboard.includes("fun addControl") && !dashboard.includes("val controls"),
+  "Shared dashboard must not render redundant zoom or page-navigation controls");
+assert(dashboard.includes("addToolbarAction") && dashboard.includes("val status = TextView"),
+  "All viewers must share the same header and compact status footer");
 assert(writer.includes("FZViewer.pageStep(-1)") && writer.includes("FZViewer.pageStep(1)") &&
   writer.includes("FZViewer.fit()") && wordHtml.includes("function pageStep(delta)") &&
   wordHtml.includes("function goToPage(index)"),
