@@ -29,7 +29,7 @@ for (const item of [
 assert(controller.includes("createWebMessageChannel()") &&
   controller.includes("postWebMessage(WebMessage(") &&
   controller.includes('postFindCommand("q" + value)') &&
-  controller.includes('postFindCommand("n")') &&
+  controller.includes('postFindCommand(if (forward) "n" else "p")') &&
   controller.includes('postFindCommand("p")') &&
   controller.includes('postFindCommand("c")'),
   "XLSX/PPTX Find must connect to the full-document find.js message channel");
