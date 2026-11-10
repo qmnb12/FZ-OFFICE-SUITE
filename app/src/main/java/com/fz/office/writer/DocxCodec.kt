@@ -343,32 +343,42 @@ object DocxCodec {
         var right = 1440
         var bottom = 1440
         var left = 1440
+        var inFirstSection = false
         val parser = Xml.newPullParser()
         parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, true)
         parser.setInput(ByteArrayInputStream(documentXml), "UTF-8")
         while (parser.next() != XmlPullParser.END_DOCUMENT) {
-            if (parser.eventType != XmlPullParser.START_TAG) continue
-            when (parser.name) {
-                "pgSz" -> {
-                    width = boundedTwips(attribute(parser, "w"), width, 7200, 31680)
-                    height = boundedTwips(attribute(parser, "h"), height, 7200, 31680)
-                    val orientation = attribute(parser, "orient")
-                    if (orientation.equals("landscape", true) && width < height) {
-                        val swap = width
-                        width = height
-                        height = swap
-                    } else if (orientation.equals("portrait", true) && width > height) {
-                        val swap = width
-                        width = height
-                        height = swap
+            if (parser.eventType == XmlPullParser.START_TAG) {
+                if (parser.name == "sectPr" && !inFirstSection) {
+                    inFirstSection = true
+                } else if (inFirstSection) {
+                    when (parser.name) {
+                        "pgSz" -> {
+                            width = boundedTwips(attribute(parser, "w"), width, 7200, 31680)
+                            height = boundedTwips(attribute(parser, "h"), height, 7200, 31680)
+                            val orientation = attribute(parser, "orient")
+                            if (orientation.equals("landscape", true) && width < height) {
+                                val swap = width
+                                width = height
+                                height = swap
+                            } else if (orientation.equals("portrait", true) && width > height) {
+                                val swap = width
+                                width = height
+                                height = swap
+                            }
+                        }
+                        "pgMar" -> {
+                            top = boundedTwips(attribute(parser, "top"), top, 0, 7200)
+                            right = boundedTwips(attribute(parser, "right"), right, 0, 7200)
+                            bottom = boundedTwips(attribute(parser, "bottom"), bottom, 0, 7200)
+                            left = boundedTwips(attribute(parser, "left"), left, 0, 7200)
+                        }
                     }
                 }
-                "pgMar" -> {
-                    top = boundedTwips(attribute(parser, "top"), top, 0, 7200)
-                    right = boundedTwips(attribute(parser, "right"), right, 0, 7200)
-                    bottom = boundedTwips(attribute(parser, "bottom"), bottom, 0, 7200)
-                    left = boundedTwips(attribute(parser, "left"), left, 0, 7200)
-                }
+            } else if (parser.eventType == XmlPullParser.END_TAG &&
+                parser.name == "sectPr" && inFirstSection
+            ) {
+                break
             }
         }
         left = minOf(left, (width / 2 - 360).coerceAtLeast(0))
