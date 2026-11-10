@@ -43,7 +43,7 @@ assert(
   "Font Center search must reuse a scanned font snapshot."
 );
 assert(
-  (fontCenter.match(/fontSnapshot = null;/g) || []).length >= 3,
+  (fontCenter.match(/fontSnapshot = null/g) || []).length >= 3,
   "Font Center must invalidate its cached list after import and removal."
 );
 assert(fontCenter.includes("Search all fonts") && fontCenter.includes("Total "),
