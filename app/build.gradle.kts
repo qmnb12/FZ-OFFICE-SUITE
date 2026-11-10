@@ -272,6 +272,7 @@ tasks.named("preBuild").configure {
 }
 
 dependencies {
+    implementation("androidx.recyclerview:recyclerview:1.4.0")
     implementation("org.jsoup:jsoup:1.24.1")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
