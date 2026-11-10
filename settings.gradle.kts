@@ -171,10 +171,8 @@ tasks.named('preBuild').configure {
     } else if (!viewerText.contains(fzDependency)) {
         throw GradleException("MJ PDF AndroidPdfViewer project dependency could not be patched safely.")
     }
-}
 
-
-    // FZ Office compatibility fix: the attribute belongs to Material's R class,
+    // FZ Office compatibility fix: this theme attribute belongs to Material's R class,
     // not the AndroidPdfViewer module's generated R class.
     val scrollHandle = File(
         root,
@@ -191,6 +189,8 @@ tasks.named('preBuild').configure {
     } else if (!scrollHandleText.contains(materialScrollColorAttr)) {
         throw GradleException("MJ PDF scroll-handle color attribute could not be patched safely.")
     }
+}
+
 
 val mjPdfAlreadyPrepared =
     mjPdfRevisionFile.isFile &&
