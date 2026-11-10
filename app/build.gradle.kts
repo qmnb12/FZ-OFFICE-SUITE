@@ -217,6 +217,45 @@ val downloadGanderViewerAssets = tasks.register("downloadGanderViewerAssets") {
                 html = html.replace(scriptLink, scriptLink + "\n<script src=\"hindi-fonts.js\"></script>")
                 outputBytes = html.toByteArray(Charsets.UTF_8)
             }
+            if (output == "viewer/xlsx.js") {
+                var script = String(outputBytes, Charsets.UTF_8)
+                val marker = "window.vwSheetZoom = function (z, x, y) {"
+                if (!script.contains(marker)) throw GradleException("Unexpected upstream XLSX zoom API structure.")
+                val toolsApi = """
+                    window.vwSheetFitWidth = function () {
+                      if (!current) return zoom;
+                      var target = room().width / Math.max(1, current.fullWidth);
+                      zoomTo(target, innerWidth / 2, innerHeight / 2, 0);
+                      return zoom;
+                    };
+                    window.vwSheetPreparePrint = function () {
+                      if (!current) return false;
+                      for (var k = 0; k < current.pieces.length; k++) place(k);
+                      return true;
+                    };
+                """.trimIndent()
+                script = script.replace(marker, toolsApi + "\n" + marker)
+                outputBytes = script.toByteArray(Charsets.UTF_8)
+            }
+            if (output == "viewer/xlsx.html") {
+                var html = String(outputBytes, Charsets.UTF_8)
+                val printStyle = """
+                    <style>
+                    @media print {
+                      html, body { height: auto !important; overflow: visible !important; }
+                      body { padding: 0 !important; }
+                      #tabs, #cellbar, .vw-status { display: none !important; }
+                      #sheet { display: block !important; width: max-content !important; min-width: 0 !important; }
+                      #grid { zoom: 1 !important; }
+                      .vw-head, .vw-tl { position: static !important; }
+                      .vw-p { content-visibility: visible !important; }
+                    }
+                    </style>
+                """.trimIndent()
+                if (!html.contains("</head>")) throw GradleException("Unexpected upstream XLSX head structure.")
+                html = html.replace("</head>", printStyle + "\n</head>")
+                outputBytes = html.toByteArray(Charsets.UTF_8)
+            }
             destination.parentFile.mkdirs()
             destination.writeBytes(outputBytes)
         }

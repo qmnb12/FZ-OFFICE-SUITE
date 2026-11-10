@@ -116,6 +116,11 @@ class WriterActivity : Activity() {
         settings.displayZoomControls = false
         settings.textZoom = 100
 
+        documentWebView.setFindListener { _, numberOfMatches, activeMatchOrdinal ->
+            statusView?.text = if (numberOfMatches > 0) {
+                "Match " + (activeMatchOrdinal + 1) + " of " + numberOfMatches
+            } else "No matches found"
+        }
         documentWebView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
                 pageReady = true

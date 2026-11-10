@@ -54,6 +54,8 @@ class OfficeViewerActivity : Activity() {
     private var presentation = false
     private var editableXlsx = false
     private var webView: WebView? = null
+    private var documentSurface: WebViewDocumentSurface? = null
+    private var initialPresentationFitScale: Float? = null
     private var progress: ProgressBar? = null
     private var status: TextView? = null
 
@@ -189,6 +191,8 @@ class OfficeViewerActivity : Activity() {
                     "document.documentElement.style.setProperty('--fz-hindi-default'," +
                         JSONObject.quote(family) + ");window.dispatchEvent(new Event('load'));"
                 view.evaluateJavascript(script, null)
+                documentSurface?.connectFindBridge()
+                if (presentation) capturePresentationFitScale(view)
             }
 
             override fun onReceivedError(
@@ -210,28 +214,49 @@ class OfficeViewerActivity : Activity() {
 
         // Native WebView pinch zoom and finger scrolling; no redundant navigation buttons.
         shell.setDocumentView(browser)
+        val surface = WebViewDocumentSurface(
+            browser,
+            pageCountScript = if (presentation) {
+                "document.querySelectorAll('#result .slide').length"
+            } else null,
+            pageCommand = if (presentation) { page ->
+                "(function(){var slides=document.querySelectorAll('#result .slide');" +
+                    "var target=slides[" + page + "];" +
+                    "if(target)target.scrollIntoView({behavior:'smooth',block:'start',inline:'nearest'});})()"
+            } else null,
+            zoomInScript = if (!presentation) {
+                "(function(){if(typeof window.vwSheetZoom!=='function')return;" +
+                    "var z=window.vwSheetZoom();" +
+                    "window.vwSheetZoom(z*1.2,window.innerWidth/2,window.innerHeight/2);})()"
+            } else null,
+            zoomOutScript = if (!presentation) {
+                "(function(){if(typeof window.vwSheetZoom!=='function')return;" +
+                    "var z=window.vwSheetZoom();" +
+                    "window.vwSheetZoom(z/1.2,window.innerWidth/2,window.innerHeight/2);})()"
+            } else null,
+            fitZoomScript = if (!presentation) {
+                "if(typeof window.vwSheetFitWidth==='function')window.vwSheetFitWidth();"
+            } else null,
+            findBridgeOrigin = Uri.parse("https://" + ASSET_HOST),
+            onFindStatus = { active, total, ready ->
+                status?.text = when {
+                    !ready -> "Searching document…"
+                    total <= 0 -> "No matches found"
+                    else -> "Match " + active + " of " + total
+                }
+            },
+            fitScaleProvider = if (presentation) {
+                { initialPresentationFitScale }
+            } else null,
+            preparePrintScript = if (!presentation) {
+                "(function(){return typeof window.vwSheetPreparePrint==='function' && " +
+                    "window.vwSheetPreparePrint()===true;})()"
+            } else null,
+            printLabel = if (presentation) "Print" else "Print current sheet"
+        )
+        documentSurface = surface
         DocumentViewerController(
-            this,
-            shell,
-            WebViewDocumentSurface(
-                browser,
-                zoomInScript = if (!presentation) {
-                    "(function(){if(typeof window.vwSheetZoom!=='function')return;" +
-                        "var z=window.vwSheetZoom();" +
-                        "window.vwSheetZoom(z*1.2,window.innerWidth/2,window.innerHeight/2);})()"
-                } else null,
-                zoomOutScript = if (!presentation) {
-                    "(function(){if(typeof window.vwSheetZoom!=='function')return;" +
-                        "var z=window.vwSheetZoom();" +
-                        "window.vwSheetZoom(z/1.2,window.innerWidth/2,window.innerHeight/2);})()"
-                } else null,
-                fitZoomScript = if (!presentation) {
-                    "if(typeof window.vwSheetZoom==='function')" +
-                        "window.vwSheetZoom(1,window.innerWidth/2,window.innerHeight/2);"
-                } else null
-            ),
-            documentUri,
-            documentName,
+            this, shell, surface, documentUri, documentName,
             documentUri?.let { contentResolver.getType(it) }
         )
         setContentView(shell.root)
@@ -244,10 +269,21 @@ class OfficeViewerActivity : Activity() {
         browser.loadUrl(viewerUrl)
     }
 
+    private fun capturePresentationFitScale(view: WebView, attempt: Int = 0) {
+        if (!presentation || initialPresentationFitScale != null || isFinishing || isDestroyed) return
+        view.evaluateJavascript("document.querySelectorAll('#result .slide').length") { raw ->
+            val slides = raw?.trim()?.trim('"')?.toIntOrNull() ?: 0
+            if (slides > 0) {
+                val scale = view.scale
+                if (scale > 0f && initialPresentationFitScale == null) initialPresentationFitScale = scale
+            } else if (attempt < 80 && !isFinishing && !isDestroyed) {
+                view.postDelayed({ capturePresentationFitScale(view, attempt + 1) }, 250L)
+            }
+        }
+    }
+
     private fun fitViewer() {
-        val browser = webView ?: return
-        val current = browser.scale
-        if (current > 0f) browser.zoomBy(1f / current)
+        documentSurface?.fitToWidth()
     }
 
     private fun intercept(uri: Uri?): WebResourceResponse {
@@ -466,6 +502,8 @@ class OfficeViewerActivity : Activity() {
             it.webViewClient = WebViewClient()
             it.destroy()
         }
+        documentSurface?.dispose()
+        documentSurface = null
         webView = null
         super.onDestroy()
     }

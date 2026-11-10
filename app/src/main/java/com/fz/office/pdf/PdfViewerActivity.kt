@@ -135,7 +135,7 @@ class PdfViewerActivity : Activity() {
                 override fun scrollBackward() = jumpToPage((pageIndex - 1).coerceAtLeast(0))
                 override fun scrollForward() = jumpToPage((pageIndex + 1).coerceAtMost(pageSizes.lastIndex))
                 override fun scrollToStart() = jumpToPage(0)
-                override fun scrollToEnd() = jumpToPage(pageSizes.lastIndex)
+                override fun scrollToEnd() = jumpToPageEnd(pageSizes.lastIndex)
                 override fun find(query: String, forward: Boolean) = findPdfText(query, forward)
                 override fun clearFind() = clearPdfFind()
 
@@ -523,6 +523,24 @@ class PdfViewerActivity : Activity() {
         (recyclerView?.layoutManager as? LinearLayoutManager)
             ?.scrollToPositionWithOffset(pageIndex, 0)
         updatePageStatus()
+    }
+
+    private fun jumpToPageEnd(index: Int) {
+        if (pageSizes.isEmpty()) return
+        val recycler = recyclerView ?: return
+        val target = index.coerceIn(0, pageSizes.lastIndex)
+        pageIndex = target
+        val layout = recycler.layoutManager as? LinearLayoutManager ?: return
+        layout.scrollToPosition(target)
+        recycler.post {
+            if (closing) return@post
+            val page = layout.findViewByPosition(target)
+            if (page != null) {
+                val viewportHeight = recycler.height - recycler.paddingTop - recycler.paddingBottom
+                layout.scrollToPositionWithOffset(target, viewportHeight - page.height)
+            }
+            updatePageStatus()
+        }
     }
 
     private fun showError(error: Throwable) {
