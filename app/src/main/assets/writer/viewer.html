@@ -16,8 +16,8 @@ body{display:flex;flex-direction:column;overflow:hidden}
 #legacyNotice strong{display:block;margin-bottom:3px}
 #viewer-scroll{width:100%;min-height:0;flex:1 1 auto;overflow:auto;overscroll-behavior:contain;padding:16px 8px 30px}
 #pages{display:flex;flex-direction:column;align-items:center;width:100%}
-.page-shell{position:relative;flex:0 0 auto;margin:0 auto}
-.fz-page{position:absolute;left:0;top:0;transform-origin:top left;overflow:hidden;background:var(--paper);border:1px solid var(--line);border-radius:2px;box-shadow:0 2px 12px rgba(23,55,43,.11);color:#202b26;font-size:16px;line-height:1.75;overflow-wrap:break-word;word-break:normal;user-select:text;-webkit-user-select:text;font-family:"Noto Sans Devanagari",Arial,sans-serif;font-feature-settings:"kern" 1,"liga" 1}
+.page-shell{position:relative;flex:0 0 auto;width:var(--fz-shell-width,auto);height:var(--fz-shell-height,auto);margin:0 auto var(--fz-page-gap,28px)}
+.fz-page{position:absolute;left:0;top:0;width:var(--fz-page-width,auto);height:var(--fz-page-height,auto);padding:var(--fz-page-padding,0);transform:var(--fz-page-transform,scale(1));transform-origin:top left;overflow:hidden;background:var(--paper);border:1px solid var(--line);border-radius:2px;box-shadow:0 2px 12px rgba(23,55,43,.11);color:#202b26;font-size:16px;line-height:1.75;overflow-wrap:break-word;word-break:normal;user-select:text;-webkit-user-select:text;font-family:var(--fz-page-font-family,"Noto Sans Devanagari",Arial,sans-serif);font-feature-settings:"kern" 1,"liga" 1}
 .fz-page p,.fz-page div{margin:0 0 12px;min-height:1.4em}
 .fz-page h1{font-size:1.65em;line-height:1.3;margin:0 0 14px}
 .fz-page h2{font-size:1.35em;line-height:1.35;margin:0 0 12px}
@@ -28,7 +28,7 @@ body{display:flex;flex-direction:column;overflow:hidden}
 .fz-page blockquote{border-left:3px solid #9ab8a9;margin:12px 0;padding:5px 12px;color:#52655c}
 .fz-page img{max-width:100%;height:auto}
 .fz-page a{color:#176b5b;text-decoration:underline}
-.page-number{position:absolute;right:8px;bottom:4px;color:#738078;font:10px Arial,sans-serif;pointer-events:none;transform-origin:bottom right}
+.page-number{position:absolute;right:8px;bottom:4px;color:#738078;font:10px Arial,sans-serif;pointer-events:none;transform:var(--fz-page-number-transform,scale(1));transform-origin:bottom right}
 .fz-measure{position:fixed!important;left:-100000px!important;top:0!important;transform:none!important;visibility:hidden!important;box-shadow:none!important;border:0!important}
 .page-shell[data-overflow="true"] .fz-page{outline:2px solid #c96f38}
 @media print{html,body{height:auto;overflow:visible;background:#fff}#legacyNotice{display:none!important}#viewer-scroll{overflow:visible;padding:0}#pages{display:block}.page-shell{break-after:page;margin:0!important}.fz-page{border:0;box-shadow:none;transform:none!important}}
@@ -50,21 +50,23 @@ function widthScale(){
  var width=px(layout.widthTwips),available=Math.max(240,(scroll.clientWidth||window.innerWidth)-36);
  return Math.min(.92,available/Math.max(1,width))*zoomLevel;
 }
-function applyPageLayout(){
+function applyPageLayout(renumber){
  var width=px(layout.widthTwips),height=px(layout.heightTwips),top=px(layout.topTwips),right=px(layout.rightTwips);
  var bottom=px(layout.bottomTwips),left=px(layout.leftTwips),scale=widthScale();
- pages().forEach(function(page,index){
-  var shell=shellOf(page);
-  shell.style.width=(width*scale)+"px";
-  shell.style.height=(height*scale)+"px";
-  shell.style.marginBottom=(28*scale)+"px";
-  page.style.width=width+"px";page.style.height=height+"px";
-  page.style.padding=top+"px "+right+"px "+bottom+"px "+left+"px";
-  page.style.fontFamily='"'+defaultFont.replace(/["\\]/g,"")+'",Arial,sans-serif';
-  page.style.transform="scale("+scale+")";
-  var number=shell.querySelector(".page-number");
-  if(number){number.textContent="Page "+(index+1);number.style.transform="scale("+scale+")"}
- });
+ // One shared style update scales all Word pages; do not walk hundreds of page nodes for each zoom tap.
+ root.style.setProperty("--fz-shell-width",(width*scale)+"px");
+ root.style.setProperty("--fz-shell-height",(height*scale)+"px");
+ root.style.setProperty("--fz-page-gap",(28*scale)+"px");
+ root.style.setProperty("--fz-page-width",width+"px");
+ root.style.setProperty("--fz-page-height",height+"px");
+ root.style.setProperty("--fz-page-padding",top+"px "+right+"px "+bottom+"px "+left+"px");
+ root.style.setProperty("--fz-page-font-family",'"'+defaultFont.replace(/["\\]/g,"")+'",Arial,sans-serif');
+ root.style.setProperty("--fz-page-transform","scale("+scale+")");
+ root.style.setProperty("--fz-page-number-transform","scale("+scale+")");
+ if(renumber===true){
+  var numbers=root.querySelectorAll(".page-shell > .page-number");
+  for(var i=0;i<numbers.length;i++)numbers[i].textContent="Page "+(i+1);
+ }
 }
 function makePage(after){
  var shell=document.createElement("section");shell.className="page-shell";
@@ -82,7 +84,7 @@ function registerFonts(css){
 }
 function setDefaultFont(family){
  if(!family)return;defaultFont=String(family);
- pages().forEach(function(page){page.style.fontFamily='"'+defaultFont.replace(/["\\]/g,"")+'",Arial,sans-serif'});
+ root.style.setProperty("--fz-page-font-family",'"'+defaultFont.replace(/["\\]/g,"")+'",Arial,sans-serif');
 }
 function showNotice(title,message){
  notice.textContent="";var strong=document.createElement("strong"),body=document.createElement("span");
@@ -148,7 +150,7 @@ function paginate(){
    if(!overflows(page))shellOf(page).removeAttribute("data-overflow");
    i++;
   }
-  applyPageLayout();
+  applyPageLayout(true);
  }finally{paginationBusy=false}
 }
 function setDocument(html,profile,fontName,legacyHint,fontAvailable,pageLayout){
