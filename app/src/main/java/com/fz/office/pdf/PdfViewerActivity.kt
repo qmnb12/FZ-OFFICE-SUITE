@@ -82,6 +82,8 @@ class PdfViewerActivity : Activity() {
     private var pageCount = 0
     private var pageRatios = FloatArray(0)
     private var pageIndex = 0
+    @Volatile private var visibleStartPage = 0
+    @Volatile private var visibleEndPage = 5
     private var zoom = 1f
     private var renderBucket = 1f
     @Volatile private var closing = false
@@ -261,13 +263,39 @@ class PdfViewerActivity : Activity() {
         applySafeAreaInsets(root)
         updatePageLabel()
 
+        var previewZoom = zoom
+        var focusX = 0f
+        var focusY = 0f
         val detector = ScaleGestureDetector(
             this,
             object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    val target = (zoom * detector.scaleFactor).coerceIn(1f, 4f)
-                    if (abs(target - zoom) >= 0.035f) setZoom(target, detector.focusX)
+                override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                    previewZoom = zoom
+                    focusX = detector.focusX
+                    focusY = detector.focusY
+                    list.pivotX = focusX
+                    list.pivotY = focusY
                     return true
+                }
+
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    previewZoom = (previewZoom * detector.scaleFactor).coerceIn(1f, 4f)
+                    focusX = detector.focusX
+                    focusY = detector.focusY
+                    // Transform already-rendered pages on the GPU while fingers move.
+                    // Layout and sharper bitmap rendering happen only when the pinch ends.
+                    list.pivotX = focusX
+                    list.pivotY = focusY
+                    val previewScale = previewZoom / zoom
+                    list.scaleX = previewScale
+                    list.scaleY = previewScale
+                    return true
+                }
+
+                override fun onScaleEnd(detector: ScaleGestureDetector) {
+                    list.scaleX = 1f
+                    list.scaleY = 1f
+                    setZoom(previewZoom, focusX, focusY)
                 }
             }
         )
@@ -364,6 +392,10 @@ class PdfViewerActivity : Activity() {
     private inner class PdfPageAdapter :
         RecyclerView.Adapter<PdfPageAdapter.PageHolder>() {
 
+        fun refreshForZoom() {
+            if (itemCount > 0) notifyItemRangeChanged(0, itemCount)
+        }
+
         inner class PageHolder(
             itemView: View,
             val image: ImageView,
@@ -434,6 +466,16 @@ class PdfViewerActivity : Activity() {
         }
 
         worker.execute {
+            // Fast flings can leave obsolete pages queued. Skip them before using PdfRenderer.
+            if (position < (visibleStartPage - 2).coerceAtLeast(0) ||
+                position > (visibleEndPage + 2).coerceAtMost(pageCount - 1)
+            ) {
+                mainHandler.post {
+                    synchronized(pendingRenders) { pendingRenders.remove(key) }
+                }
+                return@execute
+            }
+
             var bitmap: Bitmap? = null
             var ratio = DEFAULT_PAGE_ASPECT
             var error: Exception? = null
@@ -524,27 +566,48 @@ class PdfViewerActivity : Activity() {
         }
     }
 
-    private fun setZoom(value: Float, focusX: Float? = null) {
+    private fun setZoom(
+        value: Float,
+        focusX: Float? = null,
+        focusY: Float? = null
+    ) {
+        val list = recycler ?: return
+        list.scaleX = 1f
+        list.scaleY = 1f
         if (pageCount < 1) return
+
         val next = (value.coerceIn(1f, 4f) * 40f).roundToInt() / 40f
         if (abs(next - zoom) < 0.001f) return
-        val list = recycler ?: return
+
         val manager = list.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return
-        val first = manager.findFirstVisibleItemPosition().takeIf { it != RecyclerView.NO_POSITION } ?: pageIndex
-        val offset = manager.findViewByPosition(first)?.top ?: dp(12)
+        val first = manager.findFirstVisibleItemPosition()
+            .takeIf { it != RecyclerView.NO_POSITION } ?: pageIndex
+        val firstTop = manager.findViewByPosition(first)?.top ?: dp(12)
         val oldZoom = zoom
+        val ratio = next / oldZoom
         val horizontal = horizontalScroll
         val oldScrollX = horizontal?.scrollX ?: 0
-        val anchorX = focusX ?: ((horizontal?.width ?: 0) / 2f)
+
+        // Focus is in RecyclerView coordinates. Convert it to the viewport coordinate.
+        val anchorX = focusX?.minus(oldScrollX.toFloat())
+            ?: ((horizontal?.width ?: 0) / 2f)
+        val anchorY = focusY ?: (list.height / 2f).toFloat()
+        val anchoredTop = (anchorY - (anchorY - firstTop) * ratio).roundToInt()
+
         zoom = next
         renderBucket = qualityBucket(next)
         updateRecyclerWidth()
-        pageAdapter?.notifyDataSetChanged()
+        // One rebind after the gesture, never one per pinch-motion event.
+        pageAdapter?.refreshForZoom()
+
         list.post {
-            manager.scrollToPositionWithOffset(first.coerceIn(0, pageCount - 1), offset)
+            manager.scrollToPositionWithOffset(
+                first.coerceIn(0, pageCount - 1),
+                anchoredTop
+            )
             if (horizontal != null) {
-                val ratio = zoom / oldZoom
-                val x = ((oldScrollX + anchorX) * ratio - anchorX).roundToInt().coerceAtLeast(0)
+                val x = ((oldScrollX + anchorX) * ratio - anchorX)
+                    .roundToInt().coerceAtLeast(0)
                 horizontal.scrollTo(x, 0)
             }
         }
@@ -555,6 +618,9 @@ class PdfViewerActivity : Activity() {
         val visible = manager.findFirstVisibleItemPosition()
         if (visible != RecyclerView.NO_POSITION && visible in 0 until pageCount) {
             pageIndex = visible
+            visibleStartPage = visible
+            visibleEndPage = manager.findLastVisibleItemPosition()
+                .takeIf { it != RecyclerView.NO_POSITION }?.coerceAtLeast(visible) ?: visible
             updatePageLabel()
         }
     }
