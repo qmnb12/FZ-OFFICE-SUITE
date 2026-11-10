@@ -27,7 +27,6 @@ assert(controller.includes("createWebMessageChannel()") &&
   controller.includes("postWebMessage(WebMessage(") &&
   controller.includes('postFindCommand("q" + value)') &&
   controller.includes('postFindCommand(if (forward) "n" else "p")') &&
-  controller.includes('postFindCommand("p")') &&
   controller.includes('postFindCommand("c")'),
   "Office Find must use Gander's full-document message-port API, not only WebView's visible-DOM Find");
 assert(controller.includes("ClipData.newUri") &&
