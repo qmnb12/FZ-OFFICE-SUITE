@@ -237,22 +237,12 @@ class PdfViewerActivity : Activity() {
         )
         shell.setDocumentView(horizontal)
 
-        val previous = shell.addControl("‹ Prev", 1.05f) { jumpToPage(pageIndex - 1) }
-        previous.contentDescription = "Previous page"
-
-        val label = shell.addControl("Page — / —", 1.15f) { showGoToPage() }
-        label.setTextColor(ACCENT)
-        pageLabel = label
-        label.setOnLongClickListener {
+        // The footer is informational only. All page movement and zoom are touch gestures.
+        pageLabel = shell.status
+        pageLabel?.setOnLongClickListener {
             showBookmarks()
             true
         }
-
-        val next = shell.addControl("Next ›", 1.05f) { jumpToPage(pageIndex + 1) }
-        next.contentDescription = "Next page"
-        shell.addControl("−", 0.62f) { setZoom(zoom - 0.25f) }
-        shell.addControl("Fit", 0.72f) { setZoom(1f) }
-        shell.addControl("+", 0.62f) { setZoom(zoom + 0.25f) }
 
         setContentView(shell.root)
         applySafeAreaInsets(shell.root)
@@ -630,9 +620,9 @@ class PdfViewerActivity : Activity() {
 
     private fun updatePageLabel() {
         pageLabel?.text = if (pageCount > 0) {
-            "Page " + (pageIndex + 1) + " / " + pageCount
+            "Page " + (pageIndex + 1) + " / " + pageCount + " · Scroll to read · Pinch to zoom"
         } else {
-            "Page — / —"
+            "Preparing PDF…"
         }
         bookmarkButton?.text = if (bookmarks.contains(pageIndex)) "★" else "☆"
     }
