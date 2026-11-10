@@ -116,17 +116,7 @@ class WriterActivity : Activity() {
             }
         }
 
-        shell.addControl("‹ Prev", 1.05f) {
-            runViewerScript("FZViewer.pageStep(-1)")
-        }
-        shell.addControl("Page", 0.9f) { showGoToPage() }
-        shell.addControl("Next ›", 1.05f) {
-            runViewerScript("FZViewer.pageStep(1)")
-        }
-        shell.addControl("−", 0.62f) { runViewerScript("FZViewer.zoom(-1)") }
-        shell.addControl("Fit", 0.72f) { runViewerScript("FZViewer.fit()") }
-        shell.addControl("+", 0.62f) { runViewerScript("FZViewer.zoom(1)") }
-
+        // Native WebView pinch and one-finger document scrolling are the only navigation controls.
         shell.setDocumentView(documentWebView)
         setContentView(shell.root)
         applySafeAreaInsets(shell.root)
