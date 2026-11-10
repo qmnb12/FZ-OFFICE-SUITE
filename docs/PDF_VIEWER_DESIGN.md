@@ -5,7 +5,7 @@
 FZ Office keeps Android's platform `PdfRenderer` as its rendering engine. The reader now uses a vertical `RecyclerView` for continuous pages instead of replacing one page in a single `ImageView`.
 
 Rendering is deliberately demand-driven:
-- The adapter binds the visible and nearby pages; it does not render every page in the document. The opening pass measures only the page that will be shown first; other page dimensions are resolved lazily as RecyclerView binds those pages, so a long PDF does not need a full metadata scan before its first page appears.
+- The adapter binds the visible and nearby pages; it does not render every page in the document. The opening pass measures only the page that will be shown first; other page dimensions are resolved lazily as RecyclerView binds those pages. Until measured, pages use the first page’s aspect ratio to avoid unnecessary layout shifts in same-size documents, so a long PDF does not need a full metadata scan before its first page appears.
 - A single background executor serializes page access, page-size requests and rendering. A separate search worker prevents a full-document Find scan from sitting ahead of visible-page rendering.
 - Page bitmaps are stored in an LRU cache with a memory limit.
 - Zoom uses quality buckets. The existing lower-resolution bitmap stays visible while a sharper bitmap is generated.
