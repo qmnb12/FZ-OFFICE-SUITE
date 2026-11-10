@@ -421,17 +421,25 @@ object DocxCodec {
         parser: XmlPullParser,
         html: StringBuilder,
         imageRelationships: Map<String, String>,
-        styleFonts: Map<String, String>
+        styleFonts: Map<String, String>,
+        endTag: String = "body"
     ) {
         while (true) {
             val event = parser.next()
             if (event == XmlPullParser.END_DOCUMENT) return
-            if (event == XmlPullParser.END_TAG && parser.name == "body") return
+            if (event == XmlPullParser.END_TAG && parser.name == endTag) return
             if (event != XmlPullParser.START_TAG) continue
 
             when (parser.name) {
                 "p" -> parseParagraph(parser, html, imageRelationships, styleFonts)
                 "tbl" -> parseTable(parser, html, imageRelationships, styleFonts)
+                // Word frequently wraps real body blocks in content controls,
+                // custom XML and tracked insertions. Recurse instead of dropping
+                // every paragraph/table inside those containers.
+                "sdt", "sdtContent", "customXml", "ins", "moveTo" ->
+                    parseBody(parser, html, imageRelationships, styleFonts, parser.name)
+                // Deleted/moved-from text is not part of the accepted document view.
+                "del", "moveFrom" -> skipElement(parser)
                 else -> skipElement(parser)
             }
         }
@@ -465,7 +473,7 @@ object DocxCodec {
                         resolveParagraphFont(styleFonts, paragraphStyleId)
                     )
                 )
-                "hyperlink", "sdtContent", "smartTag" -> parseInlineContainer(
+                "hyperlink", "sdt", "sdtContent", "smartTag", "customXml", "ins", "moveTo", "fldSimple" -> parseInlineContainer(
                     parser, parser.name, content, imageRelationships,
                     resolveParagraphFont(styleFonts, paragraphStyleId)
                 )
@@ -496,6 +504,9 @@ object DocxCodec {
         html.append(">")
         if (content.isEmpty()) html.append("<br/>") else html.append(content)
         html.append("</p>")
+        if (properties.sectionBreakAfter) {
+            html.append("<div class='fz-manual-break' data-fz-section-break='true'></div>")
+        }
     }
 
     @Throws(Exception::class)
@@ -513,8 +524,10 @@ object DocxCodec {
             if (event != XmlPullParser.START_TAG) continue
             when (parser.name) {
                 "r" -> html.append(readRun(parser, imageRelationships, inheritedFont))
-                "hyperlink", "sdtContent", "smartTag" ->
+                "hyperlink", "sdt", "sdtContent", "smartTag", "customXml",
+                "ins", "moveTo", "fldSimple" ->
                     parseInlineContainer(parser, parser.name, html, imageRelationships, inheritedFont)
+                "del", "moveFrom" -> skipElement(parser)
                 else -> skipElement(parser)
             }
         }
@@ -526,6 +539,7 @@ object DocxCodec {
         var pageBreakBefore: Boolean? = null,
         var keepNext: Boolean? = null,
         var keepLines: Boolean? = null,
+        var sectionBreakAfter: Boolean = false,
         var css: String = ""
     )
 
@@ -573,6 +587,28 @@ object DocxCodec {
                 "keepLines" -> {
                     properties.keepLines = enabled(attribute(parser, "val"))
                     skipElement(parser)
+                }
+                "sectPr" -> {
+                    // A section properties element inside pPr marks the end of this
+                    // section. nextPage/oddPage/evenPage require a new physical page;
+                    // continuous sections keep flowing on the current page.
+                    var sectionType = "nextPage"
+                    var depth = 1
+                    while (depth > 0) {
+                        val sectionEvent = parser.next()
+                        if (sectionEvent == XmlPullParser.END_DOCUMENT) break
+                        if (sectionEvent == XmlPullParser.START_TAG) {
+                            depth++
+                            if (parser.name == "type") {
+                                sectionType = attribute(parser, "val") ?: "nextPage"
+                                skipElement(parser)
+                                depth--
+                            }
+                        } else if (sectionEvent == XmlPullParser.END_TAG) {
+                            depth--
+                        }
+                    }
+                    properties.sectionBreakAfter = sectionType != "continuous"
                 }
                 "spacing" -> {
                     twips(attribute(parser, "before"))?.let {
@@ -1048,6 +1084,11 @@ object DocxCodec {
                 hasContent = true
             } else if (event == XmlPullParser.START_TAG && parser.name == "tbl") {
                 parseTable(parser, html, imageRelationships, styleFonts)
+                hasContent = true
+            } else if (event == XmlPullParser.START_TAG &&
+                parser.name in setOf("sdt", "sdtContent", "customXml", "ins", "moveTo")
+            ) {
+                parseBody(parser, html, imageRelationships, styleFonts, parser.name)
                 hasContent = true
             } else if (event == XmlPullParser.START_TAG) {
                 skipElement(parser)
