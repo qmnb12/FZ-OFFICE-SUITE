@@ -20,6 +20,20 @@ assert(pdf.includes("copyToPrivateCache") && pdf.includes("MAX_PDF_BYTES"),
   "Non-seekable content providers must use a size-bounded private cache copy");
 assert(pdf.includes("RecyclerView") && pdf.includes("PdfPageAdapter"),
   "PDF pages must use a recycling list, not a single-page ImageView");
+const dashboard = read("app/src/main/java/com/fz/office/viewer/ReaderDashboard.kt");
+assert(pdf.includes("PdfHorizontalPanScrollView") && pdf.includes("horizontalPanEnabled = zoom > 1.01f"),
+  "PDF horizontal panning must be disabled at fit width so it cannot intercept vertical swipes");
+assert(pdf.includes("dy >= dx") && pdf.includes("dx > touchSlop"),
+  "Zoomed PDF pan container must intercept only clear horizontal drags");
+assert(pdf.includes("event.pointerCount > 1 && handled"),
+  "Single-finger PDF gestures must remain available to RecyclerView scrolling");
+assert(pdf.includes("isNestedScrollingEnabled = false"),
+  "PDF page list must own its vertical scroll gestures");
+assert(pdf.includes("ReaderDashboard") && pdf.includes("shell.setDocumentView(horizontal)"),
+  "PDF must use the shared reader dashboard");
+assert(dashboard.includes("fun addControl") && dashboard.includes("fun addToolbarAction") &&
+  dashboard.includes("val content = FrameLayout") && dashboard.includes("val status = TextView"),
+  "Shared dashboard must provide matching toolbar, content, control strip and status row");
 assert(pdf.includes("requestPageRender(position, renderBucket)"),
   "Page bitmaps must be rendered on demand for bound pages");
 assert(pdf.includes("LruCache<String, Bitmap>") && pdf.includes("pageCacheSizeKb()"),
