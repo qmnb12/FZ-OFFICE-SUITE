@@ -205,7 +205,8 @@ class PdfViewerActivity : Activity() {
             setBackgroundColor(CANVAS)
             setPadding(dp(8), dp(12), dp(8), dp(24))
             clipToPadding = false
-            setItemViewCacheSize(3)
+            setItemViewCacheSize(8)
+            setHasFixedSize(true)
             isNestedScrollingEnabled = false
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
             isVerticalScrollBarEnabled = true
@@ -217,6 +218,7 @@ class PdfViewerActivity : Activity() {
             )
         }
         recycler = list
+        list.recycledViewPool.setMaxRecycledViews(0, 8)
         list.addItemDecoration(object : RecyclerView.ItemDecoration() {
             override fun getItemOffsets(
                 outRect: android.graphics.Rect,
@@ -282,8 +284,6 @@ class PdfViewerActivity : Activity() {
                 }
 
                 override fun onScaleEnd(detector: ScaleGestureDetector) {
-                    list.scaleX = 1f
-                    list.scaleY = 1f
                     setZoom(previewZoom, focusX, focusY)
                 }
             }
@@ -590,14 +590,25 @@ class PdfViewerActivity : Activity() {
         focusY: Float? = null
     ) {
         val list = recycler ?: return
-        list.scaleX = 1f
-        list.scaleY = 1f
-        if (pageCount < 1) return
+        if (pageCount < 1) {
+            list.scaleX = 1f
+            list.scaleY = 1f
+            return
+        }
 
         val next = (value.coerceIn(0.65f, 4f) * 40f).roundToInt() / 40f
-        if (abs(next - zoom) < 0.001f) return
+        if (abs(next - zoom) < 0.001f) {
+            list.scaleX = 1f
+            list.scaleY = 1f
+            return
+        }
 
-        val manager = list.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return
+        val manager = list.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager
+            ?: run {
+                list.scaleX = 1f
+                list.scaleY = 1f
+                return
+            }
         val first = manager.findFirstVisibleItemPosition()
             .takeIf { it != RecyclerView.NO_POSITION } ?: pageIndex
         val firstTop = manager.findViewByPosition(first)?.top ?: dp(12)
@@ -635,6 +646,13 @@ class PdfViewerActivity : Activity() {
                 horizontal.post { horizontal.scrollTo(x, 0) }
             }
             updatePageLabel()
+            // Keep the finger-driven preview transform while RecyclerView measures
+            // the new page sizes. Drop it on the next animation frame to avoid the
+            // snap-back flash that happened between pinch end and the committed zoom.
+            list.postOnAnimation {
+                list.scaleX = 1f
+                list.scaleY = 1f
+            }
         }
     }
 
@@ -642,21 +660,33 @@ class PdfViewerActivity : Activity() {
         val manager = recycler?.layoutManager as? androidx.recyclerview.widget.LinearLayoutManager ?: return
         val visible = manager.findFirstVisibleItemPosition()
         if (visible != RecyclerView.NO_POSITION && visible in 0 until pageCount) {
+            val lastVisible = manager.findLastVisibleItemPosition()
+                .takeIf { it != RecyclerView.NO_POSITION }?.coerceAtLeast(visible) ?: visible
+            val pageChanged = pageIndex != visible
             pageIndex = visible
             visibleStartPage = visible
-            visibleEndPage = manager.findLastVisibleItemPosition()
-                .takeIf { it != RecyclerView.NO_POSITION }?.coerceAtLeast(visible) ?: visible
-            updatePageLabel()
+            visibleEndPage = lastVisible
+            if (pageChanged) updatePageLabel()
+
+            val prefetchStart = (visible - 1).coerceAtLeast(0)
+            val prefetchEnd = (lastVisible + 2).coerceAtMost(pageCount - 1)
+            for (position in prefetchStart..prefetchEnd) {
+                if (position < visible || position > lastVisible) {
+                    requestPageRender(position, renderBucket)
+                }
+            }
         }
     }
 
     private fun updatePageLabel() {
-        pageLabel?.text = if (pageCount > 0) {
+        val label = if (pageCount > 0) {
             "Page " + (pageIndex + 1) + " / " + pageCount + " · Scroll to read · Pinch to zoom"
         } else {
             "Preparing PDF…"
         }
-        bookmarkButton?.text = if (bookmarks.contains(pageIndex)) "★" else "☆"
+        if (pageLabel?.text?.toString() != label) pageLabel?.text = label
+        val bookmark = if (bookmarks.contains(pageIndex)) "★" else "☆"
+        if (bookmarkButton?.text?.toString() != bookmark) bookmarkButton?.text = bookmark
     }
 
     private fun jumpToPage(index: Int, animate: Boolean = true) {
