@@ -27,6 +27,21 @@ assert(layout.includes('--fz-shell-width') && layout.includes('--fz-page-transfo
   !layout.includes("pages().forEach"),
   "DOCX zoom must update shared CSS variables without iterating every page");
 
+assert(writer.includes('addToolbarAction("Size", "Choose Word page size")'),
+  "Word viewer must expose a page-size option");
+assert(writer.includes("showPageSizeOptions()") && writer.includes("selectedPageSizeKey"),
+  "Word page-size selection must be retained across document/font loads");
+assert(viewer.includes("function setPageSize(preset)") &&
+  viewer.includes("a4:[11906,16838]") &&
+  viewer.includes("a4_landscape:[16838,11906]") &&
+  viewer.includes("letter:[12240,15840]") &&
+  viewer.includes("legal:[12240,20160]") &&
+  viewer.includes("a3:[16838,23811]") &&
+  viewer.includes("a5:[8391,11906]"),
+  "Word viewer must support standard paper-size presets");
+assert(viewer.includes("originalPageLayout:copyLayout(original)") &&
+  viewer.includes("renderDocument(lastDocument,false)"),
+  "Changing paper size must repaginate from the untouched source document and retain Original");
 assert(viewer.includes("window.addEventListener(\"resize\""), "page layout must adapt to viewport changes");
 assert(viewer.includes("overflow-wrap:break-word;word-break:normal"), "normal words should not be split unnecessarily");
 assert(!viewer.includes("overflow-wrap:anywhere"), "avoid breaking every word at arbitrary positions");
