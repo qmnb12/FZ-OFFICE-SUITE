@@ -567,7 +567,9 @@ object DocxCodec {
                     "style" -> {
                         currentStyle = attribute(parser, "styleId")
                         if (attribute(parser, "type") == "paragraph" &&
-                            enabled(attribute(parser, "default"))
+                            attribute(parser, "default")?.let {
+                                it == "1" || it.equals("true", true) || it.equals("on", true)
+                            } == true
                         ) {
                             currentStyle?.let { result["defaultParagraphStyle"] = it }
                         }
@@ -625,8 +627,8 @@ object DocxCodec {
                             val key = (if (propertyContext == "p") "pCss:" else "rCss:") +
                                 (currentStyle ?: "__default__")
                             val value = when (parser.name) {
-                                "b" -> "font-weight:" + if (enabled(attribute(parser, "val"))) "700" else "400" + ";"
-                                "i" -> "font-style:" + if (enabled(attribute(parser, "val"))) "italic" else "normal" + ";"
+                                "b" -> "font-weight:" + (if (enabled(attribute(parser, "val"))) "700" else "400") + ";"
+                                "i" -> "font-style:" + (if (enabled(attribute(parser, "val"))) "italic" else "normal") + ";"
                                 "u" -> if (attribute(parser, "val") == "none") "text-decoration:none;" else "text-decoration:underline;"
                                 else -> if (enabled(attribute(parser, "val"))) "text-decoration:line-through;" else ""
                             }
