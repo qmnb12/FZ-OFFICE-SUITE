@@ -139,6 +139,9 @@ class PdfViewerActivity : Activity() {
     private var pageCount = 0
     private var pageRatios = FloatArray(0)
     private var pageIndex = 0
+    private var lastPrefetchStart = -1
+    private var lastPrefetchEnd = -1
+    private var lastPrefetchBucket = -1f
     @Volatile private var visibleStartPage = 0
     @Volatile private var visibleEndPage = 5
     private var zoom = 1f
@@ -670,9 +673,17 @@ class PdfViewerActivity : Activity() {
 
             val prefetchStart = (visible - 1).coerceAtLeast(0)
             val prefetchEnd = (lastVisible + 2).coerceAtMost(pageCount - 1)
-            for (position in prefetchStart..prefetchEnd) {
-                if (position < visible || position > lastVisible) {
-                    requestPageRender(position, renderBucket)
+            if (prefetchStart != lastPrefetchStart ||
+                prefetchEnd != lastPrefetchEnd ||
+                renderBucket != lastPrefetchBucket
+            ) {
+                lastPrefetchStart = prefetchStart
+                lastPrefetchEnd = prefetchEnd
+                lastPrefetchBucket = renderBucket
+                for (position in prefetchStart..prefetchEnd) {
+                    if (position < visible || position > lastVisible) {
+                        requestPageRender(position, renderBucket)
+                    }
                 }
             }
         }
