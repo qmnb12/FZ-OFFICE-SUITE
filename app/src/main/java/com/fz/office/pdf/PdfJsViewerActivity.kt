@@ -155,7 +155,11 @@ class PdfJsViewerActivity : Activity() {
             override fun shouldInterceptRequest(
                 view: WebView,
                 request: WebResourceRequest
-            ): WebResourceResponse = intercept(request.url, request.requestHeaders["Range"])
+            ): WebResourceResponse {
+                val range = request.requestHeaders.entries
+                    .firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
+                return intercept(request.url, range)
+            }
 
             @Suppress("DEPRECATION")
             override fun shouldInterceptRequest(view: WebView, url: String): WebResourceResponse =
@@ -286,7 +290,23 @@ class PdfJsViewerActivity : Activity() {
             } catch (_: Exception) {
                 skipFully(stream, absoluteStart)
             }
+            var remainingBytes = length
             val limited = object : FilterInputStream(stream) {
+                override fun read(): Int {
+                    if (remainingBytes <= 0L) return -1
+                    val value = super.read()
+                    if (value >= 0) remainingBytes--
+                    return value
+                }
+
+                override fun read(buffer: ByteArray, offset: Int, count: Int): Int {
+                    if (remainingBytes <= 0L) return -1
+                    val allowed = minOf(count.toLong(), remainingBytes).toInt()
+                    val read = super.read(buffer, offset, allowed)
+                    if (read > 0) remainingBytes -= read.toLong()
+                    return read
+                }
+
                 override fun close() {
                     try { super.close() } finally { afd.close() }
                 }
