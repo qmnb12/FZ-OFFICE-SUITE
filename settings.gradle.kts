@@ -196,6 +196,8 @@ val mjPdfAlreadyPrepared =
     mjPdfRevisionFile.isFile &&
         mjPdfRevisionFile.readText(Charsets.UTF_8).trim() == mjPdfRevision &&
         File(mjPdfRoot, "AndroidPdfViewer/android-pdf-viewer/build.gradle").isFile &&
+        File(mjPdfRoot, "AndroidPdfViewer/android-pdf-viewer/src/main/java/com/github/barteksc/pdfviewer/scroll/DefaultScrollHandle.java")
+            .let { it.isFile && it.readText(Charsets.UTF_8).contains("com.google.android.material.R.attr.colorOnSurface") } &&
         File(mjPdfRoot, "PdfiumAndroid/build.gradle").isFile &&
         File(mjPdfRoot, "build_dependencies.py").isFile &&
         File(mjPdfRoot, "build_dependencies/values.py").isFile
