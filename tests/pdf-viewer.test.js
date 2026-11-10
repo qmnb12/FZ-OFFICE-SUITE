@@ -9,6 +9,8 @@ const main = read("app/src/main/java/com/fz/office/MainActivity.kt");
 const pdf = read("app/src/main/java/com/fz/office/pdf/PdfViewerActivity.kt");
 const pdfCore = read("app/src/main/java/com/fz/office/pdf/FzPdfDocument.kt");
 const appGradle = read("app/build.gradle.kts");
+const settings = read("settings.gradle.kts");
+const workflow = read(".github/workflows/android-build.yml");
 
 assert(main.includes('"application/pdf"'), "PDF must be in the document picker");
 assert(main.includes('lower.endsWith(".pdf")'), "PDF filename route is missing");
@@ -43,5 +45,13 @@ assert(pdfCore.includes("MAX_BITMAP_PIXELS"), "The FZ PDF core must keep a memor
 assert(pdfCore.includes("copyToPrivateCache"), "The FZ PDF core must handle non-seekable SAF providers");
 assert(appGradle.includes('implementation("androidx.recyclerview:recyclerview:1.4.0")'),
   "RecyclerView must be available for the native PDF page list");
+assert(!appGradle.includes("third_party:mj_pdf") && !settings.includes("mj_pdf") &&
+  !settings.includes("PdfiumAndroid"),
+  "The app and Gradle settings must not include the unused MJ PDF/PDFium modules");
+assert(!workflow.includes("PDFium") && !workflow.includes("MJ PDF") &&
+  !workflow.includes("buildMjPdfNativeDependencies") && !workflow.includes("ndk;30.0.14904198"),
+  "CI must not download or build unused PDFium native dependencies");
+assert(!fs.existsSync(path.join(root, "third_party/mj_pdf_prebuilt")),
+  "Unused PDFium native binaries must not remain in the repository");
 
 console.log("FZ platform PDF viewer integration checks passed.");

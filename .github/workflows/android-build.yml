@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   debug-build:
@@ -28,13 +28,8 @@ jobs:
           "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" \
             "platform-tools" \
             "platforms;android-36" \
-            "build-tools;36.0.0" \
-            "ndk;30.0.14904198"
+            "build-tools;36.0.0"
 
-      - name: Install MJ PDF native build prerequisites
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build python3-requests
 
       - name: Set up Gradle 9.6.1
         uses: gradle/actions/setup-gradle@v4
@@ -111,31 +106,6 @@ jobs:
           keytool -list -keystore "$RUNNER_TEMP/fz-testing.jks" -storepass "$SIGNING_STORE_PASSWORD" -alias "$SIGNING_KEY_ALIAS" >/dev/null
           echo "FZ_TESTING_KEYSTORE=$RUNNER_TEMP/fz-testing.jks" >> "$GITHUB_ENV"
 
-      - name: Build MJ PDF native libraries with NDK
-        run: gradle --no-daemon :third_party:mj_pdf:PdfiumAndroid:buildMjPdfNativeDependencies
-
-      - name: Stage prebuilt PDFium JNI libraries for on-device builds
-        run: |
-          set -euo pipefail
-          SOURCE="third_party/mj_pdf/PdfiumAndroid/src/main/libs"
-          DEST="third_party/mj_pdf_prebuilt"
-          test -d "$SOURCE"
-          mkdir -p "$DEST"
-          cp -a "$SOURCE/." "$DEST/"
-          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
-            for lib in libmodpdfium.so libmodft2.so libmodpng.so libc++_shared.so libjniPdfium.so; do
-              test -s "$DEST/$abi/$lib" || { echo "::error::Missing $abi/$lib"; exit 1; }
-            done
-          done
-
-      - name: Commit prebuilt PDFium libraries for COTG
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: stefanzweifel/git-auto-commit-action@v6
-        with:
-          commit_message: "Add prebuilt PDFium libraries for on-device builds"
-          file_pattern: "third_party/mj_pdf_prebuilt/**/*.so"
-          commit_user_name: "github-actions[bot]"
-          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Build debug APK
         env:
