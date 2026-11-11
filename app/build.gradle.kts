@@ -180,20 +180,109 @@ val prepareGanderViewerAssets = tasks.register("prepareGanderViewerAssets") {
                     throw GradleException("Unexpected pinned Gander PDF.js asset configuration.")
                 }
 
-                // WebView pinch hand-off can stall when visualViewport is a fraction of a
-                // CSS pixel short of its minimum width. Use a small, bounded tolerance so
-                // PDF.js reliably takes over the pinch-out at the fitted-width boundary.
-                val oldFloorCheck =
-                    "return !vv || !(vv.width > 0) || vv.width >= window.innerWidth - 0.5;"
-                val newFloorCheck = """
-                    if (!vv || !(vv.width > 0) || !(window.innerWidth > 0)) return true;
-                    var floorTolerance = Math.max(2, window.innerWidth * 0.005);
-                    return vv.width >= window.innerWidth - floorTolerance;
+                // Measure the true fitted visual viewport after the PDF opens. Android
+                // WebView overview mode does not always report innerWidth as the exact floor.
+                val oldAtFloor = """function atFloor() {
+  var vv = window.visualViewport;
+  return !vv || !(vv.width > 0) || vv.width >= window.innerWidth - 0.5;
+}"""
+                val newAtFloor = """
+                    var fitViewportWidth = 0;
+                    var fitLayoutWidth = window.innerWidth;
+
+                    function rememberFitViewportWidth() {
+                      var vv = window.visualViewport;
+                      if (vv && vv.width > 0) fitViewportWidth = vv.width;
+                      fitLayoutWidth = window.innerWidth;
+                    }
+
+                    window.addEventListener("resize", function () {
+                      if (window.innerWidth > 0 && window.innerWidth !== fitLayoutWidth) {
+                        rememberFitViewportWidth();
+                      }
+                    });
+
+                    function atFloor() {
+                      var vv = window.visualViewport;
+                      if (!vv || !(vv.width > 0)) return true;
+                      var fitWidth = fitViewportWidth > 0 ? fitViewportWidth : window.innerWidth;
+                      var tolerance = Math.max(8, fitWidth * 0.03);
+                      return vv.width >= fitWidth - tolerance;
+                    }
                 """.trimIndent()
-                if (!script.contains(oldFloorCheck)) {
-                    throw GradleException("Unexpected pinned Gander PDF pinch floor check.")
+                if (!script.contains(oldAtFloor)) {
+                    throw GradleException("Unexpected pinned Gander PDF pinch floor function.")
                 }
-                script = script.replace(oldFloorCheck, newFloorCheck)
+                script = script.replace(oldAtFloor, newAtFloor)
+
+                val oldFitMeasure = "      doc = opened;"
+                val newFitMeasure = "      doc = opened;\\n      rememberFitViewportWidth();"
+                if (!script.contains(oldFitMeasure)) {
+                    throw GradleException("Unexpected pinned Gander PDF document-open block.")
+                }
+                script = script.replace(oldFitMeasure, newFitMeasure)
+
+                // Once PDF.js has shrunk the column, it owns every pinch until the column
+                // returns to fit width. The WebView is not allowed to take that gesture.
+                val oldPinchGate = "if (!atFloor() || (shrink >= 1 && d >= g.apart)) {"
+                val newPinchGate = "if (shrink >= 1 && (!atFloor() || d >= g.apart)) {"
+                if (!script.contains(oldPinchGate)) {
+                    throw GradleException("Unexpected pinned Gander PDF pinch ownership check.")
+                }
+                script = script.replace(oldPinchGate, newPinchGate)
+
+                val oldStartPinch = """function startPinch(e) {
+  finishAnimation();"""
+                val newStartPinch = """function startPinch(e) {
+  if (pinch) endPinch();
+  finishAnimation();"""
+                if (!script.contains(oldStartPinch)) {
+                    throw GradleException("Unexpected pinned Gander PDF pinch-start handler.")
+                }
+                script = script.replace(oldStartPinch, newStartPinch)
+
+                val oldTouchStart = """document.addEventListener("touchstart", function (e) {
+  if (!doc || !slots.length) return;
+  if (e.touches.length === 2) {
+    tap = lastTap = null;
+    startPinch(e);
+  } else if (e.touches.length === 1 && !pinch && shrink < 1 && pages.contains(e.target)) {"""
+                val newTouchStart = """document.addEventListener("touchstart", function (e) {
+  if (!doc || !slots.length) return;
+  if (e.touches.length >= 2) {
+    tap = lastTap = null;
+    if (e.touches.length === 2) startPinch(e);
+    else if (pinch) endPinch();
+  } else if (e.touches.length === 1 && !pinch && shrink < 1 && pages.contains(e.target)) {"""
+                if (!script.contains(oldTouchStart)) {
+                    throw GradleException("Unexpected pinned Gander PDF touch-start handler.")
+                }
+                script = script.replace(oldTouchStart, newTouchStart)
+
+                val oldTouchMove = """document.addEventListener("touchmove", function (e) {
+  if (pinch && e.touches.length === 2) {
+    movePinch(e);
+  } else if (tap && e.touches.length === 1 &&"""
+                val newTouchMove = """document.addEventListener("touchmove", function (e) {
+  if (pinch) {
+    if (e.touches.length === 2) movePinch(e);
+    else endPinch();
+  } else if (tap && e.touches.length === 1 &&"""
+                if (!script.contains(oldTouchMove)) {
+                    throw GradleException("Unexpected pinned Gander PDF touch-move handler.")
+                }
+                script = script.replace(oldTouchMove, newTouchMove)
+
+                val oldTouchEnd = """function touchEnded(e) {
+  if (pinch && e.touches.length < 2) {
+    endPinch();"""
+                val newTouchEnd = """function touchEnded(e) {
+  if (pinch && e.touches.length !== 2) {
+    endPinch();"""
+                if (!script.contains(oldTouchEnd)) {
+                    throw GradleException("Unexpected pinned Gander PDF touch-end handler.")
+                }
+                script = script.replace(oldTouchEnd, newTouchEnd)
 
                 // touchcancel does not guarantee a final touchend. Always unwind a live
                 // custom pinch so vw-moving/transform state cannot be left stuck.
