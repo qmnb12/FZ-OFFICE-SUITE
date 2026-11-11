@@ -119,8 +119,8 @@ assert(manifest.includes(".pdf.PdfViewerActivity"), "Legacy PDF compatibility fa
 assert(!manifest.includes('android.permission.INTERNET'), "Offline app must not request INTERNET");
 assert(gradle.includes("prepareGanderViewerAssets"), "Pinned Gander assets are missing from build");
 assert(gradle.includes("gitBlobSha"), "Viewer assets must be checksum verified");
-assert(gradle.includes('versionName = "0.9.7"'), "Version name must match the PDF.js viewer build");
-assert(gradle.includes("versionCode = 37"), "Version code must match the PDF.js viewer build");
+assert(gradle.includes('versionName = "0.9.8"'), "Version name must match the PDF.js viewer build");
+assert(gradle.includes("versionCode = 38"), "Version code must match the PDF.js viewer build");
 assert(gradle.includes("offline-pdf-viewer-1.manifest") &&
   gradle.includes("offline-pdf-viewer-2.manifest") &&
   gradle.includes("offline-pdf-viewer-3.manifest"),
