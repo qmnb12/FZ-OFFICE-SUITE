@@ -45,6 +45,16 @@ assert(pdfJs.includes("setFitScale(baseScale)") &&
   pdfJs.includes("return (current / fitted)") &&
   pdfJs.includes("currentScale / initialScale"),
   "PDF zoom anchoring must use the actual WebView scale rather than infer zoom from scroll geometry");
+assert(pdfJs.includes("multiTouchStream") &&
+  pdfJs.includes("MotionEvent.ACTION_POINTER_DOWN") &&
+  pdfJs.includes("cancelDetectorSequence(event)") &&
+  pdfJs.includes("cancelEvent.action = MotionEvent.ACTION_CANCEL"),
+  "The native PDF double-tap detector must cancel and ignore multi-touch gesture streams");
+assert(appGradle.includes("floorTolerance = Math.max(2, window.innerWidth * 0.005)") &&
+  appGradle.includes("Unexpected pinned Gander PDF pinch floor check.") &&
+  appGradle.includes("if (pinch) endPinch();") &&
+  appGradle.includes("Unexpected pinned Gander PDF touch-cancel handler."),
+  "The bundled PDF.js asset must use a tolerant pinch hand-off and always unwind cancelled pinches");
 assert(pdfJs.includes("window.vwPdfShrink(1") &&
   pdfJs.includes("override fun zoomIn()") && pdfJs.includes("override fun zoomOut()") &&
   pdfJs.includes("view.zoomIn()") && pdfJs.includes("view.zoomOut()"),
