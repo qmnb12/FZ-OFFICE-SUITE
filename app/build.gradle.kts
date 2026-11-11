@@ -87,7 +87,18 @@ val offlineViewerManifests = listOf(
     layout.projectDirectory.file("vendor/offline-viewer-2.manifest").asFile,
     layout.projectDirectory.file("vendor/offline-pdf-viewer-1.manifest").asFile,
     layout.projectDirectory.file("vendor/offline-pdf-viewer-2.manifest").asFile,
-    layout.projectDirectory.file("vendor/offline-pdf-viewer-3.manifest").asFile
+    layout.projectDirectory.file("vendor/offline-pdf-viewer-3.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-cmaps-01.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-cmaps-02.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-cmaps-03.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-cmaps-04.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-cmaps-05.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-cmaps-06.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-cmaps-07.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-cmaps-08.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-cmaps-09.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-cmaps-10.manifest").asFile,
+    layout.projectDirectory.file("vendor/offline-pdf-cmaps-11.manifest").asFile
 )
 val fontLicenseManifest = layout.projectDirectory.file("vendor/font-licenses.manifest").asFile
 val hindiFontPayloads = listOf(
@@ -161,18 +172,13 @@ val prepareGanderViewerAssets = tasks.register("prepareGanderViewerAssets") {
         readOfflineVendorAssets(offlineViewerManifests).filter { it.kind == "VIEWER" }.forEach { asset ->
             var outputBytes = asset.bytes
             if (asset.path == "viewer/pdf.mjs") {
-                var script = String(outputBytes, Charsets.UTF_8)
-                val cMapConfig = """opts.cMapUrl = vwAssetUrl("./lib/cmaps/");
-  opts.cMapPacked = true;
-  """
-                if (!script.contains(cMapConfig) || !script.contains("opts.wasmUrl = vwAssetUrl(\"./lib/wasm/\");")) {
+                val script = String(outputBytes, Charsets.UTF_8)
+                if (!script.contains("""opts.cMapUrl = vwAssetUrl("./lib/cmaps/");""") ||
+                    !script.contains("opts.cMapPacked = true;") ||
+                    !script.contains("""opts.wasmUrl = vwAssetUrl("./lib/wasm/");""")
+                ) {
                     throw GradleException("Unexpected pinned Gander PDF.js asset configuration.")
                 }
-                // CMaps are optional for PDFs with embedded fonts. Keep the bundled
-                // WASM decoders (JPEG 2000/JBIG2) but don't request a CMap directory
-                // that is not shipped in this compact offline bundle.
-                script = script.replace(cMapConfig, "")
-                outputBytes = script.toByteArray(Charsets.UTF_8)
             }
 
             if (asset.path == "viewer/pptx.html" || asset.path == "viewer/xlsx.html") {
@@ -232,7 +238,12 @@ val prepareGanderViewerAssets = tasks.register("prepareGanderViewerAssets") {
                 outputBytes = html.toByteArray(Charsets.UTF_8)
             }
 
-            val destination = root.resolve(asset.path)
+            val destinationPath = if (asset.path == "licences.md") {
+                "viewer/licences.md"
+            } else {
+                asset.path
+            }
+            val destination = root.resolve(destinationPath)
             destination.parentFile.mkdirs()
             destination.writeBytes(outputBytes)
         }
@@ -247,8 +258,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 37
-        versionName = "0.9.7"
+        versionCode = 38
+        versionName = "0.9.8"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
