@@ -50,11 +50,20 @@ assert(pdfJs.includes("multiTouchStream") &&
   pdfJs.includes("cancelDetectorSequence(event)") &&
   pdfJs.includes("cancelEvent.action = MotionEvent.ACTION_CANCEL"),
   "The native PDF double-tap detector must cancel and ignore multi-touch gesture streams");
-assert(appGradle.includes("floorTolerance = Math.max(2, window.innerWidth * 0.005)") &&
-  appGradle.includes("Unexpected pinned Gander PDF pinch floor check.") &&
-  appGradle.includes("if (pinch) endPinch();") &&
-  appGradle.includes("Unexpected pinned Gander PDF touch-cancel handler."),
-  "The bundled PDF.js asset must use a tolerant pinch hand-off and always unwind cancelled pinches");
+assert(appGradle.includes("fitViewportWidth = 0") &&
+  appGradle.includes("rememberFitViewportWidth();") &&
+  appGradle.includes("Math.max(8, fitWidth * 0.03)") &&
+  appGradle.includes("Unexpected pinned Gander PDF pinch floor function."),
+  "PDF pinch ownership must be calibrated against the actual fitted WebView viewport");
+assert(appGradle.includes("shrink >= 1 && (!atFloor() || d >= g.apart)") &&
+  appGradle.includes("Unexpected pinned Gander PDF pinch ownership check."),
+  "Once PDF.js has taken ownership below fit width, it must keep handling the active pinch");
+assert(appGradle.includes("e.touches.length >= 2") &&
+  appGradle.includes("else if (pinch) endPinch();") &&
+  appGradle.includes("if (pinch) {") &&
+  appGradle.includes("e.touches.length !== 2") &&
+  appGradle.includes("if (pinch) endPinch();"),
+  "PDF multi-touch pointer-count changes and cancellation must always release the active pinch state");
 assert(pdfJs.includes("window.vwPdfShrink(1") &&
   pdfJs.includes("override fun zoomIn()") && pdfJs.includes("override fun zoomOut()") &&
   pdfJs.includes("view.zoomIn()") && pdfJs.includes("view.zoomOut()"),
