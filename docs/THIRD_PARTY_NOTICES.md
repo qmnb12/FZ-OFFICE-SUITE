@@ -19,5 +19,7 @@ The converter is provided without warranty. It is a Kruti Dev 010 preview, not a
 - Project: https://github.com/mokshablr/gander
 - Pinned revision: 73cf325435868cab1683d8de8cc1b89533e767b3
 - Renderer: Mozilla PDF.js 6.3.289, Apache-2.0
-- The PDF.js page, module, worker and WASM image decoders are bundled in the offline PDF viewer manifests. Gander's upstream `licences.md` is included in the APK as `viewer/licences.md`; the CMaps bundle is intentionally not shipped.
+- The PDF.js page, module, worker, 168 Adobe CMap tables and WASM image decoders are bundled in the offline PDF viewer manifests. Gander's upstream `licences.md` is included in the APK as `viewer/licences.md`.
+- Adobe CMap resources are redistributed under BSD-3-Clause; the bundled upstream notice contains the required copyright and license text.
+- The four PDF.js WASM decoder notices are shipped beside the corresponding decoder files.
 - Gander's MIT license is already included in the existing `viewer/licenses/GANDER-MIT-LICENSE.txt` asset.
