@@ -33,7 +33,8 @@ assert(pdfJs.includes("createWebMessageChannel") && pdfJs.includes('postCommand(
   "PDF Find and page navigation must use the safe WebMessagePort bridge");
 assert(pdfJs.includes("pendingFindNavigation") && pdfJs.includes("searchIndexReady") &&
   pdfJs.includes("queueFindNavigation") &&
-  pdfJs.includes("Do not send Previous until that index is ready"),
+  pdfJs.includes("if (ready && !searchIndexReady)") &&
+  pdfJs.includes("pendingFindNavigation.clear()"),
   "PDF Previous/Next must wait for PDF.js full-document indexing before navigating");
 assert(pdfJs.includes("PdfJsDoubleTapZoom") && pdfJs.includes("PdfJsWebView") &&
   pdfJs.includes("ValueAnimator") && pdfJs.includes("leftToPage") &&
