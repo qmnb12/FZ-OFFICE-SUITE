@@ -680,6 +680,7 @@ private class PdfJsDoubleTapZoom(
     private var downX = 0f
     private var downY = 0f
     private var still = false
+    private var multiTouchStream = false
     var leftToPage: Boolean = false
 
     private val detector = GestureDetector(
@@ -705,8 +706,39 @@ private class PdfJsDoubleTapZoom(
     )
 
     fun touched(event: MotionEvent) {
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) cancel()
+        val action = event.actionMasked
+        val isMultiTouch = event.pointerCount > 1 ||
+            action == MotionEvent.ACTION_POINTER_DOWN ||
+            action == MotionEvent.ACTION_POINTER_UP
+
+        if (isMultiTouch) {
+            if (!multiTouchStream) cancelDetectorSequence(event)
+            multiTouchStream = true
+            return
+        }
+
+        // Once a second finger has participated, do not let GestureDetector reinterpret
+        // the end of the pinch as a tap/double-tap. Resume only on the next fresh gesture.
+        if (multiTouchStream) {
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                multiTouchStream = false
+            }
+            return
+        }
+
+        if (action == MotionEvent.ACTION_DOWN) cancel()
         detector.onTouchEvent(event)
+    }
+
+    private fun cancelDetectorSequence(source: MotionEvent) {
+        cancel()
+        val cancelEvent = MotionEvent.obtain(source)
+        try {
+            cancelEvent.action = MotionEvent.ACTION_CANCEL
+            detector.onTouchEvent(cancelEvent)
+        } finally {
+            cancelEvent.recycle()
+        }
     }
 
     fun cancel() {
