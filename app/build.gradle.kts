@@ -172,13 +172,44 @@ val prepareGanderViewerAssets = tasks.register("prepareGanderViewerAssets") {
         readOfflineVendorAssets(offlineViewerManifests).filter { it.kind == "VIEWER" }.forEach { asset ->
             var outputBytes = asset.bytes
             if (asset.path == "viewer/pdf.mjs") {
-                val script = String(outputBytes, Charsets.UTF_8)
+                var script = String(outputBytes, Charsets.UTF_8)
                 if (!script.contains("""opts.cMapUrl = vwAssetUrl("./lib/cmaps/");""") ||
                     !script.contains("opts.cMapPacked = true;") ||
                     !script.contains("""opts.wasmUrl = vwAssetUrl("./lib/wasm/");""")
                 ) {
                     throw GradleException("Unexpected pinned Gander PDF.js asset configuration.")
                 }
+
+                // WebView pinch hand-off can stall when visualViewport is a fraction of a
+                // CSS pixel short of its minimum width. Use a small, bounded tolerance so
+                // PDF.js reliably takes over the pinch-out at the fitted-width boundary.
+                val oldFloorCheck =
+                    "return !vv || !(vv.width > 0) || vv.width >= window.innerWidth - 0.5;"
+                val newFloorCheck = """
+                    if (!vv || !(vv.width > 0) || !(window.innerWidth > 0)) return true;
+                    var floorTolerance = Math.max(2, window.innerWidth * 0.005);
+                    return vv.width >= window.innerWidth - floorTolerance;
+                """.trimIndent()
+                if (!script.contains(oldFloorCheck)) {
+                    throw GradleException("Unexpected pinned Gander PDF pinch floor check.")
+                }
+                script = script.replace(oldFloorCheck, newFloorCheck)
+
+                // touchcancel does not guarantee a final touchend. Always unwind a live
+                // custom pinch so vw-moving/transform state cannot be left stuck.
+                val oldTouchCancel = """document.addEventListener("touchcancel", function (e) {
+  tap = lastTap = null;
+  if (pinch && e.touches.length < 2) endPinch();
+}, { passive: true });"""
+                val newTouchCancel = """document.addEventListener("touchcancel", function (e) {
+  tap = lastTap = null;
+  if (pinch) endPinch();
+}, { passive: true });"""
+                if (!script.contains(oldTouchCancel)) {
+                    throw GradleException("Unexpected pinned Gander PDF touch-cancel handler.")
+                }
+                script = script.replace(oldTouchCancel, newTouchCancel)
+                outputBytes = script.toByteArray(Charsets.UTF_8)
             }
 
             if (asset.path == "viewer/pptx.html" || asset.path == "viewer/xlsx.html") {
