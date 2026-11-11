@@ -78,6 +78,8 @@ class PdfJsViewerActivity : Activity() {
     @Volatile private var locked = false
     private var baseScale = 0f
     private var lastQuery = ""
+    private var searchIndexReady = false
+    private val pendingFindNavigation = ArrayList<String>()
     private val pendingCommands = ArrayList<String>()
     @Volatile private var closing = false
 
@@ -472,6 +474,12 @@ class PdfJsViewerActivity : Activity() {
             val total = fields[1].toIntOrNull() ?: return
             val ready = fields[2].toIntOrNull() == 1
             runOnUiThread {
+                if (ready && !searchIndexReady) {
+                    searchIndexReady = true
+                    val queued = pendingFindNavigation.toList()
+                    pendingFindNavigation.clear()
+                    queued.forEach(::postCommand)
+                }
                 dashboard?.setStatus(
                     when {
                         !ready -> "Searching PDF…"
@@ -481,6 +489,11 @@ class PdfJsViewerActivity : Activity() {
                 )
             }
         }
+    }
+
+    private fun queueFindNavigation(command: String) {
+        if (searchIndexReady) postCommand(command)
+        else pendingFindNavigation.add(command)
     }
 
     private fun postCommand(command: String) {
@@ -510,13 +523,22 @@ class PdfJsViewerActivity : Activity() {
             if (value.isEmpty()) return
             if (value != lastQuery) {
                 lastQuery = value
+                searchIndexReady = false
+                pendingFindNavigation.clear()
                 postCommand("q$value")
-                if (!forward) postCommand("p")
-            } else postCommand(if (forward) "n" else "p")
+                // PDF.js builds its full-document text index asynchronously. Do not
+                // send Previous until that index is ready: otherwise stepTo() sees
+                // zero matches and the later first hit resets the search to page one.
+                if (!forward) queueFindNavigation("p")
+            } else {
+                queueFindNavigation(if (forward) "n" else "p")
+            }
         }
 
         override fun clearFind() {
             lastQuery = ""
+            searchIndexReady = false
+            pendingFindNavigation.clear()
             pendingCommands.clear()
             postCommand("c")
         }
