@@ -2,6 +2,7 @@
 const assert = require("assert");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const root = path.resolve(__dirname, "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 
@@ -11,6 +12,9 @@ const pdfJs = read("app/src/main/java/com/fz/office/pdf/PdfJsViewerActivity.kt")
 const pdfManifest = read("app/vendor/offline-pdf-viewer-1.manifest");
 const pdfWorkerManifest = read("app/vendor/offline-pdf-viewer-2.manifest");
 const pdfWasmManifest = read("app/vendor/offline-pdf-viewer-3.manifest");
+const pdfCMapManifests = Array.from({ length: 11 }, (_, index) =>
+  read("app/vendor/offline-pdf-cmaps-" + String(index + 1).padStart(2, "0") + ".manifest")
+);
 const pdfCore = read("app/src/main/java/com/fz/office/pdf/FzPdfDocument.kt");
 const appGradle = read("app/build.gradle.kts");
 const settings = read("settings.gradle.kts");
@@ -27,6 +31,10 @@ assert(pdfJs.includes("pdf.html") && pdfWorkerManifest.includes("viewer/lib/pdf.
 assert(pdfJs.includes("createWebMessageChannel") && pdfJs.includes('postCommand("q$value")') &&
   pdfJs.includes('postCommand("g" +'),
   "PDF Find and page navigation must use the safe WebMessagePort bridge");
+assert(pdfJs.includes("pendingFindNavigation") && pdfJs.includes("searchIndexReady") &&
+  pdfJs.includes("queueFindNavigation") &&
+  pdfJs.includes("Do not send Previous until that index is ready"),
+  "PDF Previous/Next must wait for PDF.js full-document indexing before navigating");
 assert(pdfJs.includes("PdfJsDoubleTapZoom") && pdfJs.includes("PdfJsWebView") &&
   pdfJs.includes("ValueAnimator") && pdfJs.includes("leftToPage") &&
   pdfJs.includes("computeHorizontalScrollRange"),
@@ -118,8 +126,13 @@ assert(appGradle.includes('implementation("androidx.recyclerview:recyclerview:1.
 assert(appGradle.includes("offline-pdf-viewer-1.manifest") &&
   appGradle.includes("offline-pdf-viewer-2.manifest") &&
   appGradle.includes("offline-pdf-viewer-3.manifest") &&
-  appGradle.includes('versionName = "0.9.7"') && appGradle.includes("versionCode = 37"),
-  "PDF.js assets must be checksum-verified and included in the new app version");
+  Array.from({ length: 11 }, (_, index) =>
+    appGradle.includes("offline-pdf-cmaps-" + String(index + 1).padStart(2, "0") + ".manifest")
+  ).every(Boolean) &&
+  appGradle.includes('opts.cMapUrl = vwAssetUrl("./lib/cmaps/");') &&
+  !appGradle.includes('script = script.replace(cMapConfig, "")') &&
+  appGradle.includes('versionName = "0.9.8"') && appGradle.includes("versionCode = 38"),
+  "PDF.js assets and all CMaps must be checksum-verified and included in the new app version");
 assert(!appGradle.includes("third_party:mj_pdf") && !settings.includes("mj_pdf") &&
   !settings.includes("PdfiumAndroid"),
   "The app and Gradle settings must not include the unused MJ PDF/PDFium modules");
@@ -129,4 +142,54 @@ assert(!workflow.includes("PDFium") && !workflow.includes("MJ PDF") &&
 assert(!fs.existsSync(path.join(root, "third_party/mj_pdf_prebuilt")),
   "Unused PDFium native binaries must not remain in the repository");
 
-console.log("FZ platform PDF viewer integration checks passed.");
+function readManifestRows(content, file) {
+  const rows = [];
+  let pending = "";
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    if (line.includes("|")) {
+      if (pending) rows.push(pending);
+      pending = line;
+    } else {
+      assert(pending, "Manifest continuation without an asset row in " + file);
+      pending += line;
+    }
+  }
+  if (pending) rows.push(pending);
+  return rows;
+}
+
+function gitBlobSha(bytes) {
+  const header = Buffer.from("blob " + bytes.length + "\0", "utf8");
+  return crypto.createHash("sha1").update(header).update(bytes).digest("hex");
+}
+
+const cmapRows = pdfCMapManifests.flatMap((manifest, index) =>
+  readManifestRows(manifest, "offline-pdf-cmaps-" + (index + 1))
+);
+assert.strictEqual(cmapRows.length, 168, "The complete Gander CMap set must be bundled");
+const cmapPaths = new Set();
+for (const row of cmapRows) {
+  const fields = row.split("|");
+  assert.strictEqual(fields.length, 5, "Malformed CMap manifest row");
+  assert.strictEqual(fields[0], "VIEWER", "CMap manifest entry must be a viewer asset");
+  assert(/^viewer\/lib\/cmaps\/[^/]+\.bcmap$/.test(fields[1]),
+    "Unexpected CMap output path: " + fields[1]);
+  assert(!cmapPaths.has(fields[1]), "Duplicate CMap asset: " + fields[1]);
+  cmapPaths.add(fields[1]);
+  const bytes = Buffer.from(fields[4], "base64");
+  assert.strictEqual(bytes.length, Number(fields[2]), "CMap asset size mismatch: " + fields[1]);
+  assert.strictEqual(gitBlobSha(bytes), fields[3], "CMap asset checksum mismatch: " + fields[1]);
+}
+for (const required of ["Adobe-GB1-UCS2.bcmap", "UniGB-UCS2-H.bcmap", "UniJIS-UCS2-H.bcmap"]) {
+  assert(cmapPaths.has("viewer/lib/cmaps/" + required), "Missing required CMap: " + required);
+}
+const pdfLicenceRow = readManifestRows(pdfManifest, "offline-pdf-viewer-1")
+  .find(row => row.split("|")[1] === "licences.md");
+assert(pdfLicenceRow, "Gander's upstream third-party notices must be bundled");
+const pdfLicenceText = Buffer.from(pdfLicenceRow.split("|")[4], "base64").toString("utf8");
+assert(pdfLicenceText.includes("Adobe CMap resources") && pdfLicenceText.includes("BSD-3-Clause"),
+  "Adobe CMap attribution must ship with the bundled CMap tables");
+
+console.log("FZ PDF.js routing, zoom, search, offline assets and CMap integrity checks passed.");
