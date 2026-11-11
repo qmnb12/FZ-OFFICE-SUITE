@@ -40,6 +40,11 @@ assert(pdfJs.includes("PdfJsDoubleTapZoom") && pdfJs.includes("PdfJsWebView") &&
   pdfJs.includes("ValueAnimator") && pdfJs.includes("leftToPage") &&
   pdfJs.includes("computeHorizontalScrollRange"),
   "PDF double-tap zoom must be smooth, anchored and coordinated with PDF.js pinch-out");
+assert(pdfJs.includes("setFitScale(baseScale)") &&
+  pdfJs.includes("override fun pageScale(): Float = scale") &&
+  pdfJs.includes("return (current / fitted)") &&
+  pdfJs.includes("currentScale / initialScale"),
+  "PDF zoom anchoring must use the actual WebView scale rather than infer zoom from scroll geometry");
 assert(pdfJs.includes("window.vwPdfShrink(1") &&
   pdfJs.includes("override fun zoomIn()") && pdfJs.includes("override fun zoomOut()") &&
   pdfJs.includes("view.zoomIn()") && pdfJs.includes("view.zoomOut()"),
