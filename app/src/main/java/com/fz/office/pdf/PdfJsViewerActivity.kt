@@ -202,6 +202,7 @@ class PdfJsViewerActivity : Activity() {
                 if (closing) return
                 dashboard?.setLoading(false)
                 baseScale = view.scale.takeIf { it > 0f } ?: 1f
+                (view as? PdfJsWebView)?.setFitScale(baseScale)
                 pageReady = true
                 connectPageBridge()
                 dashboard?.setStatus(
@@ -658,6 +659,8 @@ private interface PdfJsZoomSurface {
     fun scrolledY(): Int
     fun rangeX(): Int
     fun rangeY(): Int
+    fun pageScale(): Float
+    fun fitScale(): Float
     fun applyZoom(factor: Float)
     fun scrollDocumentTo(x: Int, y: Int)
 }
@@ -712,9 +715,12 @@ private class PdfJsDoubleTapZoom(
     }
 
     private fun currentZoom(): Float? {
-        val width = surface.viewWidth()
-        val range = surface.rangeX()
-        return if (width > 0 && range > 0) range.toFloat() / width else null
+        val current = surface.pageScale()
+        val fitted = surface.fitScale()
+        if (!current.isFinite() || !fitted.isFinite() || current <= 0f || fitted <= 0f) {
+            return null
+        }
+        return (current / fitted).takeIf { it.isFinite() && it > 0f }
     }
 
     private fun zoomAbout(x: Float, y: Float) {
@@ -753,10 +759,19 @@ private class PdfJsDoubleTapZoom(
 private class PdfJsZoomStart(private val surface: PdfJsZoomSurface) {
     val x = surface.scrolledX().toFloat()
     val y = surface.scrolledY().toFloat()
+    private val initialScale = surface.pageScale()
     private val initialWidth = surface.rangeX()
     private val initialHeight = surface.rangeY()
 
     fun grown(): Float? {
+        val currentScale = surface.pageScale()
+        if (initialScale.isFinite() && currentScale.isFinite() &&
+            initialScale > 0f && currentScale > 0f
+        ) {
+            return (currentScale / initialScale).takeIf { it.isFinite() && it > 0f }
+        }
+
+        // Keep a guarded geometry fallback for WebView builds that report no usable scale.
         val viewHeight = surface.viewHeight()
         val currentHeight = surface.rangeY()
         val currentWidth = surface.rangeX()
@@ -773,12 +788,20 @@ private class PdfJsZoomStart(private val surface: PdfJsZoomSurface) {
 
 /** Exposes the protected scroll ranges used by the anchored double-tap gesture. */
 private class PdfJsWebView(context: Activity) : WebView(context), PdfJsZoomSurface {
+    private var initialFitScale = 1f
+
+    fun setFitScale(value: Float) {
+        if (value.isFinite() && value > 0f) initialFitScale = value
+    }
+
     override fun viewWidth(): Int = width
     override fun viewHeight(): Int = height
     override fun scrolledX(): Int = scrollX
     override fun scrolledY(): Int = scrollY
     override fun rangeX(): Int = computeHorizontalScrollRange()
     override fun rangeY(): Int = computeVerticalScrollRange()
+    override fun pageScale(): Float = scale
+    override fun fitScale(): Float = initialFitScale
     override fun applyZoom(factor: Float) { zoomBy(factor) }
     override fun scrollDocumentTo(x: Int, y: Int) { scrollTo(x, y) }
 }
