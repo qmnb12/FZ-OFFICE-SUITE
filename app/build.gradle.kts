@@ -216,7 +216,7 @@ val prepareGanderViewerAssets = tasks.register("prepareGanderViewerAssets") {
                 script = script.replace(oldAtFloor, newAtFloor)
 
                 val oldFitMeasure = "      doc = opened;"
-                val newFitMeasure = "      doc = opened;\\n      rememberFitViewportWidth();"
+                val newFitMeasure = "      doc = opened;\n      rememberFitViewportWidth();"
                 if (!script.contains(oldFitMeasure)) {
                     throw GradleException("Unexpected pinned Gander PDF document-open block.")
                 }
