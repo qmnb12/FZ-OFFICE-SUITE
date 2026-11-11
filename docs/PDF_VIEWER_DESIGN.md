@@ -2,7 +2,7 @@
 
 ## Primary PDF reader
 
-PDF documents open in the pinned Gander PDF.js viewer, bundled completely offline in the APK. The matching PDF.js module and worker, Gander page styles/scripts, and PDF.js image decoders are checksum-verified from the same Gander revision already used by the spreadsheet and presentation viewers.
+PDF documents open in the pinned Gander PDF.js viewer, bundled completely offline in the APK. The matching PDF.js module and worker, Gander page styles/scripts, PDF.js image decoders and all 168 Adobe CMap tables are checksum-verified from the same Gander revision already used by the spreadsheet and presentation viewers.
 
 The original SAF PDF is exposed to the local WebView origin at `/doc/file.pdf` as a read-only stream. Small files use one sequential response; larger files advertise byte ranges so PDF.js can fetch only the pieces it needs. The app never opens an output stream to the source document and does not rewrite, convert, or re-save its bytes.
 
@@ -21,6 +21,6 @@ On a WebView older than the PDF.js bundle's supported Chromium floor, FZ opens t
 
 ## Vendored assets and limitations
 
-The PDF.js bundle is pinned to Gander revision `73cf325435868cab1683d8de8cc1b89533e767b3`. Its upstream license and bundled third-party notices are shipped under `viewer/licences.md`; the PDF image-decoder notices are shipped beside their WASM files.
+The PDF.js bundle is pinned to Gander revision `73cf325435868cab1683d8de8cc1b89533e767b3`. Its upstream license and bundled third-party notices are shipped under `viewer/licences.md`; the PDF image-decoder notices are shipped beside their WASM files. The 168 Adobe CMap files are included (about 1.17 MB uncompressed) and loaded on demand by PDF.js; their BSD-3-Clause attribution is included in the upstream notices.
 
-CMaps are not part of the compact bundle. PDFs with embedded fonts and normal Hindi/English text are supported by PDF.js; a PDF that depends on a missing external CMap (usually certain non-embedded East Asian fonts) may show incomplete glyphs. The source bytes remain unchanged either way.
+ICC color profiles still use the pinned PDF.js configuration, which does not enable the optional QCMS worker fetch. The original PDF bytes are always preserved, including for encrypted files that require a password prompt.
