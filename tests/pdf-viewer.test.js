@@ -87,7 +87,10 @@ assert(appGradle.includes("var keptTile = false;") &&
 assert(appGradle.includes("schedulePageWork(watched);") &&
   appGradle.includes("var pageWorkNeedsObserve = false;") &&
   appGradle.includes("window.requestIdleCallback(run, { timeout: 400 });") &&
-  appGradle.includes("if (pinch) cancelPageWork(); else schedulePageWork(false);") &&
+  appGradle.includes("if (pinch) cancelPageWork();") &&
+  appGradle.includes("if (pageWorkHold) return;") &&
+  appGradle.includes("pageWorkHold = true;") &&
+  appGradle.includes("pageWorkHold = false;") &&
   appGradle.includes("else schedulePageWork(false);") &&
   appGradle.includes("Page work is started later from an idle slot"),
   "PDF fit-boundary observer rebuilds and page redraws must be deferred away from the gesture-end frame");

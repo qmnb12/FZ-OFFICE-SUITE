@@ -500,20 +500,30 @@ function scheduleRefine() {
                 val newMoved = """function moved() {
   schedulePageReport();
   scheduleRefine();
-  if (pinch) cancelPageWork(); else schedulePageWork(false);
+  if (pinch) cancelPageWork();
 }"""
                 if (!script.contains(oldMoved)) {
                     throw GradleException("Unexpected pinned Gander PDF viewport-moved handler.")
                 }
                 script = script.replace(oldMoved, newMoved)
 
+                val oldPump = "function pump() {"
+                val newPump = """function pump() {
+  if (pageWorkHold) return;"""
+                if (!script.contains(oldPump)) {
+                    throw GradleException("Unexpected pinned Gander PDF render pump.")
+                }
+                script = script.replace(oldPump, newPump)
+
                 val oldObservePages = "function observePages() {"
                 val newObservePages = """var pageWorkTimer = 0;
 var pageWorkIdle = 0;
 var pageWorkGeneration = 0;
 var pageWorkNeedsObserve = false;
+var pageWorkHold = false;
 
 function cancelPageWork() {
+  pageWorkHold = true;
   pageWorkGeneration++;
   if (pageWorkTimer) {
     clearTimeout(pageWorkTimer);
@@ -534,6 +544,7 @@ function schedulePageWork(reobserve) {
     var run = function () {
       pageWorkIdle = 0;
       if (generation !== pageWorkGeneration || pinch) return;
+      pageWorkHold = false;
       var needsObserve = pageWorkNeedsObserve;
       pageWorkNeedsObserve = false;
       if (needsObserve) observePages();
