@@ -231,6 +231,68 @@ val prepareGanderViewerAssets = tasks.register("prepareGanderViewerAssets") {
                 }
                 script = script.replace(oldPinchGate, newPinchGate)
 
+                // Capture operator bounds during the already-required full-page draw.
+                // PDF.js can then skip display-list operations that cannot intersect a
+                // high-resolution zoom tile, instead of replaying the entire page.
+                val oldMaxTiles = "var MAX_TILES = 2;"
+                val newMaxTiles = "var MAX_TILES = 1;"
+                if (!script.contains(oldMaxTiles)) {
+                    throw GradleException("Unexpected pinned Gander PDF tile concurrency limit.")
+                }
+                script = script.replace(oldMaxTiles, newMaxTiles)
+
+                val oldBaseRender = """      recordImages: mode
+    });
+    return slot.task.promise.then(function () {"""
+                val newBaseRender = """      recordImages: mode,
+      recordOperations: !page.recordedBBoxes
+    });
+    return slot.task.promise.then(function () {"""
+                if (!script.contains(oldBaseRender)) {
+                    throw GradleException("Unexpected pinned Gander PDF base-page render options.")
+                }
+                script = script.replace(oldBaseRender, newBaseRender)
+
+                val oldTileStart = "function drawTile(req) {"
+                val newTileStart = """function tileOperationsFilter(slot, req) {
+  var boxes = slot.page && slot.page.recordedBBoxes;
+  if (!boxes || !boxes.length ||
+      typeof boxes.isEmpty !== "function" ||
+      typeof boxes.minX !== "function" ||
+      typeof boxes.maxX !== "function" ||
+      typeof boxes.minY !== "function" ||
+      typeof boxes.maxY !== "function") return null;
+
+  /* BBoxReader stores coordinates as fractions of the original full-page canvas. */
+  var left = Math.max(0, req.x / req.boxW - 1 / 256);
+  var top = Math.max(0, req.y / req.boxH - 1 / 256);
+  var right = Math.min(1, (req.x + req.w) / req.boxW + 1 / 256);
+  var bottom = Math.min(1, (req.y + req.h) / req.boxH + 1 / 256);
+
+  return function (index) {
+    /* Keep unbounded state/dependency operations conservatively. */
+    if (index < 0 || index >= boxes.length || boxes.isEmpty(index)) return true;
+    return boxes.maxX(index) >= left && boxes.minX(index) <= right &&
+      boxes.maxY(index) >= top && boxes.minY(index) <= bottom;
+  };
+}
+
+function drawTile(req) {"""
+                if (!script.contains(oldTileStart)) {
+                    throw GradleException("Unexpected pinned Gander PDF tile-render function.")
+                }
+                script = script.replace(oldTileStart, newTileStart)
+
+                val oldTileRender = """    recordImages: mode,
+    viewport: slot.unscaled.clone({ scale: cssScale * req.k }),"""
+                val newTileRender = """    recordImages: mode,
+    operationsFilter: tileOperationsFilter(slot, req),
+    viewport: slot.unscaled.clone({ scale: cssScale * req.k }),"""
+                if (!script.contains(oldTileRender)) {
+                    throw GradleException("Unexpected pinned Gander PDF tile render options.")
+                }
+                script = script.replace(oldTileRender, newTileRender)
+
                 val oldStartPinch = """function startPinch(e) {
   finishAnimation();"""
                 val newStartPinch = """function startPinch(e) {
