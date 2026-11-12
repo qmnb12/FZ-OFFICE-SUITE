@@ -70,6 +70,15 @@ assert(appGradle.includes("recordOperations: !page.recordedBBoxes") &&
   appGradle.includes("boxes.maxX(index) >= left") &&
   appGradle.includes("Unexpected pinned Gander PDF tile render options."),
   "PDF zoom tiles must filter the page display list to operations that intersect the visible tile");
+assert(appGradle.includes("return r > 1 / TILE_GATE;") &&
+  appGradle.includes("Unexpected pinned Gander PDF bitmap-size policy."),
+  "PDF pinch-out must keep higher-resolution page bitmaps instead of rerendering them at gesture release");
+assert(appGradle.includes("var TILE_SETTLE_MS = 300;") &&
+  appGradle.includes("window.requestIdleCallback") &&
+  appGradle.includes("window.cancelIdleCallback") &&
+  appGradle.includes("Unexpected pinned Gander PDF tile scheduling function."),
+  "PDF sharp-tile rendering must wait for a quiet period and begin during browser idle time");
+
 assert(appGradle.includes("var MAX_TILES = 1;"),
   "PDF high-resolution tile rendering must remain single-flight for smoother frame pacing");
 
