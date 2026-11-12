@@ -64,12 +64,12 @@ assert(appGradle.includes("e.touches.length >= 2") &&
   appGradle.includes("e.touches.length !== 2") &&
   appGradle.includes("if (pinch) endPinch();"),
   "PDF multi-touch pointer-count changes and cancellation must always release the active pinch state");
-assert(appGradle.includes("recordOperations: !page.recordedBBoxes") &&
-  appGradle.includes("operationsFilter: tileOperationsFilter(slot, req)") &&
-  appGradle.includes("boxes.isEmpty(index)") &&
-  appGradle.includes("boxes.maxX(index) >= left") &&
-  appGradle.includes("Unexpected pinned Gander PDF tile render options."),
-  "PDF zoom tiles must filter the page display list to operations that intersect the visible tile");
+assert(!appGradle.includes("recordOperations: !page.recordedBBoxes") &&
+  !appGradle.includes("operationsFilter: tileOperationsFilter(slot, req)") &&
+  !appGradle.includes("function tileOperationsFilter") &&
+  appGradle.includes("val baseRenderOptions =") &&
+  appGradle.includes("val tileRenderOptions ="),
+  "Normal PDF page and tile draws must avoid per-operator bbox tracking on every rendered page");
 assert(appGradle.includes("return r > 1 / TILE_GATE;") &&
   appGradle.includes("Unexpected pinned Gander PDF bitmap-size policy."),
   "PDF pinch-out must keep higher-resolution page bitmaps instead of rerendering them at gesture release");
@@ -86,14 +86,14 @@ assert(appGradle.includes("var keptTile = false;") &&
   "PDF zoom-out at any scale must retain only one visible sharp tile for reuse");
 assert(appGradle.includes("schedulePageWork(watched);") &&
   appGradle.includes("var pageWorkNeedsObserve = false;") &&
-  appGradle.includes("window.requestIdleCallback(run, { timeout: 400 });") &&
+  appGradle.includes("window.requestAnimationFrame(run)") &&
+  appGradle.includes("window.cancelAnimationFrame(pageWorkFrame)") &&
+  !appGradle.includes("window.requestIdleCallback(run, { timeout: 400 });") &&
   appGradle.includes("if (pinch) cancelPageWork();") &&
   appGradle.includes("if (pageWorkHold) return;") &&
   appGradle.includes("pageWorkHold = true;") &&
-  appGradle.includes("pageWorkHold = false;") &&
-  appGradle.includes("else schedulePageWork(false);") &&
-  appGradle.includes("Page work is started later from an idle slot"),
-  "PDF fit-boundary observer rebuilds and page redraws must be deferred away from the gesture-end frame");
+  appGradle.includes("pageWorkHold = false;"),
+  "PDF fit-boundary work must resume promptly after layout without a long idle timeout");
 
 assert(appGradle.includes("var MAX_TILES = 1;"),
   "PDF high-resolution tile rendering must remain single-flight for smoother frame pacing");
@@ -111,8 +111,17 @@ assert(fitStart >= 0 && fitEnd > fitStart &&
   fitBlock.includes("targetScale / current"),
   "PDF Fit-to-width must apply native zoom only after PDF.js finishes its fit-width layout");
 assert(pdfJs.includes("Accept-Ranges") && pdfJs.includes("Content-Range") &&
-  pdfJs.includes("openAssetFileDescriptor") && pdfJs.includes("openInputStream"),
-  "Large PDFs must stream read-only with HTTP range support");
+  pdfJs.includes("openAssetFileDescriptor") && pdfJs.includes("openInputStream") &&
+  pdfJs.includes("OpenableColumns.SIZE") && pdfJs.includes("Os.lseek") &&
+  pdfJs.includes("val seekable ="),
+  "Large PDFs must detect provider-reported size and seekability before enabling range streaming");
+assert(appGradle.includes('val newRangeChunk = "rangeChunkSize: 262144,"'),
+  "PDF range requests must use a 256 KiB chunk to reduce repeated SAF descriptor opens");
+assert(pdfJs.includes("lastUpdateTime.toString()") &&
+  pdfJs.includes("/assets/$assetRevision/viewer/pdf.html") &&
+  pdfJs.includes("public, max-age=31536000, immutable") &&
+  pdfJs.includes("/assets/$assetRevision/viewer/"),
+  "Bundled PDF viewer assets must use an install-revision URL and immutable cache while PDF bytes remain no-store");
 assert(!pdfJs.includes("openOutputStream") && pdfJs.includes("UriPdfPrintAdapter"),
   "The PDF.js reader must never write into the original PDF");
 assert(pdfManifest.includes("viewer/pdf.html") && pdfManifest.includes("viewer/lib/pdf.min.mjs"),

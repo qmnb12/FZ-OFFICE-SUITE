@@ -241,57 +241,22 @@ val prepareGanderViewerAssets = tasks.register("prepareGanderViewerAssets") {
                 }
                 script = script.replace(oldMaxTiles, newMaxTiles)
 
-                val oldBaseRender = """      recordImages: mode
+                // Keep ordinary page and tile draws free of per-operator bounding-box
+                // tracking. PDF.js executes the tracker on every operator and pays that
+                // cost on every visible page, while this reader only needs sharper tiles
+                // occasionally during zoom.
+                val baseRenderOptions = """      recordImages: mode
     });
     return slot.task.promise.then(function () {"""
-                val newBaseRender = """      recordImages: mode,
-      recordOperations: !page.recordedBBoxes
-    });
-    return slot.task.promise.then(function () {"""
-                if (!script.contains(oldBaseRender)) {
+                if (!script.contains(baseRenderOptions)) {
                     throw GradleException("Unexpected pinned Gander PDF base-page render options.")
                 }
-                script = script.replace(oldBaseRender, newBaseRender)
 
-                val oldTileStart = "function drawTile(req) {"
-                val newTileStart = """function tileOperationsFilter(slot, req) {
-  var boxes = slot.page && slot.page.recordedBBoxes;
-  if (!boxes || !boxes.length ||
-      typeof boxes.isEmpty !== "function" ||
-      typeof boxes.minX !== "function" ||
-      typeof boxes.maxX !== "function" ||
-      typeof boxes.minY !== "function" ||
-      typeof boxes.maxY !== "function") return null;
-
-  /* BBoxReader stores coordinates as fractions of the original full-page canvas. */
-  var left = Math.max(0, req.x / req.boxW - 1 / 256);
-  var top = Math.max(0, req.y / req.boxH - 1 / 256);
-  var right = Math.min(1, (req.x + req.w) / req.boxW + 1 / 256);
-  var bottom = Math.min(1, (req.y + req.h) / req.boxH + 1 / 256);
-
-  return function (index) {
-    /* Keep unbounded state/dependency operations conservatively. */
-    if (index < 0 || index >= boxes.length || boxes.isEmpty(index)) return true;
-    return boxes.maxX(index) >= left && boxes.minX(index) <= right &&
-      boxes.maxY(index) >= top && boxes.minY(index) <= bottom;
-  };
-}
-
-function drawTile(req) {"""
-                if (!script.contains(oldTileStart)) {
-                    throw GradleException("Unexpected pinned Gander PDF tile-render function.")
-                }
-                script = script.replace(oldTileStart, newTileStart)
-
-                val oldTileRender = """    recordImages: mode,
+                val tileRenderOptions = """    recordImages: mode,
     viewport: slot.unscaled.clone({ scale: cssScale * req.k }),"""
-                val newTileRender = """    recordImages: mode,
-    operationsFilter: tileOperationsFilter(slot, req),
-    viewport: slot.unscaled.clone({ scale: cssScale * req.k }),"""
-                if (!script.contains(oldTileRender)) {
+                if (!script.contains(tileRenderOptions)) {
                     throw GradleException("Unexpected pinned Gander PDF tile render options.")
                 }
-                script = script.replace(oldTileRender, newTileRender)
 
                 // Keep one finished high-resolution tile on the visible page while
                 // zoomed back out. The tile is still the same PDF content and can be
@@ -459,6 +424,15 @@ function scheduleRefine() {
                 }
                 script = script.replace(oldTouchCancel, newTouchCancel)
 
+                // Larger SAF range reads reduce repeated descriptor opens and seeks for
+                // PDFs stored by document providers.
+                val oldRangeChunk = "rangeChunkSize: 65536,"
+                val newRangeChunk = "rangeChunkSize: 262144,"
+                if (!script.contains(oldRangeChunk)) {
+                    throw GradleException("Unexpected pinned Gander PDF range chunk size.")
+                }
+                script = script.replace(oldRangeChunk, newRangeChunk)
+
                 val oldEndPinch = """function endPinch() {
   var g = pinch;
   pinch = null;
@@ -517,7 +491,7 @@ function scheduleRefine() {
 
                 val oldObservePages = "function observePages() {"
                 val newObservePages = """var pageWorkTimer = 0;
-var pageWorkIdle = 0;
+var pageWorkFrame = 0;
 var pageWorkGeneration = 0;
 var pageWorkNeedsObserve = false;
 var pageWorkHold = false;
@@ -529,9 +503,9 @@ function cancelPageWork() {
     clearTimeout(pageWorkTimer);
     pageWorkTimer = 0;
   }
-  if (pageWorkIdle && typeof window.cancelIdleCallback === "function") {
-    window.cancelIdleCallback(pageWorkIdle);
-    pageWorkIdle = 0;
+  if (pageWorkFrame && typeof window.cancelAnimationFrame === "function") {
+    window.cancelAnimationFrame(pageWorkFrame);
+    pageWorkFrame = 0;
   }
 }
 
@@ -542,7 +516,7 @@ function schedulePageWork(reobserve) {
   pageWorkTimer = setTimeout(function () {
     pageWorkTimer = 0;
     var run = function () {
-      pageWorkIdle = 0;
+      pageWorkFrame = 0;
       if (generation !== pageWorkGeneration || pinch) return;
       pageWorkHold = false;
       var needsObserve = pageWorkNeedsObserve;
@@ -550,12 +524,12 @@ function schedulePageWork(reobserve) {
       if (needsObserve) observePages();
       pump();
     };
-    if (typeof window.requestIdleCallback === "function") {
-      pageWorkIdle = window.requestIdleCallback(run, { timeout: 400 });
+    if (typeof window.requestAnimationFrame === "function") {
+      pageWorkFrame = window.requestAnimationFrame(run);
     } else {
-      pageWorkTimer = setTimeout(run, 120);
+      pageWorkTimer = setTimeout(run, 16);
     }
-  }, 45);
+  }, 32);
 }
 
 function observePages() {"""

@@ -5,6 +5,9 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.provider.OpenableColumns
+import android.system.Os
+import android.system.OsConstants
 import android.os.Bundle
 import android.view.GestureDetector
 import android.view.InputDevice
@@ -63,6 +66,11 @@ class PdfJsViewerActivity : Activity() {
     }
 
     private val ioExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val assetRevision: String by lazy(LazyThreadSafetyMode.NONE) {
+        @Suppress("DEPRECATION")
+        runCatching { packageManager.getPackageInfo(packageName, 0).lastUpdateTime.toString() }
+            .getOrDefault("0")
+    }
     private var documentUri: Uri? = null
     private var documentName = "PDF document"
     @Volatile private var documentLength = -1L
@@ -247,18 +255,14 @@ class PdfJsViewerActivity : Activity() {
     private fun prepareDocument() {
         val uri = documentUri ?: return
         ioExecutor.execute {
-            val length = try {
-                contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length } ?: -1L
-            } catch (_: Exception) {
-                -1L
-            }
-            val ranged = length >= RANGE_THRESHOLD_BYTES
+            val (length, seekable) = probeDocument(uri)
+            val ranged = seekable && length >= RANGE_THRESHOLD_BYTES
             runOnUiThread {
                 if (closing || isFinishing || isDestroyed) return@runOnUiThread
                 documentLength = length
                 useRanges = ranged
                 val resume = currentPage.coerceAtLeast(1)
-                val url = "$ASSET_ORIGIN/assets/viewer/pdf.html" +
+                val url = "$ASSET_ORIGIN/assets/$assetRevision/viewer/pdf.html" +
                     "?name=" + Uri.encode(documentName) +
                     "&ext=pdf&ranged=" + (if (useRanges) "1" else "0") +
                     "&resume=" + resume
@@ -268,6 +272,47 @@ class PdfJsViewerActivity : Activity() {
         }
     }
 
+    /**
+     * Probe a SAF Uri once. Some providers report UNKNOWN_LENGTH on the descriptor
+     * while exposing OpenableColumns.SIZE; use range loading only when the descriptor
+     * is also genuinely seekable.
+     */
+    private fun probeDocument(uri: Uri): Pair<Long, Boolean> {
+        val descriptor = try {
+            contentResolver.openAssetFileDescriptor(uri, "r")
+        } catch (_: Exception) {
+            null
+        } ?: return queryDocumentLength(uri) to false
+
+        return descriptor.use { afd ->
+            val length = afd.length.takeIf { it > 0L } ?: queryDocumentLength(uri)
+            val seekable = if (length >= RANGE_THRESHOLD_BYTES) {
+                try {
+                    Os.lseek(afd.fileDescriptor, afd.startOffset, OsConstants.SEEK_SET)
+                    true
+                } catch (_: Exception) {
+                    false
+                }
+            } else {
+                false
+            }
+            length to seekable
+        }
+    }
+
+    private fun queryDocumentLength(uri: Uri): Long = try {
+        contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+            val column = cursor.getColumnIndex(OpenableColumns.SIZE)
+            if (column >= 0 && cursor.moveToFirst() && !cursor.isNull(column)) {
+                cursor.getLong(column).takeIf { it > 0L } ?: -1L
+            } else {
+                -1L
+            }
+        } ?: -1L
+    } catch (_: Exception) {
+        -1L
+    }
+
     private fun intercept(url: Uri, range: String?): WebResourceResponse {
         if (url.scheme != "https" || url.host != ASSET_HOST) return notFound()
         val path = url.path.orEmpty()
@@ -275,10 +320,21 @@ class PdfJsViewerActivity : Activity() {
         if (path == DOCUMENT_PATH) return documentResponse(range)
         if (!path.startsWith("/assets/")) return notFound()
 
-        val relative = path.removePrefix("/assets/")
+        val versionedPath = path.removePrefix("/assets/")
+        val revisionPrefix = "$assetRevision/"
+        if (!versionedPath.startsWith(revisionPrefix)) return notFound()
+        val relative = versionedPath.removePrefix(revisionPrefix)
+        if (!relative.startsWith("viewer/")) return notFound()
         return try {
             val input = assets.open(relative)
-            response(assetMime(relative), if (isTextAsset(relative)) "utf-8" else null, 200, "OK", input)
+            WebResourceResponse(
+                assetMime(relative),
+                if (isTextAsset(relative)) "utf-8" else null,
+                200,
+                "OK",
+                assetHeaders(),
+                input
+            )
         } catch (_: IOException) {
             notFound()
         }
@@ -384,6 +440,12 @@ class PdfJsViewerActivity : Activity() {
         "Content-Security-Policy" to CSP
     )
 
+    private fun assetHeaders(): MutableMap<String, String> = hashMapOf(
+        "X-Content-Type-Options" to "nosniff",
+        "Cache-Control" to "public, max-age=31536000, immutable",
+        "Content-Security-Policy" to CSP
+    )
+
     private fun response(
         mime: String,
         encoding: String?,
@@ -419,7 +481,8 @@ class PdfJsViewerActivity : Activity() {
     private fun isTrustedViewerPage(uri: Uri): Boolean {
         val path = uri.path ?: return false
         return uri.scheme == "https" && uri.host == ASSET_HOST &&
-            path.startsWith("/assets/viewer/") && path.endsWith(".html") && ".." !in path
+            path.startsWith("/assets/$assetRevision/viewer/") &&
+            path.endsWith(".html") && ".." !in path
     }
 
     private fun connectPageBridge() {
