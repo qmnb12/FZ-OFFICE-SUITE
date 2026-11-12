@@ -73,11 +73,16 @@ assert(appGradle.includes("recordOperations: !page.recordedBBoxes") &&
 assert(appGradle.includes("return r > 1 / TILE_GATE;") &&
   appGradle.includes("Unexpected pinned Gander PDF bitmap-size policy."),
   "PDF pinch-out must keep higher-resolution page bitmaps instead of rerendering them at gesture release");
-assert(appGradle.includes("var TILE_SETTLE_MS = 300;") &&
+assert(appGradle.includes('val newTileDelay = "var TILE_SETTLE_MS = 150;"') &&
   appGradle.includes("window.requestIdleCallback") &&
   appGradle.includes("window.cancelIdleCallback") &&
+  appGradle.includes("{ timeout: 400 }") &&
   appGradle.includes("Unexpected pinned Gander PDF tile scheduling function."),
-  "PDF sharp-tile rendering must wait for a quiet period and begin during browser idle time");
+  "PDF sharp-tile rendering must start promptly after a quiet gesture without blocking active frames");
+assert(appGradle.includes("var keptTile = false;") &&
+  appGradle.includes("cached.tile && onScreen(cached)") &&
+  appGradle.includes("Unexpected pinned Gander PDF low-zoom tile cache branch."),
+  "PDF zoom-out must retain one visible sharp tile so repeated zoom-in can reuse it");
 
 assert(appGradle.includes("var MAX_TILES = 1;"),
   "PDF high-resolution tile rendering must remain single-flight for smoother frame pacing");
