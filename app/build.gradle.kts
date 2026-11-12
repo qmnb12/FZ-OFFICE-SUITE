@@ -312,7 +312,7 @@ function drawTile(req) {"""
     var keptTile = false;
     for (i = 0; i < slots.length; i++) {
       var cached = slots[i];
-      if (shrink >= 1 && !keptTile && cached.state === "drawn" &&
+      if (!keptTile && cached.state === "drawn" &&
           cached.tile && onScreen(cached)) {
         shed(cached.pending);
         cached.pending = null;
