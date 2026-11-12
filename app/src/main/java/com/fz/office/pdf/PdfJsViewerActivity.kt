@@ -588,13 +588,25 @@ class PdfJsViewerActivity : Activity() {
         }
 
         override fun fitToWidth() {
+            val targetScale = baseScale
             view.evaluateJavascript(
-                "window.vwPdfShrink && window.vwPdfShrink(1, window.innerHeight / 2);",
-                null
-            )
-            val start = baseScale
-            val current = view.scale
-            if (start > 0f && current > 0f) view.zoomBy(start / current)
+                "window.vwPdfShrink && window.vwPdfShrink(1, window.innerHeight / 2);"
+            ) {
+                // Wait until PDF.js has committed the fit-width layout before changing
+                // WebView's native zoom. Running both scale systems in parallel can
+                // produce a second correction against a stale view.scale.
+                if (closing || targetScale <= 0f) return@evaluateJavascript
+                view.post {
+                    if (closing) return@post
+                    val current = view.scale
+                    if (current > 0f) {
+                        val factor = targetScale / current
+                        if (factor.isFinite() && factor > 0f && kotlin.math.abs(factor - 1f) > 0.001f) {
+                            view.zoomBy(factor)
+                        }
+                    }
+                }
+            }
         }
         override fun pageCount(onResult: (Int?) -> Unit) {
             onResult(totalPages.takeIf { it > 0 })

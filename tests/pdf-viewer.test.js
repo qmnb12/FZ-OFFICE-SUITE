@@ -84,6 +84,13 @@ assert(appGradle.includes("var keptTile = false;") &&
   appGradle.includes("cached.tile && onScreen(cached)") &&
   appGradle.includes("Unexpected pinned Gander PDF low-zoom tile cache branch."),
   "PDF zoom-out at any scale must retain only one visible sharp tile for reuse");
+assert(appGradle.includes("schedulePageWork(watched);") &&
+  appGradle.includes("var pageWorkNeedsObserve = false;") &&
+  appGradle.includes("window.requestIdleCallback(run, { timeout: 400 });") &&
+  appGradle.includes("if (pinch) cancelPageWork(); else schedulePageWork(false);") &&
+  appGradle.includes("else schedulePageWork(false);") &&
+  appGradle.includes("Page work is started later from an idle slot"),
+  "PDF fit-boundary observer rebuilds and page redraws must be deferred away from the gesture-end frame");
 
 assert(appGradle.includes("var MAX_TILES = 1;"),
   "PDF high-resolution tile rendering must remain single-flight for smoother frame pacing");
@@ -92,6 +99,14 @@ assert(pdfJs.includes("window.vwPdfShrink(1") &&
   pdfJs.includes("override fun zoomIn()") && pdfJs.includes("override fun zoomOut()") &&
   pdfJs.includes("view.zoomIn()") && pdfJs.includes("view.zoomOut()"),
   "PDF Tools zoom must coordinate the PDF.js shrink range and native WebView zoom");
+const fitStart = pdfJs.indexOf("override fun fitToWidth()");
+const fitEnd = pdfJs.indexOf("override fun pageCount", fitStart);
+const fitBlock = pdfJs.slice(fitStart, fitEnd);
+assert(fitStart >= 0 && fitEnd > fitStart &&
+  fitBlock.indexOf("view.evaluateJavascript") < fitBlock.indexOf("view.post") &&
+  fitBlock.indexOf("view.post") < fitBlock.indexOf("view.zoomBy") &&
+  fitBlock.includes("targetScale / current"),
+  "PDF Fit-to-width must apply native zoom only after PDF.js finishes its fit-width layout");
 assert(pdfJs.includes("Accept-Ranges") && pdfJs.includes("Content-Range") &&
   pdfJs.includes("openAssetFileDescriptor") && pdfJs.includes("openInputStream"),
   "Large PDFs must stream read-only with HTTP range support");

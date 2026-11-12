@@ -394,6 +394,7 @@ function scheduleRefine() {
   finishAnimation();"""
                 val newStartPinch = """function startPinch(e) {
   if (pinch) endPinch();
+  cancelPageWork();
   finishAnimation();"""
                 if (!script.contains(oldStartPinch)) {
                     throw GradleException("Unexpected pinned Gander PDF pinch-start handler.")
@@ -457,6 +458,100 @@ function scheduleRefine() {
                     throw GradleException("Unexpected pinned Gander PDF touch-cancel handler.")
                 }
                 script = script.replace(oldTouchCancel, newTouchCancel)
+
+                val oldEndPinch = """function endPinch() {
+  var g = pinch;
+  pinch = null;
+  if (g.taken) settle(g.to, g.at, g.y);
+}"""
+                val newEndPinch = """function endPinch() {
+  var g = pinch;
+  pinch = null;
+  if (g.taken) settle(g.to, g.at, g.y);
+  else schedulePageWork(false);
+}"""
+                if (!script.contains(oldEndPinch)) {
+                    throw GradleException("Unexpected pinned Gander PDF pinch-end handler.")
+                }
+                script = script.replace(oldEndPinch, newEndPinch)
+
+                val oldSettleObserve = "  if (watched) observePages();"
+                val newSettleObserve = "  schedulePageWork(watched);"
+                if (!script.contains(oldSettleObserve)) {
+                    throw GradleException("Unexpected pinned Gander PDF settle observer call.")
+                }
+                script = script.replace(oldSettleObserve, newSettleObserve)
+
+                val oldSettlePump = """  pump();
+  /* The page under the middle of the screen is likely another one now, and the sharp
+     patches, if any were up, have nothing left to sharpen. A scroll of nought says
+     neither, so both are said here. */"""
+                val newSettlePump = """  /* Page work is started later from an idle slot, after the fit-width frame has painted.
+     The queued pages keep their old bitmap until their replacement is ready. */"""
+                if (!script.contains(oldSettlePump)) {
+                    throw GradleException("Unexpected pinned Gander PDF settle render call.")
+                }
+                script = script.replace(oldSettlePump, newSettlePump)
+
+                val oldMoved = """function moved() {
+  schedulePageReport();
+  scheduleRefine();
+}"""
+                val newMoved = """function moved() {
+  schedulePageReport();
+  scheduleRefine();
+  if (pinch) cancelPageWork(); else schedulePageWork(false);
+}"""
+                if (!script.contains(oldMoved)) {
+                    throw GradleException("Unexpected pinned Gander PDF viewport-moved handler.")
+                }
+                script = script.replace(oldMoved, newMoved)
+
+                val oldObservePages = "function observePages() {"
+                val newObservePages = """var pageWorkTimer = 0;
+var pageWorkIdle = 0;
+var pageWorkGeneration = 0;
+var pageWorkNeedsObserve = false;
+
+function cancelPageWork() {
+  pageWorkGeneration++;
+  if (pageWorkTimer) {
+    clearTimeout(pageWorkTimer);
+    pageWorkTimer = 0;
+  }
+  if (pageWorkIdle && typeof window.cancelIdleCallback === "function") {
+    window.cancelIdleCallback(pageWorkIdle);
+    pageWorkIdle = 0;
+  }
+}
+
+function schedulePageWork(reobserve) {
+  if (reobserve) pageWorkNeedsObserve = true;
+  cancelPageWork();
+  var generation = pageWorkGeneration;
+  pageWorkTimer = setTimeout(function () {
+    pageWorkTimer = 0;
+    var run = function () {
+      pageWorkIdle = 0;
+      if (generation !== pageWorkGeneration || pinch) return;
+      var needsObserve = pageWorkNeedsObserve;
+      pageWorkNeedsObserve = false;
+      if (needsObserve) observePages();
+      pump();
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      pageWorkIdle = window.requestIdleCallback(run, { timeout: 400 });
+    } else {
+      pageWorkTimer = setTimeout(run, 120);
+    }
+  }, 45);
+}
+
+function observePages() {"""
+                if (!script.contains(oldObservePages)) {
+                    throw GradleException("Unexpected pinned Gander PDF observer declaration.")
+                }
+                script = script.replace(oldObservePages, newObservePages)
                 outputBytes = script.toByteArray(Charsets.UTF_8)
             }
 
