@@ -293,6 +293,41 @@ function drawTile(req) {"""
                 }
                 script = script.replace(oldTileRender, newTileRender)
 
+                // Keep one finished high-resolution tile on the visible page while
+                // zoomed back out. The tile is still the same PDF content and can be
+                // reused when the reader pinches back to the same area and scale.
+                val oldLowZoom = """  if (shrink < 1 || !(k > gateScale() * TILE_GATE)) {
+    /* Back at a zoom the page bitmaps cover on their own. A walk of every slot rather
+       than a register of which ones are tiled: it is a property read per page, against
+       the layout read per page that this function exists to avoid. */
+    for (i = 0; i < slots.length; i++) dropTile(slots[i]);
+    return;
+  }"""
+                val newLowZoom = """  if (shrink < 1 || !(k > gateScale() * TILE_GATE)) {
+    /*
+     * Keep one completed sharp tile on the currently visible page while zooming out.
+     * It remains correct at the smaller scale and avoids another display-list render
+     * when the reader zooms back into the same page area.
+     */
+    var keptTile = false;
+    for (i = 0; i < slots.length; i++) {
+      var cached = slots[i];
+      if (shrink >= 1 && !keptTile && cached.state === "drawn" &&
+          cached.tile && onScreen(cached)) {
+        shed(cached.pending);
+        cached.pending = null;
+        keptTile = true;
+      } else {
+        dropTile(cached);
+      }
+    }
+    return;
+  }"""
+                if (!script.contains(oldLowZoom)) {
+                    throw GradleException("Unexpected pinned Gander PDF low-zoom tile cache branch.")
+                }
+                script = script.replace(oldLowZoom, newLowZoom)
+
                 // A bitmap rendered at a larger page width remains sharp when the
                 // page is reduced. Do not rerasterize it on pinch release; only redraw
                 // after the page grows enough to expose a real resolution shortfall.
@@ -313,7 +348,7 @@ function drawTile(req) {"""
                 // after a gesture. Wait for a quiet period and start from an idle slot;
                 // PDF.js then yields its operator-list execution between animation frames.
                 val oldTileDelay = "var TILE_SETTLE_MS = 150;"
-                val newTileDelay = "var TILE_SETTLE_MS = 300;"
+                val newTileDelay = "var TILE_SETTLE_MS = 150;"
                 if (!script.contains(oldTileDelay)) {
                     throw GradleException("Unexpected pinned Gander PDF tile settle delay.")
                 }
@@ -341,7 +376,7 @@ function scheduleRefine() {
       tileIdle = window.requestIdleCallback(function () {
         tileIdle = 0;
         refine();
-      }, { timeout: 1000 });
+      }, { timeout: 400 });
     } else {
       tileTimer = setTimeout(function () {
         tileTimer = 0;
