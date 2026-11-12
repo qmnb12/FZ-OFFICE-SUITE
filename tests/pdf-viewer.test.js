@@ -80,9 +80,10 @@ assert(appGradle.includes('val newTileDelay = "var TILE_SETTLE_MS = 150;"') &&
   appGradle.includes("Unexpected pinned Gander PDF tile scheduling function."),
   "PDF sharp-tile rendering must start promptly after a quiet gesture without blocking active frames");
 assert(appGradle.includes("var keptTile = false;") &&
+  appGradle.includes("if (!keptTile && cached.state === \"drawn\"") &&
   appGradle.includes("cached.tile && onScreen(cached)") &&
   appGradle.includes("Unexpected pinned Gander PDF low-zoom tile cache branch."),
-  "PDF zoom-out must retain one visible sharp tile so repeated zoom-in can reuse it");
+  "PDF zoom-out at any scale must retain only one visible sharp tile for reuse");
 
 assert(appGradle.includes("var MAX_TILES = 1;"),
   "PDF high-resolution tile rendering must remain single-flight for smoother frame pacing");
