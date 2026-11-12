@@ -64,6 +64,15 @@ assert(appGradle.includes("e.touches.length >= 2") &&
   appGradle.includes("e.touches.length !== 2") &&
   appGradle.includes("if (pinch) endPinch();"),
   "PDF multi-touch pointer-count changes and cancellation must always release the active pinch state");
+assert(appGradle.includes("recordOperations: !page.recordedBBoxes") &&
+  appGradle.includes("operationsFilter: tileOperationsFilter(slot, req)") &&
+  appGradle.includes("boxes.isEmpty(index)") &&
+  appGradle.includes("boxes.maxX(index) >= left") &&
+  appGradle.includes("Unexpected pinned Gander PDF tile render options."),
+  "PDF zoom tiles must filter the page display list to operations that intersect the visible tile");
+assert(appGradle.includes("var MAX_TILES = 1;"),
+  "PDF high-resolution tile rendering must remain single-flight for smoother frame pacing");
+
 assert(pdfJs.includes("window.vwPdfShrink(1") &&
   pdfJs.includes("override fun zoomIn()") && pdfJs.includes("override fun zoomOut()") &&
   pdfJs.includes("view.zoomIn()") && pdfJs.includes("view.zoomOut()"),
