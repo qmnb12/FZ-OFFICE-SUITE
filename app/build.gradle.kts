@@ -293,6 +293,68 @@ function drawTile(req) {"""
                 }
                 script = script.replace(oldTileRender, newTileRender)
 
+                // A bitmap rendered at a larger page width remains sharp when the
+                // page is reduced. Do not rerasterize it on pinch release; only redraw
+                // after the page grows enough to expose a real resolution shortfall.
+                val oldBitmapPolicy = """function sizedForNow(slot) {
+  var r = slot.shrink / shrink;
+  return r < TILE_GATE && r > 1 / TILE_GATE;
+}"""
+                val newBitmapPolicy = """function sizedForNow(slot) {
+  var r = slot.shrink / shrink;
+  return r > 1 / TILE_GATE;
+}"""
+                if (!script.contains(oldBitmapPolicy)) {
+                    throw GradleException("Unexpected pinned Gander PDF bitmap-size policy.")
+                }
+                script = script.replace(oldBitmapPolicy, newBitmapPolicy)
+
+                // Do not start expensive high-resolution tile work on the first frame
+                // after a gesture. Wait for a quiet period and start from an idle slot;
+                // PDF.js then yields its operator-list execution between animation frames.
+                val oldTileDelay = "var TILE_SETTLE_MS = 150;"
+                val newTileDelay = "var TILE_SETTLE_MS = 300;"
+                if (!script.contains(oldTileDelay)) {
+                    throw GradleException("Unexpected pinned Gander PDF tile settle delay.")
+                }
+                script = script.replace(oldTileDelay, newTileDelay)
+
+                val oldScheduleRefine = """var tileTimer = 0;
+function scheduleRefine() {
+  if (tileTimer) clearTimeout(tileTimer);
+  tileTimer = setTimeout(function () { tileTimer = 0; refine(); }, TILE_SETTLE_MS);
+}"""
+                val newScheduleRefine = """var tileTimer = 0;
+var tileIdle = 0;
+function scheduleRefine() {
+  if (tileTimer) {
+    clearTimeout(tileTimer);
+    tileTimer = 0;
+  }
+  if (tileIdle && typeof window.cancelIdleCallback === "function") {
+    window.cancelIdleCallback(tileIdle);
+    tileIdle = 0;
+  }
+  tileTimer = setTimeout(function () {
+    tileTimer = 0;
+    if (typeof window.requestIdleCallback === "function") {
+      tileIdle = window.requestIdleCallback(function () {
+        tileIdle = 0;
+        refine();
+      }, { timeout: 1000 });
+    } else {
+      tileTimer = setTimeout(function () {
+        tileTimer = 0;
+        refine();
+      }, 250);
+    }
+  }, TILE_SETTLE_MS);
+}"""
+                if (!script.contains(oldScheduleRefine)) {
+                    throw GradleException("Unexpected pinned Gander PDF tile scheduling function.")
+                }
+                script = script.replace(oldScheduleRefine, newScheduleRefine)
+
                 val oldStartPinch = """function startPinch(e) {
   finishAnimation();"""
                 val newStartPinch = """function startPinch(e) {
