@@ -115,6 +115,12 @@ assert(pdfJs.includes("Accept-Ranges") && pdfJs.includes("Content-Range") &&
   pdfJs.includes("OpenableColumns.SIZE") && pdfJs.includes("Os.lseek") &&
   pdfJs.includes("val seekable ="),
   "Large PDFs must detect provider-reported size and seekability before enabling range streaming");
+assert(pdfJs.includes("Triple<Long, Boolean, Boolean>") &&
+  pdfJs.includes("containsPdfEncryptionMarker") &&
+  pdfJs.includes("Os.pread") &&
+  pdfJs.includes("Regex(\"/Encrypt(?![A-Za-z])\")") &&
+  pdfJs.includes("seekable && !encrypted && length >= RANGE_THRESHOLD_BYTES"),
+  "AES-encrypted PDFs must use a full stream instead of fragile partial range reads");
 assert(appGradle.includes('val newRangeChunk = "rangeChunkSize: 262144,"'),
   "PDF range requests must use a 256 KiB chunk to reduce repeated SAF descriptor opens");
 assert(pdfJs.includes("lastUpdateTime.toString()") &&
