@@ -255,8 +255,11 @@ class PdfJsViewerActivity : Activity() {
     private fun prepareDocument() {
         val uri = documentUri ?: return
         ioExecutor.execute {
-            val (length, seekable) = probeDocument(uri)
-            val ranged = seekable && length >= RANGE_THRESHOLD_BYTES
+            val (length, seekable, encrypted) = probeDocument(uri)
+            // Password-protected PDFs can trigger extra cross-range reads while PDF.js
+            // resolves the encryption dictionary and xref. Serve them as one stream so
+            // SAF providers cannot break the password flow with a failed partial read.
+            val ranged = seekable && !encrypted && length >= RANGE_THRESHOLD_BYTES
             runOnUiThread {
                 if (closing || isFinishing || isDestroyed) return@runOnUiThread
                 documentLength = length
@@ -277,12 +280,12 @@ class PdfJsViewerActivity : Activity() {
      * while exposing OpenableColumns.SIZE; use range loading only when the descriptor
      * is also genuinely seekable.
      */
-    private fun probeDocument(uri: Uri): Pair<Long, Boolean> {
+    private fun probeDocument(uri: Uri): Triple<Long, Boolean, Boolean> {
         val descriptor = try {
             contentResolver.openAssetFileDescriptor(uri, "r")
         } catch (_: Exception) {
             null
-        } ?: return queryDocumentLength(uri) to false
+        } ?: return Triple(queryDocumentLength(uri), false, false)
 
         return descriptor.use { afd ->
             val length = afd.length.takeIf { it > 0L } ?: queryDocumentLength(uri)
@@ -296,8 +299,50 @@ class PdfJsViewerActivity : Activity() {
             } else {
                 false
             }
-            length to seekable
+            val encrypted = if (seekable && length > 0L) {
+                runCatching { containsPdfEncryptionMarker(afd, length) }.getOrDefault(false)
+            } else {
+                false
+            }
+            Triple(length, seekable, encrypted)
         }
+    }
+
+    /**
+     * Detect the PDF trailer's /Encrypt entry without reading or retaining document
+     * content. The first and last 256 KiB cover the normal encryption dictionary and
+     * trailer/xref area, including PDFs whose encryption dictionary is indirect.
+     *
+     * Positional reads leave the provider descriptor's current position unchanged.
+     */
+    private fun containsPdfEncryptionMarker(
+        afd: android.content.res.AssetFileDescriptor,
+        length: Long
+    ): Boolean {
+        if (length <= 0L) return false
+        val scanBytes = minOf(length, 256L * 1024L).toInt()
+        if (scanBytes <= 0) return false
+
+        val head = ByteArray(scanBytes)
+        val headRead = Os.pread(afd.fileDescriptor, head, 0, head.size, afd.startOffset)
+        if (containsEncryptToken(head, headRead)) return true
+
+        val tailOffset = maxOf(0L, length - scanBytes)
+        val tail = ByteArray(scanBytes)
+        val tailRead = Os.pread(
+            afd.fileDescriptor,
+            tail,
+            0,
+            tail.size,
+            afd.startOffset + tailOffset
+        )
+        return containsEncryptToken(tail, tailRead)
+    }
+
+    private fun containsEncryptToken(bytes: ByteArray, count: Int): Boolean {
+        if (count < 8) return false
+        val text = String(bytes, 0, count, Charsets.ISO_8859_1)
+        return Regex("/Encrypt(?![A-Za-z])").containsMatchIn(text)
     }
 
     private fun queryDocumentLength(uri: Uri): Long = try {
