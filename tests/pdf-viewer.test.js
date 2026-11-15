@@ -58,6 +58,9 @@ assert(appGradle.includes("fitViewportWidth = 0") &&
 assert(appGradle.includes("shrink >= 1 && (!atFloor() || d >= g.apart)") &&
   appGradle.includes("Unexpected pinned Gander PDF pinch ownership check."),
   "Once PDF.js has taken ownership below fit width, it must keep handling the active pinch");
+assert(appGradle.includes("var SHRINK_LEAST = 0.7;") &&
+  appGradle.includes("Unexpected pinned Gander PDF shrink floor value."),
+  "PDF pages must not shrink below 70% of the fitted width");
 assert(appGradle.includes("e.touches.length >= 2") &&
   appGradle.includes("else if (pinch) endPinch();") &&
   appGradle.includes("if (pinch) {") &&
@@ -214,7 +217,7 @@ assert(appGradle.includes("offline-pdf-viewer-1.manifest") &&
   ).every(Boolean) &&
   appGradle.includes('opts.cMapUrl = vwAssetUrl("./lib/cmaps/");') &&
   !appGradle.includes('script = script.replace(cMapConfig, "")') &&
-  appGradle.includes('versionName = "1.0.1"') && appGradle.includes("versionCode = 41"),
+  appGradle.includes('versionName = "1.0.2"') && appGradle.includes("versionCode = 42"),
   "PDF.js assets and all CMaps must be checksum-verified and included in the new app version");
 assert(!appGradle.includes("third_party:mj_pdf") && !settings.includes("mj_pdf") &&
   !settings.includes("PdfiumAndroid"),

@@ -231,6 +231,16 @@ val prepareGanderViewerAssets = tasks.register("prepareGanderViewerAssets") {
                 }
                 script = script.replace(oldPinchGate, newPinchGate)
 
+                // Keep the page readable at the smallest zoom: after fit, a page may
+                // shrink by at most 30% of the fitted width. The pinned viewer starts
+                // at a quarter, which turns pages into unreadable thumbnails on a phone.
+                val oldShrinkFloor = "var SHRINK_LEAST = 0.25;"
+                val newShrinkFloor = "var SHRINK_LEAST = 0.7;"
+                if (!script.contains(oldShrinkFloor)) {
+                    throw GradleException("Unexpected pinned Gander PDF shrink floor value.")
+                }
+                script = script.replace(oldShrinkFloor, newShrinkFloor)
+
                 // Capture operator bounds during the already-required full-page draw.
                 // PDF.js can then skip display-list operations that cannot intersect a
                 // high-resolution zoom tile, instead of replaying the entire page.
@@ -617,8 +627,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 41
-        versionName = "1.0.1"
+        versionCode = 42
+        versionName = "1.0.2"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
