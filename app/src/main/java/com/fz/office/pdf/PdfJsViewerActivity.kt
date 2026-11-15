@@ -209,8 +209,15 @@ class PdfJsViewerActivity : Activity() {
             override fun onPageFinished(view: WebView, url: String) {
                 if (closing) return
                 dashboard?.setLoading(false)
-                baseScale = view.scale.takeIf { it > 0f } ?: 1f
+                // Fit screen se 30% chhota (70% size) show karna hai
+                baseScale = (view.scale.takeIf { it > 0f } ?: 1f) * 0.7f
                 (view as? PdfJsWebView)?.setFitScale(baseScale)
+                // Initial fit-to-width apply karo
+                view.postDelayed({
+                    if (!closing) {
+                        view.evaluateJavascript("window.vwPdfShrink && window.vwPdfShrink(0.7, window.innerHeight / 2);", null)
+                    }
+                }, 100L)
                 pageReady = true
                 connectPageBridge()
                 dashboard?.setStatus(
@@ -674,7 +681,8 @@ class PdfJsViewerActivity : Activity() {
         }
 
         override fun fitToWidth() {
-            val targetScale = baseScale
+            // Fit screen se 30% chhota (70% size) dikhana hai
+            val targetScale = baseScale * 0.7f
             view.evaluateJavascript(
                 "window.vwPdfShrink && window.vwPdfShrink(1, window.innerHeight / 2);"
             ) {
