@@ -704,8 +704,9 @@ class PdfJsViewerActivity : Activity() {
                 // WebView's native zoom. Running both scale systems in parallel can
                 // produce a second correction against a stale view.scale.
                 if (closing || targetScale <= 0f) return@evaluateJavascript
-                view.post {
-                    if (closing) return@post
+                // Post with timeout to prevent indefinite hang
+                view.postDelayed({
+                    if (closing) return@postDelayed
                     val current = view.scale
                     if (current > 0f) {
                         val factor = targetScale / current
@@ -713,7 +714,7 @@ class PdfJsViewerActivity : Activity() {
                             view.zoomBy(factor)
                         }
                     }
-                }
+                }, 300L)  // 300ms timeout for PDF.js to commit layout
             }
         }
         override fun pageCount(onResult: (Int?) -> Unit) {

@@ -622,6 +622,24 @@ class MainActivity : Activity() {
 
     private fun launchDocument(uri: Uri, name: String, mime: String?) {
         try {
+            // First, verify the URI is still accessible (not a temp file)
+            val canOpen = runCatching {
+                contentResolver.openFileDescriptor(uri, "r")?.use { descriptor ->
+                    descriptor.statSize >= 0
+                } ?: false
+            }.getOrDefault(false)
+
+            if (!canOpen) {
+                Toast.makeText(
+                    this, "This file is no longer available. It may have been a temporary download.",
+                    Toast.LENGTH_LONG
+                ).show()
+                // Remove from recent history since it's inaccessible
+                RecentDocumentsStore.remove(this, uri.toString())
+                renderLibrary()
+                return
+            }
+
             val open = when {
                 isPdfDocument(name, mime) || formatHint(uri, name) == "PDF" -> Intent(this, PdfJsViewerActivity::class.java).apply {
                     putExtra(PdfJsViewerActivity.EXTRA_DOCUMENT_URI, uri.toString())
