@@ -367,7 +367,7 @@ class SpreadsheetEditorActivity : Activity() {
             it.removeJavascriptInterface("AndroidBridge")
             it.stopLoading()
             it.webChromeClient = null
-            it.webViewClient = null
+            it.webViewClient = WebViewClient()
             try {
                 it.destroy()
             } catch (_: Exception) {
