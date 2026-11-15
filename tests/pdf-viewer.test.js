@@ -115,12 +115,13 @@ assert(pdfJs.includes("Accept-Ranges") && pdfJs.includes("Content-Range") &&
   pdfJs.includes("OpenableColumns.SIZE") && pdfJs.includes("Os.lseek") &&
   pdfJs.includes("val seekable ="),
   "Large PDFs must detect provider-reported size and seekability before enabling range streaming");
-assert(pdfJs.includes("Triple<Long, Boolean, Boolean>") &&
-  pdfJs.includes("containsPdfEncryptionMarker") &&
+assert(pdfJs.includes("data class PdfProbe") &&
+  pdfJs.includes("scanPdfEncryption") &&
   pdfJs.includes("Os.pread") &&
   pdfJs.includes("Regex(\"/Encrypt(?![A-Za-z])\")") &&
-  pdfJs.includes("seekable && !encrypted && length >= RANGE_THRESHOLD_BYTES"),
-  "AES-encrypted PDFs must use a full stream instead of fragile partial range reads");
+  pdfJs.includes("seekable && encryption == EncryptionScan.ABSENT &&") &&
+  pdfJs.includes("length >= RANGE_THRESHOLD_BYTES"),
+  "AES-encrypted and unverifiable PDFs must use a full stream instead of fragile partial range reads");
 assert(appGradle.includes('val newRangeChunk = "rangeChunkSize: 262144,"'),
   "PDF range requests must use a 256 KiB chunk to reduce repeated SAF descriptor opens");
 assert(pdfJs.includes("lastUpdateTime.toString()") &&
@@ -213,7 +214,7 @@ assert(appGradle.includes("offline-pdf-viewer-1.manifest") &&
   ).every(Boolean) &&
   appGradle.includes('opts.cMapUrl = vwAssetUrl("./lib/cmaps/");') &&
   !appGradle.includes('script = script.replace(cMapConfig, "")') &&
-  appGradle.includes('versionName = "1.0.0"') && appGradle.includes("versionCode = 40"),
+  appGradle.includes('versionName = "1.0.1"') && appGradle.includes("versionCode = 41"),
   "PDF.js assets and all CMaps must be checksum-verified and included in the new app version");
 assert(!appGradle.includes("third_party:mj_pdf") && !settings.includes("mj_pdf") &&
   !settings.includes("PdfiumAndroid"),

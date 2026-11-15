@@ -57,6 +57,8 @@ class PdfJsViewerActivity : Activity() {
         private const val DOCUMENT_PATH = "/doc/file.pdf"
         private const val RANGE_THRESHOLD_BYTES = 512L * 1024L
         private const val MAX_RANGE_BYTES = 8L * 1024L * 1024L
+        private const val STREAM_OPEN_ATTEMPTS = 3
+        private const val STREAM_OPEN_RETRY_MS = 150L
         private const val CSP =
             "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
                 "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
@@ -262,14 +264,16 @@ class PdfJsViewerActivity : Activity() {
     private fun prepareDocument() {
         val uri = documentUri ?: return
         ioExecutor.execute {
-            val (length, seekable, encrypted) = probeDocument(uri)
-            // Password-protected PDFs can trigger extra cross-range reads while PDF.js
-            // resolves the encryption dictionary and xref. Serve them as one stream so
-            // SAF providers cannot break the password flow with a failed partial read.
-            val ranged = seekable && !encrypted && length >= RANGE_THRESHOLD_BYTES
+            val probe = probeDocument(uri)
+            // Range loading is enabled only when the provider was read completely and no
+            // /Encrypt marker was found. A short or failed probe (typical while an email
+            // or cloud attachment is still downloading) falls back to one full stream,
+            // because range reads against that same half-written file are what fail with
+            // an HTTP 404 on the first open while a second open succeeds.
+            val ranged = probe.ranged
             runOnUiThread {
                 if (closing || isFinishing || isDestroyed) return@runOnUiThread
-                documentLength = length
+                documentLength = probe.length
                 useRanges = ranged
                 val resume = currentPage.coerceAtLeast(1)
                 val url = "$ASSET_ORIGIN/assets/$assetRevision/viewer/pdf.html" +
@@ -282,17 +286,20 @@ class PdfJsViewerActivity : Activity() {
         }
     }
 
+    private data class PdfProbe(val length: Long, val ranged: Boolean)
+
     /**
      * Probe a SAF Uri once. Some providers report UNKNOWN_LENGTH on the descriptor
      * while exposing OpenableColumns.SIZE; use range loading only when the descriptor
-     * is also genuinely seekable.
+     * is genuinely seekable, the file is large enough, and the whole head and tail
+     * could be read so the encryption check is conclusive.
      */
-    private fun probeDocument(uri: Uri): Triple<Long, Boolean, Boolean> {
+    private fun probeDocument(uri: Uri): PdfProbe {
         val descriptor = try {
             contentResolver.openAssetFileDescriptor(uri, "r")
         } catch (_: Exception) {
             null
-        } ?: return Triple(queryDocumentLength(uri), false, false)
+        } ?: return PdfProbe(queryDocumentLength(uri), false)
 
         return descriptor.use { afd ->
             val length = afd.length.takeIf { it > 0L } ?: queryDocumentLength(uri)
@@ -306,44 +313,79 @@ class PdfJsViewerActivity : Activity() {
             } else {
                 false
             }
-            val encrypted = if (seekable && length > 0L) {
-                runCatching { containsPdfEncryptionMarker(afd, length) }.getOrDefault(false)
+            val encryption = if (seekable && length > 0L) {
+                runCatching { scanPdfEncryption(afd, length) }
+                    .getOrDefault(EncryptionScan.UNKNOWN)
             } else {
-                false
+                EncryptionScan.UNKNOWN
             }
-            Triple(length, seekable, encrypted)
+            PdfProbe(
+                length = length,
+                ranged = seekable && encryption == EncryptionScan.ABSENT &&
+                    length >= RANGE_THRESHOLD_BYTES
+            )
         }
     }
+
+    private enum class EncryptionScan { FOUND, ABSENT, UNKNOWN }
 
     /**
      * Detect the PDF trailer's /Encrypt entry without reading or retaining document
      * content. The first and last 256 KiB cover the normal encryption dictionary and
      * trailer/xref area, including PDFs whose encryption dictionary is indirect.
      *
+     * [EncryptionScan.UNKNOWN] means the head or tail could not be read in full, which
+     * happens when a provider serves an attachment that is still being downloaded. It
+     * is deliberately not treated as "unencrypted": range streaming must stay off for
+     * files that cannot be verified end to end.
+     *
      * Positional reads leave the provider descriptor's current position unchanged.
      */
-    private fun containsPdfEncryptionMarker(
+    private fun scanPdfEncryption(
         afd: android.content.res.AssetFileDescriptor,
         length: Long
-    ): Boolean {
-        if (length <= 0L) return false
+    ): EncryptionScan {
+        if (length <= 0L) return EncryptionScan.UNKNOWN
         val scanBytes = minOf(length, 256L * 1024L).toInt()
-        if (scanBytes <= 0) return false
+        if (scanBytes <= 0) return EncryptionScan.UNKNOWN
 
-        val head = ByteArray(scanBytes)
-        val headRead = Os.pread(afd.fileDescriptor, head, 0, head.size, afd.startOffset)
-        if (containsEncryptToken(head, headRead)) return true
+        val head = readPdfRegion(afd, 0L, scanBytes) ?: return EncryptionScan.UNKNOWN
+        if (containsEncryptToken(head, head.size)) return EncryptionScan.FOUND
+        if (length <= scanBytes) return EncryptionScan.ABSENT
 
-        val tailOffset = maxOf(0L, length - scanBytes)
-        val tail = ByteArray(scanBytes)
-        val tailRead = Os.pread(
-            afd.fileDescriptor,
-            tail,
-            0,
-            tail.size,
-            afd.startOffset + tailOffset
-        )
-        return containsEncryptToken(tail, tailRead)
+        val tailOffset = length - scanBytes
+        val tail = readPdfRegion(afd, tailOffset, scanBytes)
+            ?: return EncryptionScan.UNKNOWN
+        return if (containsEncryptToken(tail, tail.size)) {
+            EncryptionScan.FOUND
+        } else {
+            EncryptionScan.ABSENT
+        }
+    }
+
+    private fun readPdfRegion(
+        afd: android.content.res.AssetFileDescriptor,
+        offset: Long,
+        byteCount: Int
+    ): ByteArray? {
+        val bytes = ByteArray(byteCount)
+        var read = 0
+        try {
+            while (read < byteCount) {
+                val count = Os.pread(
+                    afd.fileDescriptor,
+                    bytes,
+                    read,
+                    byteCount - read,
+                    afd.startOffset + offset + read
+                )
+                if (count <= 0) return null
+                read += count
+            }
+        } catch (_: Exception) {
+            return null
+        }
+        return bytes
     }
 
     private fun containsEncryptToken(bytes: ByteArray, count: Int): Boolean {
@@ -396,7 +438,7 @@ class PdfJsViewerActivity : Activity() {
         val uri = documentUri ?: return notFound()
         return try {
             if (!useRanges || documentLength <= 0L || range.isNullOrBlank()) {
-                val input = contentResolver.openInputStream(uri) ?: return notFound()
+                val input = openDocumentStream(uri) ?: return notFound()
                 val headers = commonHeaders()
                 if (useRanges) headers["Accept-Ranges"] = "bytes"
                 if (documentLength > 0) headers["Content-Length"] = documentLength.toString()
@@ -405,7 +447,7 @@ class PdfJsViewerActivity : Activity() {
 
             val requested = parseRange(range, documentLength) ?: return rangeNotSatisfiable()
             val (start, end) = requested
-            val afd = contentResolver.openAssetFileDescriptor(uri, "r") ?: return notFound()
+            val afd = openDocumentDescriptor(uri) ?: return notFound()
             val length = end - start + 1L
             if (length <= 0L || length > MAX_RANGE_BYTES) {
                 afd.close()
@@ -448,6 +490,41 @@ class PdfJsViewerActivity : Activity() {
         } catch (_: Exception) {
             notFound()
         }
+    }
+
+    /**
+     * Providers that back an attachment with a download can fail the first open and
+     * succeed moments later. Retrying here keeps that transient failure away from
+     * PDF.js, which would otherwise report it as a missing HTTP resource.
+     */
+    private fun openDocumentStream(uri: Uri): InputStream? {
+        repeat(STREAM_OPEN_ATTEMPTS) { attempt ->
+            val stream = try {
+                contentResolver.openInputStream(uri)
+            } catch (_: Exception) {
+                null
+            }
+            if (stream != null) return stream
+            if (attempt < STREAM_OPEN_ATTEMPTS - 1) {
+                Thread.sleep(STREAM_OPEN_RETRY_MS * (attempt + 1))
+            }
+        }
+        return null
+    }
+
+    private fun openDocumentDescriptor(uri: Uri): android.content.res.AssetFileDescriptor? {
+        repeat(STREAM_OPEN_ATTEMPTS) { attempt ->
+            val descriptor = try {
+                contentResolver.openAssetFileDescriptor(uri, "r")
+            } catch (_: Exception) {
+                null
+            }
+            if (descriptor != null) return descriptor
+            if (attempt < STREAM_OPEN_ATTEMPTS - 1) {
+                Thread.sleep(STREAM_OPEN_RETRY_MS * (attempt + 1))
+            }
+        }
+        return null
     }
 
     private fun parseRange(value: String, total: Long): Pair<Long, Long>? {
