@@ -30,6 +30,7 @@ class SpreadsheetEditorActivity : Activity() {
         const val EXTRA_DOCUMENT_URI = "document_uri"
         const val EXTRA_DOCUMENT_NAME = "document_name"
         private const val REQUEST_CREATE_COPY = 4102
+        private const val KEY_PENDING_BYTES = "pending_workbook_bytes"
         private const val MAX_BASE64_CHARS = 42 * 1024 * 1024
         private const val ASSET_HOST = "appassets.androidplatform.net"
         private const val DOCUMENT_PATH = "/doc/file.xlsx"
@@ -54,6 +55,8 @@ class SpreadsheetEditorActivity : Activity() {
         intent.getStringExtra(EXTRA_DOCUMENT_NAME)?.takeIf { it.isNotBlank() }?.let {
             documentName = it
         }
+        // Rotation must not drop a workbook that is waiting for the Save As picker.
+        state?.getByteArray(KEY_PENDING_BYTES)?.let { pendingBytes = it }
         if (source == null || !documentName.lowercase(Locale.ROOT).endsWith(".xlsx")) {
             Toast.makeText(
                 this,
@@ -292,6 +295,13 @@ class SpreadsheetEditorActivity : Activity() {
         } catch (_: Exception) {
             setStatus("Could not open the Save As picker")
         }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString(EXTRA_DOCUMENT_NAME, documentName)
+        // pendingBytes is a bounded encoded workbook, small enough for the bundle.
+        pendingBytes?.let { outState.putByteArray(KEY_PENDING_BYTES, it) }
     }
 
     @Deprecated("Deprecated in Android API; retained for compatibility with the existing document picker flow")
