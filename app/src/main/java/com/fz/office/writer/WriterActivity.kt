@@ -263,8 +263,9 @@ class WriterActivity : Activity() {
             web.evaluateJavascript(script, null)
             // Custom font scans and Base64 encoding stay off the first-paint UI path.
             applyPendingDocument()
-        } catch (_: Exception) {
-            statusView?.text = "Some fonts could not be registered · View only"
+        } catch (exception: Exception) {
+            statusView?.text = "Font registration error: ${exception.message ?: "unknown"} · View only"
+            Toast.makeText(this, "Font loading failed: ${exception.message}", Toast.LENGTH_LONG).show()
             applyPendingDocument()
         }
     }
@@ -320,7 +321,9 @@ class WriterActivity : Activity() {
                     val declaration = "font-family:" + JSONObject.quote(legacyName) + ";"
                     legacyLoaded = customCss.contains(declaration)
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                // Log the error for debugging
+                android.util.Log.w("FZ-Writer", "Font scan failed: ${e.message}")
             }
 
             val loadedCss = customCss
@@ -482,7 +485,5 @@ class WriterActivity : Activity() {
     }
 
     private fun dp(value: Int): Int =
-        (value * resources.displayMetrics.density).toInt().let {
-            kotlin.math.round(value * resources.displayMetrics.density).toInt()
-        }
+        kotlin.math.round(value * resources.displayMetrics.density).toInt()
 }

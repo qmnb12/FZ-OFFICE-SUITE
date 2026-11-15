@@ -492,8 +492,9 @@ class OfficeViewerActivity : Activity() {
         (value * resources.displayMetrics.density + 0.5f).toInt()
 
     @Deprecated("Deprecated in Android API; retained for compatibility")
+    @Suppress("DEPRECATION")
     override fun onBackPressed() {
-        finish()
+        super.onBackPressed()
     }
 
     override fun onDestroy() {

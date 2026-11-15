@@ -748,7 +748,12 @@ class PdfJsViewerActivity : Activity() {
             webChromeClient = null
             webViewClient = WebViewClient()
             removeAllViews()
-            destroy()
+            try {
+                destroy()
+            } catch (e: Exception) {
+                // WebView.destroy() can throw in rare cases; suppress to prevent crash
+                android.util.Log.w("FZ-PdfJsViewer", "WebView.destroy() threw: ${e.message}")
+            }
         }
         webView = null
         ioExecutor.shutdownNow()
