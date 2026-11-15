@@ -222,14 +222,44 @@ class MainActivity : Activity() {
         val list = libraryList ?: return
         list.removeAllViews()
         val entries = RecentDocumentsStore.getAll(this)
-        var shown = 0
+
+        // Auto-remove inaccessible files from recent list (temp files, deleted files)
+        val validEntries = ArrayList<RecentDocumentsStore.Entry>()
+        val invalidUris = ArrayList<String>()
+
         for (entry in entries) {
+            try {
+                val uri = Uri.parse(entry.uri)
+                val accessible = runCatching {
+                    contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize >= 0 } ?: false
+                }.getOrDefault(false)
+
+                if (accessible) {
+                    validEntries.add(entry)
+                } else {
+                    invalidUris.add(entry.uri)
+                }
+            } catch (_: Exception) {
+                invalidUris.add(entry.uri)
+            }
+        }
+
+        // Remove inaccessible entries from history
+        if (invalidUris.isNotEmpty()) {
+            for (uri in invalidUris) {
+                RecentDocumentsStore.remove(this, uri)
+            }
+        }
+
+        var shown = 0
+        for (entry in validEntries) {
             if (showStarredOnly && !entry.starred) continue
             val searchable = (entry.name + " " + entry.mimeType).lowercase(Locale.ROOT)
             if (libraryQuery.isNotEmpty() && !searchable.contains(libraryQuery)) continue
             addLibraryItem(entry)
             shown++
         }
+
         if (shown == 0) {
             val message = if (libraryQuery.isEmpty()) {
                 if (showStarredOnly) "No starred documents yet. Tap ☆ on a file to keep it here."
@@ -244,7 +274,7 @@ class MainActivity : Activity() {
             }
             list.addView(empty, match())
         }
-        if (!showStarredOnly && entries.isNotEmpty()) {
+        if (!showStarredOnly && validEntries.isNotEmpty()) {
             val clear = label("Clear unstarred history", 11, ACCENT, true).apply {
                 gravity = Gravity.END or Gravity.CENTER_VERTICAL
                 setPadding(dp(8), dp(13), dp(4), dp(7))

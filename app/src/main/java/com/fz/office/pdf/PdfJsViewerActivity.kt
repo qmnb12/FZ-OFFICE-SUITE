@@ -664,35 +664,13 @@ class PdfJsViewerActivity : Activity() {
             )
         }
         override fun zoomIn() {
-            view.evaluateJavascript("window.vwPdfShrink ? window.vwPdfShrink() : 1") { raw ->
-                val shrink = raw?.trim('"')?.toFloatOrNull() ?: 1f
-                if (shrink < 0.999f) {
-                    val next = (shrink * 1.2f).coerceAtMost(1f)
-                    view.evaluateJavascript(
-                        "window.vwPdfShrink($next, window.innerHeight / 2);",
-                        null
-                    )
-                } else {
-                    view.zoomIn()
-                }
-            }
+            // Use native WebView zoom for smoother experience
+            view.zoomIn()
         }
 
         override fun zoomOut() {
-            val start = baseScale
-            val current = view.scale
-            if (start > 0f && current > start * 1.02f) {
-                view.zoomOut()
-                return
-            }
-            view.evaluateJavascript("window.vwPdfShrink ? window.vwPdfShrink() : 1") { raw ->
-                val shrink = raw?.trim('"')?.toFloatOrNull() ?: 1f
-                val next = (shrink / 1.2f).coerceAtLeast(0.2f)
-                view.evaluateJavascript(
-                    "window.vwPdfShrink($next, window.innerHeight / 2);",
-                    null
-                )
-            }
+            // Use native WebView zoom for smoother experience
+            view.zoomOut()
         }
 
         override fun fitToWidth() {
