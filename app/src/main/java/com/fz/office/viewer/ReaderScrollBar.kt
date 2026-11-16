@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.webkit.WebView
 import androidx.recyclerview.widget.RecyclerView
+import java.lang.reflect.Method
 import kotlin.math.roundToInt
 
 /**
@@ -135,26 +136,49 @@ class ReaderScrollBar(
     }
 
     /*
-     * View keeps these protected; WebView and RecyclerView widen them to public.
-     * Asking the concrete type is what lets one overlay serve every reader without
-     * reflection, and a view that is neither simply has no metrics to give.
+     * View keeps these protected; RecyclerView widens them to public, while WebView
+     * leaves them protected and reaches its numbers through reflection. A WebView
+     * that refuses the call falls back to its public content height and scrollY, so
+     * the bar degrades to an estimate rather than disappearing.
      */
     private fun scrollRange(view: View): Int = when (view) {
-        is WebView -> view.computeVerticalScrollRange()
         is RecyclerView -> view.computeVerticalScrollRange()
+        is WebView -> metric(rangeMethod, view)
+            .takeIf { it > 0 }
+            ?: (view.contentHeight * view.scale).roundToInt()
         else -> 0
     }
 
     private fun scrollExtent(view: View): Int = when (view) {
-        is WebView -> view.computeVerticalScrollExtent()
         is RecyclerView -> view.computeVerticalScrollExtent()
+        is WebView -> metric(extentMethod, view).takeIf { it > 0 }
+            ?: (view.height - view.paddingTop - view.paddingBottom)
         else -> 0
     }
 
     private fun scrollOffset(view: View): Int = when (view) {
-        is WebView -> view.computeVerticalScrollOffset()
         is RecyclerView -> view.computeVerticalScrollOffset()
+        is WebView -> metric(offsetMethod, view).takeIf { it >= 0 }
+            ?: view.scrollY
         else -> 0
+    }
+
+    private companion object {
+        val rangeMethod: Method? = scrollMetric("computeVerticalScrollRange")
+        val extentMethod: Method? = scrollMetric("computeVerticalScrollExtent")
+        val offsetMethod: Method? = scrollMetric("computeVerticalScrollOffset")
+
+        fun scrollMetric(name: String): Method? = try {
+            View::class.java.getDeclaredMethod(name).apply { isAccessible = true }
+        } catch (_: Exception) {
+            null
+        }
+
+        fun metric(method: Method?, view: View): Int = try {
+            (method?.invoke(view) as? Int) ?: -1
+        } catch (_: Exception) {
+            -1
+        }
     }
 
     private fun scrolls(view: View): Boolean {
