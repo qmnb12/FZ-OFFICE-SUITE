@@ -5,28 +5,16 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:pathData="M29,36 L52,36 L52,44 L37,44 L37,51 L46,51 L46,59 L37,59 L37,72 L29,72 Z">
+    <path android:pathData="M46.62,30.86L47.38,30.98L47.49,31.51L47.55,36.23L47.38,38.67L45.62,39.03L44.28,39.46L43.09,40.03L42.12,40.69L40.96,41.84L39.82,43.57L39.24,45.09L39.19,45.77L39.31,46.12L41.13,45.20L42.53,44.70L45.38,44.05L53.77,43.93L70.68,44.05L72.22,44.56L73.34,45.13L75.15,46.78L75.73,47.55L76.30,48.54L76.80,49.97L77.00,51.33L76.79,51.94L66.96,61.51L61.36,66.82L59.17,68.70L59.02,69.03L59.18,69.26L59.50,69.39L66.51,69.35L70.36,69.48L72.32,69.98L74.06,70.99L75.80,72.87L76.37,73.98L76.80,75.25L77.00,76.23L76.87,76.78L75.42,76.93L69.82,77.00L53.97,76.87L52.58,76.52L51.57,76.01L50.09,74.86L48.94,73.38L48.36,72.20L47.81,70.11L48.00,69.42L48.78,68.75L49.59,67.69L50.80,66.46L62.87,54.40L65.22,52.31L65.10,52.10L63.86,52.02L51.99,51.97L47.03,52.02L45.14,52.17L43.86,52.67L42.71,53.32L40.94,55.01L39.82,56.74L39.17,58.62L38.88,69.88L38.81,70.78L38.38,72.33L37.15,74.35L36.14,75.36L35.17,76.01L34.12,76.59L32.45,77.09L31.58,77.14L31.13,76.93L31.00,64.80L31.18,54.76L31.00,47.19L31.20,45.06L31.70,42.74L32.35,40.94L34.07,37.81L35.66,35.95L37.38,34.36L39.21,33.14L41.55,31.99L43.31,31.41L46.19,30.91Z">
         <aapt:attr name="android:fillColor">
             <gradient
                 android:type="linear"
-                android:startX="33"
-                android:startY="36"
-                android:endX="33"
-                android:endY="72"
+                android:startX="54"
+                android:startY="31"
+                android:endX="54"
+                android:endY="77"
                 android:startColor="#FFFFFF"
-                android:endColor="#AEB9C9" />
-        </aapt:attr>
-    </path>
-    <path android:pathData="M57,36 L79,36 L79,44 L66,64 L79,64 L79,72 L57,72 L57,64 L70,44 L57,44 Z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="linear"
-                android:startX="57"
-                android:startY="36"
-                android:endX="79"
-                android:endY="72"
-                android:startColor="#22D3EE"
-                android:endColor="#4F7CFF" />
+                android:endColor="#DCE3EB" />
         </aapt:attr>
     </path>
 </vector>
