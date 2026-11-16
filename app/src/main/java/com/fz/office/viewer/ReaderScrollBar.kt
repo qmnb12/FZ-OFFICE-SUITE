@@ -8,6 +8,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
+import android.webkit.WebView
+import androidx.recyclerview.widget.RecyclerView
 import kotlin.math.roundToInt
 
 /**
@@ -95,9 +97,9 @@ class ReaderScrollBar(
             }
             return
         }
-        val nextRange = source.computeVerticalScrollRange()
-        val nextExtent = source.computeVerticalScrollExtent()
-        val nextOffset = source.computeVerticalScrollOffset()
+        val nextRange = scrollRange(source)
+        val nextExtent = scrollExtent(source)
+        val nextOffset = scrollOffset(source)
         if (nextRange == range && nextExtent == extent && nextOffset == offset) return
         range = nextRange
         extent = nextExtent
@@ -132,8 +134,33 @@ class ReaderScrollBar(
         return null
     }
 
-    private fun scrolls(view: View): Boolean =
-        view.computeVerticalScrollRange() > view.computeVerticalScrollExtent() + 1
+    /*
+     * View keeps these protected; WebView and RecyclerView widen them to public.
+     * Asking the concrete type is what lets one overlay serve every reader without
+     * reflection, and a view that is neither simply has no metrics to give.
+     */
+    private fun scrollRange(view: View): Int = when (view) {
+        is WebView -> view.computeVerticalScrollRange()
+        is RecyclerView -> view.computeVerticalScrollRange()
+        else -> 0
+    }
+
+    private fun scrollExtent(view: View): Int = when (view) {
+        is WebView -> view.computeVerticalScrollExtent()
+        is RecyclerView -> view.computeVerticalScrollExtent()
+        else -> 0
+    }
+
+    private fun scrollOffset(view: View): Int = when (view) {
+        is WebView -> view.computeVerticalScrollOffset()
+        is RecyclerView -> view.computeVerticalScrollOffset()
+        else -> 0
+    }
+
+    private fun scrolls(view: View): Boolean {
+        val available = scrollExtent(view)
+        return available > 0 && scrollRange(view) > available + 1
+    }
 
     private fun isScrollable(): Boolean = extent > 0 && range > extent + 1
 
@@ -185,10 +212,11 @@ class ReaderScrollBar(
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val source = resolveScroller() ?: return false
+        sync()
         if (!isScrollable()) return false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                offset = source.computeVerticalScrollOffset()
+                offset = scrollOffset(source)
                 updateThumb()
                 val onThumb = event.y >= thumbRect.top - grabSlack &&
                     event.y <= thumbRect.bottom + grabSlack
@@ -225,7 +253,14 @@ class ReaderScrollBar(
         val travel = lowest - verticalInset
         val progress = if (travel <= 0f) 0f else ((top - verticalInset) / travel).coerceIn(0f, 1f)
         val target = (progress * (range - extent)).roundToInt()
-        source.scrollTo(source.scrollX, target)
+        // RecyclerView.scrollTo only warns; it scrolls by a delta instead. WebView
+        // takes the absolute offset the way its own scrollbar does.
+        if (source is RecyclerView) {
+            source.stopScroll()
+            source.scrollBy(0, target - scrollOffset(source))
+        } else {
+            source.scrollTo(source.scrollX, target)
+        }
         offset = target
         updateThumb()
         invalidate()
