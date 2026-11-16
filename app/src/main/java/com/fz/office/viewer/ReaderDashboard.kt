@@ -129,6 +129,13 @@ class ReaderDashboard(
     fun setDocumentView(view: View) {
         content.removeAllViews()
         content.addView(view, FrameLayout.LayoutParams(-1, -1))
+        // A finger-sized thumb instead of the WebView hairline: every reader gets
+        // the same draggable scroll bar, and the strip falls through to the
+        // document everywhere else.
+        content.addView(
+            ReaderScrollBar(activity, view),
+            FrameLayout.LayoutParams(dp(30), -1, Gravity.END)
+        )
     }
 
     fun setStatus(message: CharSequence) {

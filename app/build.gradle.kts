@@ -593,7 +593,31 @@ function observePages() {"""
                     throw GradleException("Unexpected pinned PDF shrunk touch-action rule.")
                 }
                 html = html.replace(oldShrunkTouch, newShrunkTouch)
+
+                // The 8px strip between pages read as one page on a phone: at the
+                // 70% column it drew under 6px. Twenty keeps a clear band of the
+                // reader's ground between sheets without wasting screen height.
+                val oldPageGap = "  :root { --pg-gap: 8px; }"
+                val newPageGap = "  :root { --pg-gap: 20px; }"
+                if (!html.contains(oldPageGap)) {
+                    throw GradleException("Unexpected pinned PDF page gap.")
+                }
+                html = html.replace(oldPageGap, newPageGap)
                 outputBytes = html.toByteArray(Charsets.UTF_8)
+            }
+
+            if (asset.path == "viewer/pdf-pages.css") {
+                var css = String(outputBytes, Charsets.UTF_8)
+                // Night mode paints black pages on a black ground, so its only seam
+                // is this divider. One device pixel disappeared on a phone screen;
+                // three stay visible and make the page break obvious.
+                val oldNightEdge = "  --pg-edge: calc(1px * var(--vw-zoom));"
+                val newNightEdge = "  --pg-edge: calc(3px * var(--vw-zoom));"
+                if (!css.contains(oldNightEdge)) {
+                    throw GradleException("Unexpected pinned PDF night page divider.")
+                }
+                css = css.replace(oldNightEdge, newNightEdge)
+                outputBytes = css.toByteArray(Charsets.UTF_8)
             }
 
             if (asset.path == "viewer/pptx.html" || asset.path == "viewer/xlsx.html") {
@@ -673,8 +697,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 44
-        versionName = "1.0.4"
+        versionCode = 45
+        versionName = "1.0.5"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.

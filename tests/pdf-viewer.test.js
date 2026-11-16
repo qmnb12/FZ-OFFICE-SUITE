@@ -120,6 +120,12 @@ assert(appGradle.includes('val newShrunkTouch = "  html.vw-shrunk { touch-action
   appGradle.includes("Unexpected pinned Gander PDF double-tap block.") &&
   appGradle.includes("Unexpected pinned Gander PDF pinch takeover body."),
   "Native WebView pinch must own the whole zoom range without a fit-width handover");
+assert(appGradle.includes('val newPageGap = "  :root { --pg-gap: 20px; }"') &&
+  appGradle.includes("Unexpected pinned PDF page gap."),
+  "PDF pages must keep a clear, larger strip between sheets");
+assert(appGradle.includes('val newNightEdge = "  --pg-edge: calc(3px * var(--vw-zoom));"') &&
+  appGradle.includes("Unexpected pinned PDF night page divider."),
+  "Night mode must draw a visible divider between black pages");
 assert(pdfJs.includes("Accept-Ranges") && pdfJs.includes("Content-Range") &&
   pdfJs.includes("openAssetFileDescriptor") && pdfJs.includes("openInputStream") &&
   pdfJs.includes("OpenableColumns.SIZE") && pdfJs.includes("Os.lseek") &&
@@ -224,7 +230,7 @@ assert(appGradle.includes("offline-pdf-viewer-1.manifest") &&
   ).every(Boolean) &&
   appGradle.includes('opts.cMapUrl = vwAssetUrl("./lib/cmaps/");') &&
   !appGradle.includes('script = script.replace(cMapConfig, "")') &&
-  appGradle.includes('versionName = "1.0.4"') && appGradle.includes("versionCode = 44"),
+  appGradle.includes('versionName = "1.0.5"') && appGradle.includes("versionCode = 45"),
   "PDF.js assets and all CMaps must be checksum-verified and included in the new app version");
 assert(!appGradle.includes("third_party:mj_pdf") && !settings.includes("mj_pdf") &&
   !settings.includes("PdfiumAndroid"),

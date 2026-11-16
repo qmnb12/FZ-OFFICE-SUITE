@@ -17,6 +17,8 @@ const manifest = read("app/src/main/AndroidManifest.xml");
 const gradle = read("app/build.gradle.kts");
 const ganderAssets = read("app/vendor/offline-viewer-1.manifest") +
   read("app/vendor/offline-viewer-2.manifest");
+const readerDashboard = read("app/src/main/java/com/fz/office/viewer/ReaderDashboard.kt");
+const readerScrollBar = read("app/src/main/java/com/fz/office/viewer/ReaderScrollBar.kt");
 
 for (const ext of [".pdf", ".docx", ".txt", ".xlsx", ".xls", ".xlsm", ".xlsb",
   ".xltx", ".csv", ".ods", ".pptx", ".ppsx", ".pptm", ".potx"]) {
@@ -112,6 +114,14 @@ assert(viewer.includes("blockNetworkLoads = true"), "Runtime network loads must 
 assert(viewer.includes("connect-src 'self'"), "Viewer CSP must remain same-origin");
 assert(manifest.includes('android:icon="@mipmap/ic_launcher"'), "Launcher icon is not assigned");
 assert(manifest.includes('android:roundIcon="@mipmap/ic_launcher_round"'), "Round icon is not assigned");
+assert(readerDashboard.includes("ReaderScrollBar(activity, view)"),
+  "Every document reader must mount the draggable scroll bar");
+assert(readerScrollBar.includes("computeVerticalScrollRange") &&
+  readerScrollBar.includes("computeVerticalScrollExtent") &&
+  readerScrollBar.includes("scrollTo("),
+  "The reader scroll bar must drive the document scroller");
+assert(readerScrollBar.includes("minThumbHeight = 52f * density"),
+  "The reader scroll bar must stay finger sized");
 assert(manifest.includes(".viewer.OfficeViewerActivity"), "Office reader missing from manifest");
 assert(manifest.includes(".viewer.SpreadsheetEditorActivity"), "Spreadsheet editor missing from manifest");
 assert(manifest.includes(".pdf.PdfJsViewerActivity"), "Gander PDF.js reader missing from manifest");
@@ -119,8 +129,8 @@ assert(manifest.includes(".pdf.PdfViewerActivity"), "Legacy PDF compatibility fa
 assert(!manifest.includes('android.permission.INTERNET'), "Offline app must not request INTERNET");
 assert(gradle.includes("prepareGanderViewerAssets"), "Pinned Gander assets are missing from build");
 assert(gradle.includes("gitBlobSha"), "Viewer assets must be checksum verified");
-assert(gradle.includes('versionName = "1.0.4"'), "Version name must match the PDF.js viewer build");
-assert(gradle.includes("versionCode = 44"), "Version code must match the PDF.js viewer build");
+assert(gradle.includes('versionName = "1.0.5"'), "Version name must match the PDF.js viewer build");
+assert(gradle.includes("versionCode = 45"), "Version code must match the PDF.js viewer build");
 assert(gradle.includes("offline-pdf-viewer-1.manifest") &&
   gradle.includes("offline-pdf-viewer-2.manifest") &&
   gradle.includes("offline-pdf-viewer-3.manifest"),
