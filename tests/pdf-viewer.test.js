@@ -101,18 +101,25 @@ assert(appGradle.includes("schedulePageWork(watched);") &&
 assert(appGradle.includes("var MAX_TILES = 1;"),
   "PDF high-resolution tile rendering must remain single-flight for smoother frame pacing");
 
-assert(pdfJs.includes("window.vwPdfShrink(1") &&
+assert(pdfJs.includes("window.vwPdfShrink(0.7") &&
   pdfJs.includes("override fun zoomIn()") && pdfJs.includes("override fun zoomOut()") &&
   pdfJs.includes("view.zoomIn()") && pdfJs.includes("view.zoomOut()"),
-  "PDF Tools zoom must coordinate the PDF.js shrink range and native WebView zoom");
+  "PDF Tools zoom must keep the 70% column and use native WebView zoom");
 const fitStart = pdfJs.indexOf("override fun fitToWidth()");
 const fitEnd = pdfJs.indexOf("override fun pageCount", fitStart);
 const fitBlock = pdfJs.slice(fitStart, fitEnd);
 assert(fitStart >= 0 && fitEnd > fitStart &&
-  fitBlock.indexOf("view.evaluateJavascript") < fitBlock.indexOf("view.post") &&
-  fitBlock.indexOf("view.post") < fitBlock.indexOf("view.zoomBy") &&
-  fitBlock.includes("targetScale / current"),
-  "PDF Fit-to-width must apply native zoom only after PDF.js finishes its fit-width layout");
+  !fitBlock.includes("evaluateJavascript") &&
+  fitBlock.includes("baseScale / current") &&
+  fitBlock.includes("view.zoomBy(factor)"),
+  "PDF Fit must zoom natively to the 70% pinch floor without relaying out the pages");
+assert(appGradle.includes('val newShrunkTouch = "  html.vw-shrunk { touch-action: manipulation; }"') &&
+  appGradle.includes("Unexpected pinned PDF shrunk touch-action rule.") &&
+  appGradle.includes('val newTileGuard = "  if (!(k > gateScale() * TILE_GATE)) {"') &&
+  appGradle.includes("Unexpected pinned Gander PDF tile zoom guard.") &&
+  appGradle.includes("Unexpected pinned Gander PDF double-tap block.") &&
+  appGradle.includes("Unexpected pinned Gander PDF pinch takeover body."),
+  "Native WebView pinch must own the whole zoom range without a fit-width handover");
 assert(pdfJs.includes("Accept-Ranges") && pdfJs.includes("Content-Range") &&
   pdfJs.includes("openAssetFileDescriptor") && pdfJs.includes("openInputStream") &&
   pdfJs.includes("OpenableColumns.SIZE") && pdfJs.includes("Os.lseek") &&
@@ -217,7 +224,7 @@ assert(appGradle.includes("offline-pdf-viewer-1.manifest") &&
   ).every(Boolean) &&
   appGradle.includes('opts.cMapUrl = vwAssetUrl("./lib/cmaps/");') &&
   !appGradle.includes('script = script.replace(cMapConfig, "")') &&
-  appGradle.includes('versionName = "1.0.2"') && appGradle.includes("versionCode = 42"),
+  appGradle.includes('versionName = "1.0.3"') && appGradle.includes("versionCode = 43"),
   "PDF.js assets and all CMaps must be checksum-verified and included in the new app version");
 assert(!appGradle.includes("third_party:mj_pdf") && !settings.includes("mj_pdf") &&
   !settings.includes("PdfiumAndroid"),

@@ -241,6 +241,16 @@ val prepareGanderViewerAssets = tasks.register("prepareGanderViewerAssets") {
                 }
                 script = script.replace(oldShrinkFloor, newShrinkFloor)
 
+                // The app owns double tap. Growing the column back to the layout width
+                // from the page would raise the WebView's pinch floor above 70%.
+                val oldPageDoubleTap = """    lastTap = null;
+    zoomTo(1, tap.y, DOUBLE_TAP_MS);"""
+                val newPageDoubleTap = """    lastTap = null;"""
+                if (!script.contains(oldPageDoubleTap)) {
+                    throw GradleException("Unexpected pinned Gander PDF double-tap block.")
+                }
+                script = script.replace(oldPageDoubleTap, newPageDoubleTap)
+
                 // Capture operator bounds during the already-required full-page draw.
                 // PDF.js can then skip display-list operations that cannot intersect a
                 // high-resolution zoom tile, instead of replaying the entire page.
@@ -302,6 +312,16 @@ val prepareGanderViewerAssets = tasks.register("prepareGanderViewerAssets") {
                     throw GradleException("Unexpected pinned Gander PDF low-zoom tile cache branch.")
                 }
                 script = script.replace(oldLowZoom, newLowZoom)
+
+                // Tiles must sharpen a page at any zoom now that the column stays at the
+                // 70% floor and the WebView owns the whole pinch. Skipping them whenever
+                // the column is shrunk would leave every zoom above the floor unsharpened.
+                val oldTileGuard = "  if (shrink < 1 || !(k > gateScale() * TILE_GATE)) {"
+                val newTileGuard = "  if (!(k > gateScale() * TILE_GATE)) {"
+                if (!script.contains(oldTileGuard)) {
+                    throw GradleException("Unexpected pinned Gander PDF tile zoom guard.")
+                }
+                script = script.replace(oldTileGuard, newTileGuard)
 
                 // A bitmap rendered at a larger page width remains sharp when the
                 // page is reduced. Do not rerasterize it on pinch release; only redraw
@@ -375,6 +395,18 @@ function scheduleRefine() {
                     throw GradleException("Unexpected pinned Gander PDF pinch-start handler.")
                 }
                 script = script.replace(oldStartPinch, newStartPinch)
+
+                // The WebView owns pinch at every scale now. Keep the page's pinch
+                // bookkeeping from taking a gesture the compositor is already zooming.
+                val oldPinchTakeover = """  pinch = {
+    apart: apart(e), from: shrink, to: shrink, taken: false,
+    at: 0, y0: between(e), y: between(e), sy: window.scrollY
+  };"""
+                val newPinchTakeover = """  pinch = null;"""
+                if (!script.contains(oldPinchTakeover)) {
+                    throw GradleException("Unexpected pinned Gander PDF pinch takeover body.")
+                }
+                script = script.replace(oldPinchTakeover, newPinchTakeover)
 
                 val oldTouchStart = """document.addEventListener("touchstart", function (e) {
   if (!doc || !slots.length) return;
@@ -550,6 +582,20 @@ function observePages() {"""
                 outputBytes = script.toByteArray(Charsets.UTF_8)
             }
 
+            if (asset.path == "viewer/pdf.html") {
+                var html = String(outputBytes, Charsets.UTF_8)
+                // Native WebView pinch owns the gesture at the 70% column too. With
+                // pan-x pan-y the page took the pinch and stopped at the fitted width,
+                // so growing past it needed a second gesture.
+                val oldShrunkTouch = "  html.vw-shrunk { touch-action: pan-x pan-y; }"
+                val newShrunkTouch = "  html.vw-shrunk { touch-action: manipulation; }"
+                if (!html.contains(oldShrunkTouch)) {
+                    throw GradleException("Unexpected pinned PDF shrunk touch-action rule.")
+                }
+                html = html.replace(oldShrunkTouch, newShrunkTouch)
+                outputBytes = html.toByteArray(Charsets.UTF_8)
+            }
+
             if (asset.path == "viewer/pptx.html" || asset.path == "viewer/xlsx.html") {
                 var html = String(outputBytes, Charsets.UTF_8)
                 val styleLink = "<link rel=\"stylesheet\" href=\"app.css\">"
@@ -627,8 +673,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 42
-        versionName = "1.0.2"
+        versionCode = 43
+        versionName = "1.0.3"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.

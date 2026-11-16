@@ -211,14 +211,14 @@ class PdfJsViewerActivity : Activity() {
             override fun onPageFinished(view: WebView, url: String) {
                 if (closing) return
                 dashboard?.setLoading(false)
-                // Fit screen se 30% chhota (70% size) show karna hai
-                baseScale = (view.scale.takeIf { it > 0f } ?: 1f) * 0.7f
-                (view as? PdfJsWebView)?.setFitScale(baseScale)
-                // Initial fit-to-width apply karo
+                // Native pinch zoom owns the whole gesture. The pages sit at the 70%
+                // column, so the WebView's fitted scale is the smallest zoom the reader
+                // can reach and growing past it needs no second gesture or handover.
                 view.postDelayed({
-                    if (!closing) {
-                        view.evaluateJavascript("window.vwPdfShrink && window.vwPdfShrink(0.7, window.innerHeight / 2);", null)
-                    }
+                    if (closing) return@postDelayed
+                    baseScale = view.scale.takeIf { it > 0f } ?: 1f
+                    (view as? PdfJsWebView)?.setFitScale(baseScale)
+                    view.evaluateJavascript("window.vwPdfShrink && window.vwPdfShrink(0.7, window.innerHeight / 2);", null)
                 }, 100L)
                 pageReady = true
                 connectPageBridge()
@@ -641,8 +641,9 @@ class PdfJsViewerActivity : Activity() {
     private fun handlePageMessage(raw: String) {
         val message = raw.trim()
         if (message.startsWith("shrunk ")) {
-            val shrunk = message.substringAfter(' ').trim() == "1"
-            runOnUiThread { doubleTapZoom?.leftToPage = shrunk }
+            // The pages always stay at the 70% column now. The reader's double-tap
+            // zooms the WebView natively instead of handing the gesture to PDF.js.
+            runOnUiThread { doubleTapZoom?.leftToPage = false }
             return
         }
         if (message == "locked") {
@@ -758,26 +759,15 @@ class PdfJsViewerActivity : Activity() {
         }
 
         override fun fitToWidth() {
-            // Fit screen se 30% chhota (70% size) dikhana hai
-            val targetScale = baseScale * 0.7f
-            view.evaluateJavascript(
-                "window.vwPdfShrink && window.vwPdfShrink(1, window.innerHeight / 2);"
-            ) {
-                // Wait until PDF.js has committed the fit-width layout before changing
-                // WebView's native zoom. Running both scale systems in parallel can
-                // produce a second correction against a stale view.scale.
-                if (closing || targetScale <= 0f) return@evaluateJavascript
-                // Post with timeout to prevent indefinite hang
-                view.postDelayed({
-                    if (closing) return@postDelayed
-                    val current = view.scale
-                    if (current > 0f) {
-                        val factor = targetScale / current
-                        if (factor.isFinite() && factor > 0f && kotlin.math.abs(factor - 1f) > 0.001f) {
-                            view.zoomBy(factor)
-                        }
-                    }
-                }, 300L)  // 300ms timeout for PDF.js to commit layout
+            // The pages stay at the 70% column and the WebView's own minimum zoom is the
+            // pinch floor, so fitting is native zoom only and never widens the pages.
+            if (closing || baseScale <= 0f) return
+            val current = view.scale
+            if (current > 0f) {
+                val factor = baseScale / current
+                if (factor.isFinite() && factor > 0f && kotlin.math.abs(factor - 1f) > 0.001f) {
+                    view.zoomBy(factor)
+                }
             }
         }
         override fun pageCount(onResult: (Int?) -> Unit) {
