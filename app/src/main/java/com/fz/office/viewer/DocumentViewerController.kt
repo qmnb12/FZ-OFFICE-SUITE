@@ -65,20 +65,14 @@ class DocumentViewerController(
         }
     }
 
+    /*
+     * Only what a finger cannot do. Scrolling, pinch against the page and double
+     * tap to zoom are gestures, and the floating scroll bar covers long jumps, so
+     * the menu keeps Find, page jumps, print and share instead of duplicating them.
+     */
     private fun showTools() {
         val actions = ArrayList<Pair<String, () -> Unit>>()
         if (surface.supportsFind) actions.add("Find" to { showFind() })
-        if (surface.supportsScrollNavigation) {
-            actions.add("Scroll up" to { surface.scrollBackward() })
-            actions.add("Scroll down" to { surface.scrollForward() })
-            actions.add("Go to top" to { surface.scrollToStart() })
-            actions.add("Go to bottom" to { surface.scrollToEnd() })
-        }
-        if (surface.supportsZoom) {
-            actions.add("Zoom in" to { surface.zoomIn() })
-            actions.add("Zoom out" to { surface.zoomOut() })
-            actions.add("Fit to width" to { surface.fitToWidth() })
-        }
         if (surface.supportsPageNavigation) actions.add("Go to page" to { showGoToPage() })
         if (surface.supportsPrint) actions.add(surface.printLabel to { printDocument() })
         if (documentUri != null) actions.add("Share" to { shareDocument() })

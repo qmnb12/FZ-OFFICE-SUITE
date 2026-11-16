@@ -385,11 +385,13 @@ function scheduleRefine() {
                 }
                 script = script.replace(oldScheduleRefine, newScheduleRefine)
 
+                // A two-finger touch no longer holds page drawing. The native WebView
+                // zoom does not run endPinch(), so the old hold left pump() frozen and
+                // every newly scrolled page white until the app was reopened.
                 val oldStartPinch = """function startPinch(e) {
   finishAnimation();"""
                 val newStartPinch = """function startPinch(e) {
   if (pinch) endPinch();
-  cancelPageWork();
   finishAnimation();"""
                 if (!script.contains(oldStartPinch)) {
                     throw GradleException("Unexpected pinned Gander PDF pinch-start handler.")
@@ -517,6 +519,7 @@ function scheduleRefine() {
   schedulePageReport();
   scheduleRefine();
   if (pinch) cancelPageWork();
+  else if (pageWorkHold && !pageWorkTimer && !pageWorkFrame) schedulePageWork(false);
 }"""
                 if (!script.contains(oldMoved)) {
                     throw GradleException("Unexpected pinned Gander PDF viewport-moved handler.")
@@ -697,8 +700,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 45
-        versionName = "1.0.5"
+        versionCode = 46
+        versionName = "1.0.6"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.

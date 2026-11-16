@@ -40,10 +40,15 @@ class ReaderScrollBar(
     private val grabSlack = 10f * density
 
     private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0x33101512
+        color = 0x2E000000
     }
     private val thumbPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFF2E9E86.toInt()
+        color = 0xFF0B0E12.toInt()
+    }
+    private val thumbRimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 1f * density
+        color = 0x59FFFFFF
     }
     private val thumbRect = RectF()
 
@@ -223,14 +228,27 @@ class ReaderScrollBar(
             trackPaint
         )
         val thumbRadius = (if (dragging) thumbWidthActive else thumbWidth) / 2f
+        val left = center - thumbRadius
+        val right = center + thumbRadius
         canvas.drawRoundRect(
-            center - thumbRadius,
+            left,
             thumbRect.top,
-            center + thumbRadius,
+            right,
             thumbRect.bottom,
             thumbRadius,
             thumbRadius,
             thumbPaint
+        )
+        // A hairline rim keeps the black thumb visible over the PDF's grey ground
+        // when the 70% column leaves the strip on the surround rather than a page.
+        canvas.drawRoundRect(
+            left,
+            thumbRect.top,
+            right,
+            thumbRect.bottom,
+            thumbRadius,
+            thumbRadius,
+            thumbRimPaint
         )
     }
 

@@ -11,8 +11,12 @@ const writer = read("app/src/main/java/com/fz/office/writer/WriterActivity.kt");
 const office = read("app/src/main/java/com/fz/office/viewer/OfficeViewerActivity.kt");
 const pdf = read("app/src/main/java/com/fz/office/pdf/PdfViewerActivity.kt");
 
-for (const feature of ["Find", "Scroll up", "Scroll down", "Go to top", "Go to bottom", "Zoom in", "Zoom out", "Fit to width", "Go to page", "Share"]) {
+for (const feature of ["Find", "Go to page", "Share"]) {
   assert(controller.includes('actions.add("' + feature + '"'), "Shared controller must own " + feature);
+}
+for (const feature of ["Scroll up", "Scroll down", "Go to top", "Go to bottom", "Zoom in", "Zoom out", "Fit to width"]) {
+  assert(!controller.includes('actions.add("' + feature + '"'),
+    "Shared controller must leave gesture-managed " + feature + " out of Tools");
 }
 assert(controller.includes("surface.supportsPrint") &&
   controller.includes("actions.add(surface.printLabel"),

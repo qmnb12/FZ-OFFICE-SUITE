@@ -13,18 +13,21 @@ const gradle = read("app/build.gradle.kts");
 
 for (const item of [
   'actions.add("Find"',
+  "surface.supportsPageNavigation",
+  "surface.preparePrint",
+  "actions.add(surface.printLabel",
+  'actions.add("Share"'
+]) assert(controller.includes(item), "Missing Tools action dispatch: " + item);
+for (const gestureItem of [
   'actions.add("Scroll up"',
   'actions.add("Scroll down"',
   'actions.add("Go to top"',
   'actions.add("Go to bottom"',
   'actions.add("Zoom in"',
   'actions.add("Zoom out"',
-  'actions.add("Fit to width"',
-  "surface.supportsPageNavigation",
-  "surface.preparePrint",
-  "actions.add(surface.printLabel",
-  'actions.add("Share"'
-]) assert(controller.includes(item), "Missing Tools action dispatch: " + item);
+  'actions.add("Fit to width"'
+]) assert(!controller.includes(gestureItem),
+  "Gesture-managed scrolling and zoom must stay out of the Tools menu: " + gestureItem);
 
 assert(controller.includes("createWebMessageChannel()") &&
   controller.includes("postWebMessage(WebMessage(") &&
