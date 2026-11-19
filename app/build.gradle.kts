@@ -641,6 +641,54 @@ function onCommand(msg) {
                 outputBytes = script.toByteArray(Charsets.UTF_8)
             }
 
+            if (asset.path == "viewer/app.js") {
+                var script = String(outputBytes, Charsets.UTF_8)
+                // A download that is still being finalised answers the first read
+                // with an HTTP 404 and works on the next open. Retry instead of
+                // handing the reader an error card, and keep the URL in the last
+                // message so a screenshot names the resource that failed.
+                val oldFetch = """function vwFetchDoc(kind) {
+  return fetch(vwDocUrl()).then(function (r) {
+    if (!r.ok) throw new Error("Could not read the file (HTTP " + r.status + ")");
+    return kind === "text" ? r.text() : r.arrayBuffer();
+  }).then(function (doc) {
+    return vwShowBusy(doc, kind === "text" ? doc.length : doc.byteLength);
+  });
+}"""
+                val newFetch = """function vwFetchDoc(kind) {
+  var attempt = 0;
+  function load() {
+    return fetch(vwDocUrl()).then(function (r) {
+      if (!r.ok) {
+        var error = new Error("Could not read the file (HTTP " + r.status +
+          " for " + vwDocUrl() + ")");
+        error.fzStatus = r.status;
+        throw error;
+      }
+      return kind === "text" ? r.text() : r.arrayBuffer();
+    });
+  }
+  function retry(error) {
+    var status = error && error.fzStatus;
+    if (attempt >= 6 || (status && status !== 404 && status !== 416 &&
+        status !== 500 && status !== 503)) {
+      throw error;
+    }
+    attempt += 1;
+    return new Promise(function (resolve) { setTimeout(resolve, 700 * attempt); })
+      .then(load).catch(retry);
+  }
+  return load().catch(retry).then(function (doc) {
+    return vwShowBusy(doc, kind === "text" ? doc.length : doc.byteLength);
+  });
+}"""
+                if (!script.contains(oldFetch)) {
+                    throw GradleException("Unexpected pinned PDF document fetch.")
+                }
+                script = script.replace(oldFetch, newFetch)
+                outputBytes = script.toByteArray(Charsets.UTF_8)
+            }
+
             if (asset.path == "viewer/pdf.html") {
                 var html = String(outputBytes, Charsets.UTF_8)
                 // Native WebView pinch owns the gesture at the 70% column too. With
@@ -756,8 +804,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 58
-        versionName = "1.0.18"
+        versionCode = 59
+        versionName = "1.0.19"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
