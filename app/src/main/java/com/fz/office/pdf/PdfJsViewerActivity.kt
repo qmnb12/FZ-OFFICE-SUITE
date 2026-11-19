@@ -589,7 +589,7 @@ class PdfJsViewerActivity : Activity() {
             return SeekableSource(afd.fileDescriptor, afd.startOffset) { afd.close() }
         }
         openFileDescriptor(uri)?.let { pfd ->
-            return SeekableSource(pfd.fileDescriptor, pfd.startOffset) { pfd.close() }
+            return SeekableSource(pfd.fileDescriptor, 0L) { pfd.close() }
         }
         return null
     }
