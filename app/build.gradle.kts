@@ -613,10 +613,10 @@ async function requestFzSignatures() {
       var payload = await doc.getSignatureData(sig.id);
       if (!payload || !payload.pkcs7) continue;
       out.push({
-        name: sig.name || "",
+        name: sig.signerName || "",
         reason: sig.reason || "",
         location: sig.location || "",
-        date: sig.date || "",
+        date: sig.signingTime || "",
         subFilter: sig.subFilter || "",
         coversWhole: !!sig.coversWholeDocument,
         modifications: sig.modificationsAfterSignature || 0,
@@ -756,8 +756,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 55
-        versionName = "1.0.15"
+        versionCode = 56
+        versionName = "1.0.16"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
