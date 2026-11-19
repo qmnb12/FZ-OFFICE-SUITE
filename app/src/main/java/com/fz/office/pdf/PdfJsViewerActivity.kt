@@ -96,6 +96,8 @@ class PdfJsViewerActivity : Activity() {
     private var signatureBadge: TextView? = null
     private var signatureReports: List<PdfSignatureReport> = emptyList()
     private var signatureRequested = false
+    @Volatile private var signatureManualCheck = false
+    @Volatile private var signatureManualPending = false
     @Volatile private var closing = false
 
     override fun onCreate(state: Bundle?) {
@@ -149,6 +151,10 @@ class PdfJsViewerActivity : Activity() {
             finish()
         }
         dashboard = shell
+        // Always available, signed or not: an explicit way to check the signature.
+        signatureBadge = shell.addToolbarAction("Sig", "Verify digital signature") {
+            onSignatureAction()
+        }
         shell.setLoading(true)
         shell.setStatus("Preparing PDF viewer…")
 
@@ -702,15 +708,35 @@ class PdfJsViewerActivity : Activity() {
         else pendingFindNavigation.add(command)
     }
 
-    private fun requestSignatures() {
-        if (signatureRequested || closing) return
+    private fun onSignatureAction() {
+        if (signatureReports.isNotEmpty()) showSignatureDetails()
+        else requestSignatures(manual = true)
+    }
+
+    private fun requestSignatures(manual: Boolean = false) {
+        if (closing) return
+        if (manual) {
+            if (signatureManualPending) return
+            signatureManualCheck = true
+            signatureManualPending = true
+            signatureRequested = true
+            postCommand("fzsig")
+            return
+        }
+        if (signatureRequested) return
         signatureRequested = true
         postCommand("fzsig")
     }
 
     private fun handleSignaturePayload(payload: String) {
         val array = runCatching { org.json.JSONArray(payload) }.getOrNull() ?: return
-        if (array.length() == 0) return
+        if (array.length() == 0) {
+            val manual = signatureManualCheck
+            signatureManualCheck = false
+            signatureManualPending = false
+            if (manual) runOnUiThread { if (!closing) showNoSignatureDialog() }
+            return
+        }
         val signatures = ArrayList<PdfRawSignature>()
         for (index in 0 until array.length()) {
             val item = array.optJSONObject(index) ?: continue
@@ -737,6 +763,8 @@ class PdfJsViewerActivity : Activity() {
         }
         val uri = documentUri ?: return
         if (signatures.isEmpty()) return
+        val manual = signatureManualCheck
+        signatureManualCheck = false
         ioExecutor.execute {
             val reports = signatures.mapNotNull { signature ->
                 runCatching {
@@ -745,7 +773,10 @@ class PdfJsViewerActivity : Activity() {
             }
             if (reports.isEmpty()) return@execute
             runOnUiThread {
-                if (!closing) showSignatureBadge(reports)
+                if (closing) return@runOnUiThread
+                signatureManualPending = false
+                showSignatureBadge(reports)
+                if (manual) showSignatureDetails()
             }
         }
     }
@@ -784,7 +815,7 @@ class PdfJsViewerActivity : Activity() {
             }
         }
         val button = signatureBadge
-            ?: dashboard?.addToolbarAction(glyph, description) { showSignatureDetails() }
+            ?: dashboard?.addToolbarAction(glyph, description) { onSignatureAction() }
                 ?.also { signatureBadge = it }
             ?: return
         button.text = glyph
@@ -827,6 +858,16 @@ class PdfJsViewerActivity : Activity() {
         android.app.AlertDialog.Builder(this)
             .setTitle("Digital signature")
             .setMessage(message)
+            .setPositiveButton("Close", null)
+            .setNeutralButton("Re-check") { _, _ -> requestSignatures(manual = true) }
+            .show()
+    }
+
+    private fun showNoSignatureDialog() {
+        if (isFinishing) return
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Digital signature")
+            .setMessage("This PDF has no digital signature to verify.")
             .setPositiveButton("Close", null)
             .show()
     }
