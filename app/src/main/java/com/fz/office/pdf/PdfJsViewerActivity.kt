@@ -32,6 +32,7 @@ import com.fz.office.viewer.ReaderDashboard
 import com.fz.office.viewer.UriPdfPrintAdapter
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.FileDescriptor
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.FilterInputStream
@@ -576,15 +577,20 @@ class PdfJsViewerActivity : Activity() {
     }
 
     private class SeekableSource(
-        val descriptor: ParcelFileDescriptor,
-        val baseOffset: Long
+        val fileDescriptor: FileDescriptor,
+        val baseOffset: Long,
+        private val onClose: () -> Unit
     ) {
-        fun close() = descriptor.close()
+        fun close() = onClose()
     }
 
     private fun openSeekableSource(uri: Uri): SeekableSource? {
-        openDocumentDescriptor(uri)?.let { return SeekableSource(it, it.startOffset) }
-        openFileDescriptor(uri)?.let { return SeekableSource(it, it.startOffset) }
+        openDocumentDescriptor(uri)?.let { afd ->
+            return SeekableSource(afd.fileDescriptor, afd.startOffset) { afd.close() }
+        }
+        openFileDescriptor(uri)?.let { pfd ->
+            return SeekableSource(pfd.fileDescriptor, pfd.startOffset) { pfd.close() }
+        }
         return null
     }
 
@@ -594,7 +600,7 @@ class PdfJsViewerActivity : Activity() {
         end: Long,
         length: Long
     ): WebResourceResponse {
-        val stream = FileInputStream(source.descriptor.fileDescriptor)
+        val stream = FileInputStream(source.fileDescriptor)
         val absoluteStart = source.baseOffset + start
         try {
             try {
