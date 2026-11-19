@@ -8,13 +8,7 @@ import java.math.BigInteger
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.Signature
-import java.security.cert.CertPathBuilder
-import java.security.cert.CertStore
 import java.security.cert.CertificateFactory
-import java.security.cert.CollectionCertStoreParameters
-import java.security.cert.PKIXBuilderParameters
-import java.security.cert.TrustAnchor
-import java.security.cert.X509CertSelector
 import java.security.cert.X509Certificate
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -314,35 +308,70 @@ object PdfSignatureVerifier {
         certificates: List<X509Certificate>,
         at: Date?
     ): Boolean {
-        return try {
-            val bundled = loadBundledTrust(context)
+        val bundled = runCatching { loadBundledTrust(context) }.getOrNull()
+        val systemAnchors = runCatching {
             val factory = TrustManagerFactory.getInstance("X509")
             factory.init(null as KeyStore?)
-            val anchors = factory.trustManagers
+            factory.trustManagers
                 .filterIsInstance<X509TrustManager>()
-                .flatMap { it.acceptedIssuers.toList() } + bundled.first
-            if (anchors.isEmpty()) return false
-            if (anchors.any { it.encoded.contentEquals(signer.encoded) }) return true
+                .flatMap { it.acceptedIssuers.toList() }
+        }.getOrDefault(emptyList())
+        val anchors = systemAnchors + (bundled?.first ?: emptyList())
+        val pool = certificates + (bundled?.second ?: emptyList())
+        val moment = (at ?: Date()).time
+        return chainToAnchor(signer, pool, anchors, moment, 0, 0)
+    }
 
-            val parameters = PKIXBuilderParameters(
-                anchors.map { TrustAnchor(it, null) }.toSet(),
-                X509CertSelector().apply { certificate = signer }
-            ).apply {
-                isRevocationEnabled = false
-                if (at != null) date = at
-                addCertStore(
-                    CertStore.getInstance(
-                        "Collection",
-                        CollectionCertStoreParameters(certificates + bundled.second)
-                    )
-                )
+    /**
+     * Android's PKIX provider does not offer a CertPathBuilder on every WebView/OS
+     * combination, so walk the chain by hand. Every hop must match names, verify with
+     * the parent key, be valid at the signing time, and the parent must be a CA.
+     */
+    private fun chainToAnchor(
+        certificate: X509Certificate,
+        pool: List<X509Certificate>,
+        anchors: List<X509Certificate>,
+        moment: Long,
+        depth: Int,
+        caDepth: Int
+    ): Boolean {
+        if (depth > 8) return false
+        if (moment < certificate.notBefore.time || moment > certificate.notAfter.time) {
+            return false
+        }
+        for (anchor in anchors) {
+            if (certificate.encoded.contentEquals(anchor.encoded)) {
+                return moment in anchor.notBefore.time..anchor.notAfter.time
             }
-            CertPathBuilder.getInstance("PKIX").build(parameters)
+            if (certificate.issuerX500Principal != anchor.subjectX500Principal) continue
+            if (moment < anchor.notBefore.time || moment > anchor.notAfter.time) continue
+            val limit = anchor.basicConstraints
+            if (limit < 0) continue
+            if (limit >= 0 && caDepth > limit) continue
+            if (verifyWith(certificate, anchor)) return true
+        }
+        for (parent in pool) {
+            if (parent.encoded.contentEquals(certificate.encoded)) continue
+            if (parent.issuerX500Principal == parent.subjectX500Principal) continue
+            if (parent.subjectX500Principal != certificate.issuerX500Principal) continue
+            if (parent.basicConstraints < 0) continue
+            val limit = parent.basicConstraints
+            if (limit >= 0 && caDepth > limit) continue
+            if (!verifyWith(certificate, parent)) continue
+            if (chainToAnchor(parent, pool, anchors, moment, depth + 1, caDepth + 1)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun verifyWith(certificate: X509Certificate, issuer: X509Certificate): Boolean =
+        try {
+            certificate.verify(issuer.publicKey)
             true
         } catch (error: Exception) {
             false
         }
-    }
 
     @Volatile
     private var bundledTrust: Pair<List<X509Certificate>, List<X509Certificate>>? = null
@@ -370,9 +399,7 @@ object PdfSignatureVerifier {
                         factory.generateCertificate(input) as X509Certificate
                     }
                 }.getOrNull()?.let { certificate ->
-                    if (certificate.subjectX500Principal.encoded
-                            .contentEquals(certificate.issuerX500Principal.encoded)
-                    ) {
+                    if (certificate.subjectX500Principal == certificate.issuerX500Principal) {
                         roots.add(certificate)
                     } else {
                         intermediates.add(certificate)
