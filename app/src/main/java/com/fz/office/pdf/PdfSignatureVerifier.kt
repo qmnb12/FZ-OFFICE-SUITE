@@ -543,22 +543,29 @@ object PdfSignatureVerifier {
     }
 
     private fun parsePdfDate(value: String): Long? {
-        val match = Regex("D:(\\d{4})(\\d{2})?(\\d{2})?(\\d{2})?(\\d{2})?(\\d{2})?")
-            .find(value.trim()) ?: return null
-        val groups = match.groupValues
-        val pattern = buildString {
-            append("yyyy")
-            if (groups[2].isNotEmpty()) append("MM")
-            if (groups[3].isNotEmpty()) append("dd")
-            if (groups[4].isNotEmpty()) append("HH")
-            if (groups[5].isNotEmpty()) append("mm")
-            if (groups[6].isNotEmpty()) append("ss")
+        val match = Regex(
+            "D:(\\d{4})(\\d{2})?(\\d{2})?(\\d{2})?(\\d{2})?(\\d{2})?(?:([+-])(\\d{2})'?(\\d{2})'?|Z)?"
+        ).find(value.trim()) ?: return null
+        val fields = match.groupValues
+        val year = fields[1].toIntOrNull() ?: return null
+        val calendar = java.util.Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+        calendar.clear()
+        calendar.set(
+            year,
+            (fields[2].toIntOrNull() ?: 1) - 1,
+            fields[3].toIntOrNull() ?: 1,
+            fields[4].toIntOrNull() ?: 0,
+            fields[5].toIntOrNull() ?: 0,
+            fields[6].toIntOrNull() ?: 0
+        )
+        var millis = calendar.timeInMillis
+        if (fields[7].isNotEmpty()) {
+            val sign = if (fields[7] == "-") -1L else 1L
+            val offsetMinutes =
+                (fields[8].toIntOrNull() ?: 0) * 60L + (fields[9].toIntOrNull() ?: 0)
+            millis -= sign * offsetMinutes * 60_000L
         }
-        return runCatching {
-            SimpleDateFormat(pattern, Locale.US).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
-            }.parse(match.value.removePrefix("D:"))?.time
-        }.getOrNull()
+        return millis
     }
 
     private fun formatDate(millis: Long?): String? {
