@@ -142,6 +142,7 @@ object PdfSignatureVerifier {
         }
 
         val trusted = valid && isTrusted(
+            context,
             signer,
             parsed.certificates,
             signedAtMillis?.let { Date(it) }
@@ -308,16 +309,18 @@ object PdfSignatureVerifier {
     }
 
     private fun isTrusted(
+        context: Context,
         signer: X509Certificate,
         certificates: List<X509Certificate>,
         at: Date?
     ): Boolean {
         return try {
+            val bundled = loadBundledTrust(context)
             val factory = TrustManagerFactory.getInstance("X509")
             factory.init(null as KeyStore?)
             val anchors = factory.trustManagers
                 .filterIsInstance<X509TrustManager>()
-                .flatMap { it.acceptedIssuers.toList() }
+                .flatMap { it.acceptedIssuers.toList() } + bundled.first
             if (anchors.isEmpty()) return false
             if (anchors.any { it.encoded.contentEquals(signer.encoded) }) return true
 
@@ -330,7 +333,7 @@ object PdfSignatureVerifier {
                 addCertStore(
                     CertStore.getInstance(
                         "Collection",
-                        CollectionCertStoreParameters(certificates)
+                        CollectionCertStoreParameters(certificates + bundled.second)
                     )
                 )
             }
@@ -338,6 +341,47 @@ object PdfSignatureVerifier {
             true
         } catch (error: Exception) {
             false
+        }
+    }
+
+    @Volatile
+    private var bundledTrust: Pair<List<X509Certificate>, List<X509Certificate>>? = null
+
+    /**
+     * Public Indian CCA roots plus the Verasys and SafeScrypt document-signer
+     * intermediates. Without them a valid eSign PDF would stay blue forever:
+     * Android's system store does not ship the CCA India roots.
+     */
+    private fun loadBundledTrust(
+        context: Context
+    ): Pair<List<X509Certificate>, List<X509Certificate>> {
+        bundledTrust?.let { return it }
+        synchronized(this) {
+            bundledTrust?.let { return it }
+            val roots = ArrayList<X509Certificate>()
+            val intermediates = ArrayList<X509Certificate>()
+            val factory = CertificateFactory.getInstance("X.509")
+            val names = runCatching { context.assets.list(BUNDLED_TRUST_DIR) }
+                .getOrNull()
+                ?: emptyArray()
+            for (name in names.sorted()) {
+                runCatching {
+                    context.assets.open("$BUNDLED_TRUST_DIR/$name").use { input ->
+                        factory.generateCertificate(input) as X509Certificate
+                    }
+                }.getOrNull()?.let { certificate ->
+                    if (certificate.subjectX500Principal.encoded
+                            .contentEquals(certificate.issuerX500Principal.encoded)
+                    ) {
+                        roots.add(certificate)
+                    } else {
+                        intermediates.add(certificate)
+                    }
+                }
+            }
+            val loaded = roots to intermediates
+            bundledTrust = loaded
+            return loaded
         }
     }
 
@@ -598,6 +642,7 @@ object PdfSignatureVerifier {
         }
     }
 
+    private const val BUNDLED_TRUST_DIR = "pdf-trust"
     private const val OID_SIGNED_DATA = "1.2.840.113549.1.7.2"
     private const val OID_MESSAGE_DIGEST = "1.2.840.113549.1.9.4"
     private const val OID_SIGNING_TIME = "1.2.840.113549.1.9.5"
