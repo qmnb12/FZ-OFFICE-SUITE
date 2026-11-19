@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
+import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.system.Os
 import android.system.OsConstants
@@ -30,7 +31,9 @@ import com.fz.office.viewer.DocumentViewerSurface
 import com.fz.office.viewer.ReaderDashboard
 import com.fz.office.viewer.UriPdfPrintAdapter
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
@@ -61,6 +64,9 @@ class PdfJsViewerActivity : Activity() {
         private const val MAX_RANGE_BYTES = 8L * 1024L * 1024L
         private const val STREAM_OPEN_ATTEMPTS = 3
         private const val STREAM_OPEN_RETRY_MS = 150L
+        private const val STAGE_OPEN_ATTEMPTS = 4
+        private const val STAGE_BUFFER_BYTES = 64 * 1024
+        private const val MAX_STAGE_BYTES = 512L * 1024L * 1024L
         private const val CSP =
             "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; " +
                 "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
@@ -79,6 +85,8 @@ class PdfJsViewerActivity : Activity() {
     private var documentName = "PDF document"
     @Volatile private var documentLength = -1L
     @Volatile private var useRanges = false
+    private val stageLock = Any()
+    @Volatile private var stagedFile: File? = null
     private var webView: WebView? = null
     private var doubleTapZoom: PdfJsDoubleTapZoom? = null
     private var dashboard: ReaderDashboard? = null
@@ -281,16 +289,27 @@ class PdfJsViewerActivity : Activity() {
     private fun prepareDocument() {
         val uri = documentUri ?: return
         ioExecutor.execute {
-            val probe = probeDocument(uri)
+            // Ask for the size without opening the document. A provider that answers
+            // with -1 is usually an email or cloud pipe that allows only a single
+            // open, so it is staged to the cache instead of being probed and then
+            // opened again for the viewer; that second open was the one returning
+            // an HTTP 404 to PDF.js.
+            val reported = queryDocumentLength(uri)
+            val probe = if (reported > 0L) probeDocument(uri) else PdfProbe(-1L, false, opened = false)
+            val staged = if (!probe.opened || probe.length <= 0L) stageDocument(uri) else null
             // Range loading is enabled only when the provider was read completely and no
             // /Encrypt marker was found. A short or failed probe (typical while an email
             // or cloud attachment is still downloading) falls back to one full stream,
             // because range reads against that same half-written file are what fail with
             // an HTTP 404 on the first open while a second open succeeds.
-            val ranged = probe.ranged
+            val ranged = staged?.let {
+                it.length() >= RANGE_THRESHOLD_BYTES &&
+                    scanFileEncryption(it) != EncryptionScan.FOUND
+            } ?: probe.ranged
+            val length = staged?.length() ?: probe.length
             runOnUiThread {
                 if (closing || isFinishing || isDestroyed) return@runOnUiThread
-                documentLength = probe.length
+                documentLength = length
                 useRanges = ranged
                 val resume = currentPage.coerceAtLeast(1)
                 val url = "$ASSET_ORIGIN/assets/$assetRevision/viewer/pdf.html" +
@@ -303,7 +322,7 @@ class PdfJsViewerActivity : Activity() {
         }
     }
 
-    private data class PdfProbe(val length: Long, val ranged: Boolean)
+    private data class PdfProbe(val length: Long, val ranged: Boolean, val opened: Boolean)
 
     /**
      * Probe a SAF Uri once. Some providers report UNKNOWN_LENGTH on the descriptor
@@ -316,7 +335,7 @@ class PdfJsViewerActivity : Activity() {
             contentResolver.openAssetFileDescriptor(uri, "r")
         } catch (_: Exception) {
             null
-        } ?: return PdfProbe(queryDocumentLength(uri), false)
+        } ?: return PdfProbe(queryDocumentLength(uri), false, opened = false)
 
         return descriptor.use { afd ->
             val length = afd.length.takeIf { it > 0L } ?: queryDocumentLength(uri)
@@ -339,7 +358,8 @@ class PdfJsViewerActivity : Activity() {
             PdfProbe(
                 length = length,
                 ranged = seekable && encryption == EncryptionScan.ABSENT &&
-                    length >= RANGE_THRESHOLD_BYTES
+                    length >= RANGE_THRESHOLD_BYTES,
+                opened = true
             )
         }
     }
@@ -453,9 +473,18 @@ class PdfJsViewerActivity : Activity() {
 
     private fun documentResponse(range: String?): WebResourceResponse {
         val uri = documentUri ?: return notFound()
+        stagedFile?.let { return fileResponse(it, range) }
         return try {
             if (!useRanges || documentLength <= 0L || range.isNullOrBlank()) {
-                val input = openDocumentStream(uri) ?: return notFound()
+                // A provider can fail openInputStream/openAssetFileDescriptor while
+                // still serving openFileDescriptor, and a pipe can refuse every
+                // later open after the first one. Try each in turn and, as the last
+                // resort, copy the file to the app cache so the page always gets a
+                // body instead of an HTTP 404.
+                val input = openDocumentStream(uri)
+                    ?: openDescriptorStream(uri)
+                    ?: stageDocument(uri)?.let { FileInputStream(it) }
+                    ?: return notFound()
                 val headers = commonHeaders()
                 if (useRanges) headers["Accept-Ranges"] = "bytes"
                 if (documentLength > 0) headers["Content-Length"] = documentLength.toString()
@@ -464,46 +493,19 @@ class PdfJsViewerActivity : Activity() {
 
             val requested = parseRange(range, documentLength) ?: return rangeNotSatisfiable()
             val (start, end) = requested
-            val afd = openDocumentDescriptor(uri) ?: return notFound()
             val length = end - start + 1L
-            if (length <= 0L || length > MAX_RANGE_BYTES) {
-                afd.close()
-                return rangeNotSatisfiable()
+            if (length <= 0L || length > MAX_RANGE_BYTES) return rangeNotSatisfiable()
+            val source = openSeekableSource(uri)
+            if (source == null) {
+                val staged = stageDocument(uri)
+                return if (staged != null) fileResponse(staged, range) else rangeNotSatisfiable()
             }
-            val stream = FileInputStream(afd.fileDescriptor)
-            val absoluteStart = afd.startOffset + start
             try {
-                stream.channel.position(absoluteStart)
+                return rangeResponse(source, start, end, length)
             } catch (_: Exception) {
-                skipFully(stream, absoluteStart)
+                source.close()
+                notFound()
             }
-            var remainingBytes = length
-            val limited = object : FilterInputStream(stream) {
-                override fun read(): Int {
-                    if (remainingBytes <= 0L) return -1
-                    val value = super.read()
-                    if (value >= 0) remainingBytes--
-                    return value
-                }
-
-                override fun read(buffer: ByteArray, offset: Int, count: Int): Int {
-                    if (remainingBytes <= 0L) return -1
-                    val allowed = minOf(count.toLong(), remainingBytes).toInt()
-                    val read = super.read(buffer, offset, allowed)
-                    if (read > 0) remainingBytes -= read.toLong()
-                    return read
-                }
-
-                override fun close() {
-                    try { super.close() } finally { afd.close() }
-                }
-            }
-            val headers = commonHeaders().apply {
-                put("Accept-Ranges", "bytes")
-                put("Content-Range", "bytes $start-$end/$documentLength")
-                put("Content-Length", length.toString())
-            }
-            WebResourceResponse("application/pdf", null, 206, "Partial Content", headers, limited)
         } catch (_: Exception) {
             notFound()
         }
@@ -544,6 +546,224 @@ class PdfJsViewerActivity : Activity() {
         return null
     }
 
+    /**
+     * Some providers answer openFileDescriptor but not openAssetFileDescriptor, and
+     * some expose an asset descriptor that refuses to be reopened. Both are opened
+     * fresh per request so the shared descriptor position is never raced.
+     */
+    private fun openFileDescriptor(uri: Uri): ParcelFileDescriptor? {
+        repeat(STREAM_OPEN_ATTEMPTS) { attempt ->
+            val descriptor = try {
+                contentResolver.openFileDescriptor(uri, "r")
+            } catch (_: Exception) {
+                null
+            }
+            if (descriptor != null) return descriptor
+            if (attempt < STREAM_OPEN_ATTEMPTS - 1) {
+                Thread.sleep(STREAM_OPEN_RETRY_MS * (attempt + 1))
+            }
+        }
+        return null
+    }
+
+    private fun openDescriptorStream(uri: Uri): InputStream? {
+        val descriptor = openFileDescriptor(uri) ?: return null
+        return object : FileInputStream(descriptor.fileDescriptor) {
+            override fun close() {
+                try { super.close() } finally { descriptor.close() }
+            }
+        }
+    }
+
+    private class SeekableSource(
+        val descriptor: ParcelFileDescriptor,
+        val baseOffset: Long
+    ) {
+        fun close() = descriptor.close()
+    }
+
+    private fun openSeekableSource(uri: Uri): SeekableSource? {
+        openDocumentDescriptor(uri)?.let { return SeekableSource(it, it.startOffset) }
+        openFileDescriptor(uri)?.let { return SeekableSource(it, it.startOffset) }
+        return null
+    }
+
+    private fun rangeResponse(
+        source: SeekableSource,
+        start: Long,
+        end: Long,
+        length: Long
+    ): WebResourceResponse {
+        val stream = FileInputStream(source.descriptor.fileDescriptor)
+        val absoluteStart = source.baseOffset + start
+        try {
+            try {
+                stream.channel.position(absoluteStart)
+            } catch (_: Exception) {
+                skipFully(stream, absoluteStart)
+            }
+        } catch (error: Exception) {
+            stream.close()
+            source.close()
+            throw error
+        }
+        val limited = limitedStream(stream, length) {
+            stream.close()
+            source.close()
+        }
+        val headers = commonHeaders().apply {
+            put("Accept-Ranges", "bytes")
+            put("Content-Range", "bytes $start-$end/$documentLength")
+            put("Content-Length", length.toString())
+        }
+        return WebResourceResponse("application/pdf", null, 206, "Partial Content", headers, limited)
+    }
+
+    private fun fileResponse(file: File, range: String?): WebResourceResponse {
+        val total = file.length()
+        if (total <= 0L) return notFound()
+        if (range.isNullOrBlank()) {
+            val headers = commonHeaders().apply {
+                put("Accept-Ranges", "bytes")
+                put("Content-Length", total.toString())
+            }
+            return WebResourceResponse("application/pdf", null, 200, "OK", headers, FileInputStream(file))
+        }
+        val requested = parseRange(range, total) ?: return rangeNotSatisfiable(total)
+        val (start, end) = requested
+        val length = end - start + 1L
+        if (length <= 0L || length > MAX_RANGE_BYTES) return rangeNotSatisfiable(total)
+        val stream = FileInputStream(file)
+        try {
+            stream.channel.position(start)
+        } catch (error: Exception) {
+            stream.close()
+            throw error
+        }
+        val limited = limitedStream(stream, length) { stream.close() }
+        val headers = commonHeaders().apply {
+            put("Accept-Ranges", "bytes")
+            put("Content-Range", "bytes $start-$end/$total")
+            put("Content-Length", length.toString())
+        }
+        return WebResourceResponse("application/pdf", null, 206, "Partial Content", headers, limited)
+    }
+
+    private fun limitedStream(
+        stream: InputStream,
+        byteCount: Long,
+        onClose: () -> Unit
+    ): InputStream = object : FilterInputStream(stream) {
+        private var remainingBytes = byteCount
+
+        override fun read(): Int {
+            if (remainingBytes <= 0L) return -1
+            val value = super.read()
+            if (value >= 0) remainingBytes--
+            return value
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, count: Int): Int {
+            if (remainingBytes <= 0L) return -1
+            val allowed = minOf(count.toLong(), remainingBytes).toInt()
+            val read = super.read(buffer, offset, allowed)
+            if (read > 0) remainingBytes -= read.toLong()
+            return read
+        }
+
+        override fun close() {
+            try { super.close() } finally { onClose() }
+        }
+    }
+
+    /**
+     * Copy a document to the app cache when no provider handle can be reopened.
+     * The copy is private, deleted when the viewer closes, and capped so a damaged
+     * provider cannot fill the device. Retries cover an attachment that is still
+     * being downloaded when the reader is opened.
+     */
+    private fun stageDocument(uri: Uri): File? = synchronized(stageLock) {
+        stagedFile?.let { return it }
+        repeat(STAGE_OPEN_ATTEMPTS) { attempt ->
+            val target = try {
+                File.createTempFile("fz-office-view-", ".pdf", cacheDir)
+            } catch (_: Exception) {
+                return null
+            }
+            val copied = try {
+                val input = contentResolver.openInputStream(uri)
+                    ?: throw IOException("The selected PDF cannot be read.")
+                input.use { source ->
+                    FileOutputStream(target).use { output ->
+                        val buffer = ByteArray(STAGE_BUFFER_BYTES)
+                        var total = 0L
+                        while (true) {
+                            val count = source.read(buffer)
+                            if (count < 0) break
+                            if (count == 0) continue
+                            total += count.toLong()
+                            if (total > MAX_STAGE_BYTES) {
+                                throw IOException("PDF is larger than the cache limit.")
+                            }
+                            output.write(buffer, 0, count)
+                        }
+                        if (total == 0L) throw IOException("The selected PDF is empty.")
+                    }
+                }
+                target
+            } catch (_: Exception) {
+                target.delete()
+                null
+            }
+            if (copied != null) {
+                stagedFile = copied
+                documentLength = copied.length()
+                useRanges = copied.length() >= RANGE_THRESHOLD_BYTES &&
+                    scanFileEncryption(copied) != EncryptionScan.FOUND
+                return copied
+            }
+            if (attempt < STAGE_OPEN_ATTEMPTS - 1) {
+                Thread.sleep(STREAM_OPEN_RETRY_MS * (attempt + 1))
+            }
+        }
+        null
+    }
+
+    private fun scanFileEncryption(file: File): EncryptionScan {
+        val length = file.length()
+        if (length <= 0L) return EncryptionScan.UNKNOWN
+        val scanBytes = minOf(length, 256L * 1024L).toInt()
+        if (scanBytes <= 0) return EncryptionScan.UNKNOWN
+        return try {
+            FileInputStream(file).use { input ->
+                val head = ByteArray(scanBytes)
+                var read = 0
+                while (read < scanBytes) {
+                    val count = input.read(head, read, scanBytes - read)
+                    if (count < 0) return EncryptionScan.UNKNOWN
+                    read += count
+                }
+                if (containsEncryptToken(head, head.size)) return EncryptionScan.FOUND
+                if (length <= scanBytes) return EncryptionScan.ABSENT
+                input.channel.position(length - scanBytes)
+                val tail = ByteArray(scanBytes)
+                read = 0
+                while (read < scanBytes) {
+                    val count = input.read(tail, read, scanBytes - read)
+                    if (count < 0) return EncryptionScan.UNKNOWN
+                    read += count
+                }
+                if (containsEncryptToken(tail, tail.size)) {
+                    EncryptionScan.FOUND
+                } else {
+                    EncryptionScan.ABSENT
+                }
+            }
+        } catch (_: Exception) {
+            EncryptionScan.UNKNOWN
+        }
+    }
+
     private fun parseRange(value: String, total: Long): Pair<Long, Long>? {
         if (total <= 0L) return null
         val match = Regex("^bytes=(\\d+)-(\\d*)$", RegexOption.IGNORE_CASE)
@@ -570,13 +790,13 @@ class PdfJsViewerActivity : Activity() {
         }
     }
 
-    private fun rangeNotSatisfiable(): WebResourceResponse =
+    private fun rangeNotSatisfiable(total: Long = documentLength): WebResourceResponse =
         WebResourceResponse(
             "application/pdf",
             null,
             416,
             "Range Not Satisfiable",
-            commonHeaders().apply { put("Content-Range", "bytes */$documentLength") },
+            commonHeaders().apply { put("Content-Range", "bytes */$total") },
             ByteArrayInputStream(ByteArray(0))
         )
 
@@ -999,6 +1219,8 @@ class PdfJsViewerActivity : Activity() {
             }
         }
         webView = null
+        stagedFile?.delete()
+        stagedFile = null
         ioExecutor.shutdownNow()
         super.onDestroy()
     }
