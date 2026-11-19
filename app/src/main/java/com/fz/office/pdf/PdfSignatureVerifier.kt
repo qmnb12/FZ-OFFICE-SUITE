@@ -16,12 +16,12 @@ import java.security.cert.PKIXBuilderParameters
 import java.security.cert.TrustAnchor
 import java.security.cert.X509CertSelector
 import java.security.cert.X509Certificate
-import java.security.cert.X509TrustManager
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
 import javax.security.auth.x500.X500Principal
 
 /**
