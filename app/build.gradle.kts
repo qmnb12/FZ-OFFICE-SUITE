@@ -582,6 +582,62 @@ function observePages() {"""
                     throw GradleException("Unexpected pinned Gander PDF observer declaration.")
                 }
                 script = script.replace(oldObservePages, newObservePages)
+
+                // Digital signatures: PDF.js already knows where every signature's byte
+                // range and PKCS#7 blob is. Expose them to Kotlin on demand; the app
+                // verifies them itself and never trusts this payload for the verdict.
+                val oldSignatureHook = """function onCommand(msg) {
+  /* The title bar's height and whereabouts, which app.js keeps for every page */
+  if (vwBarSaid(msg)) return;"""
+                val newSignatureHook = """function fzBase64(bytes) {
+  var text = "";
+  for (var i = 0; i < bytes.length; i += 0x8000) {
+    text += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(text);
+}
+
+var fzSigTries = 0;
+
+async function requestFzSignatures() {
+  if (!searchPort) return;
+  if (!doc) {
+    if (fzSigTries++ < 40) setTimeout(requestFzSignatures, 250);
+    return;
+  }
+  var out = [];
+  try {
+    var list = await doc.getSignatures();
+    for (var i = 0; i < list.length; i++) {
+      var sig = list[i];
+      var payload = await doc.getSignatureData(sig.id);
+      if (!payload || !payload.pkcs7) continue;
+      out.push({
+        name: sig.name || "",
+        reason: sig.reason || "",
+        location: sig.location || "",
+        date: sig.date || "",
+        subFilter: sig.subFilter || "",
+        coversWhole: !!sig.coversWholeDocument,
+        modifications: sig.modificationsAfterSignature || 0,
+        byteRange: sig.byteRange || null,
+        contents: fzBase64(payload.pkcs7)
+      });
+    }
+  } catch (err) {
+    out = [];
+  }
+  try { searchPort.postMessage("fzsig " + JSON.stringify(out)); } catch (err) {}
+}
+
+function onCommand(msg) {
+  /* The title bar's height and whereabouts, which app.js keeps for every page */
+  if (vwBarSaid(msg)) return;
+  if (msg === "fzsig") { requestFzSignatures(); return; }"""
+                if (!script.contains(oldSignatureHook)) {
+                    throw GradleException("Unexpected pinned Gander PDF command entry point.")
+                }
+                script = script.replace(oldSignatureHook, newSignatureHook)
                 outputBytes = script.toByteArray(Charsets.UTF_8)
             }
 
@@ -700,8 +756,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 48
-        versionName = "1.0.8"
+        versionCode = 49
+        versionName = "1.0.9"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.

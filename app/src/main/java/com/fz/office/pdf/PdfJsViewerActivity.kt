@@ -3,6 +3,7 @@ package com.fz.office.pdf
 import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Intent
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
@@ -22,6 +23,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.TextView
 import android.widget.Toast
 import com.fz.office.viewer.DocumentViewerController
 import com.fz.office.viewer.DocumentViewerSurface
@@ -91,6 +93,9 @@ class PdfJsViewerActivity : Activity() {
     private var searchIndexReady = false
     private val pendingFindNavigation = ArrayList<String>()
     private val pendingCommands = ArrayList<String>()
+    private var signatureBadge: TextView? = null
+    private var signatureReports: List<PdfSignatureReport> = emptyList()
+    private var signatureRequested = false
     @Volatile private var closing = false
 
     override fun onCreate(state: Bundle?) {
@@ -222,6 +227,7 @@ class PdfJsViewerActivity : Activity() {
                 }, 100L)
                 pageReady = true
                 connectPageBridge()
+                requestSignatures()
                 dashboard?.setStatus(
                     if (locked) "PDF protected · Printing unavailable"
                     else if (totalPages > 0) "PDF ready · Page $currentPage of $totalPages"
@@ -640,6 +646,10 @@ class PdfJsViewerActivity : Activity() {
 
     private fun handlePageMessage(raw: String) {
         val message = raw.trim()
+        if (message.startsWith("fzsig ")) {
+            handleSignaturePayload(message.substring("fzsig ".length))
+            return
+        }
         if (message.startsWith("shrunk ")) {
             // The pages always stay at the 70% column now. The reader's double-tap
             // zooms the WebView natively instead of handing the gesture to PDF.js.
@@ -655,6 +665,8 @@ class PdfJsViewerActivity : Activity() {
             val fields = message.split(Regex("\\s+"))
             val page = fields.getOrNull(1)?.toIntOrNull() ?: return
             val total = fields.getOrNull(2)?.toIntOrNull() ?: return
+            // The document is open now, so PDF.js can list its signatures.
+            requestSignatures()
             runOnUiThread {
                 currentPage = page.coerceAtLeast(1)
                 totalPages = total.coerceAtLeast(1)
@@ -688,6 +700,135 @@ class PdfJsViewerActivity : Activity() {
     private fun queueFindNavigation(command: String) {
         if (searchIndexReady) postCommand(command)
         else pendingFindNavigation.add(command)
+    }
+
+    private fun requestSignatures() {
+        if (signatureRequested || closing) return
+        signatureRequested = true
+        postCommand("fzsig")
+    }
+
+    private fun handleSignaturePayload(payload: String) {
+        val array = runCatching { org.json.JSONArray(payload) }.getOrNull() ?: return
+        if (array.length() == 0) return
+        val signatures = ArrayList<PdfRawSignature>()
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            val range = item.optJSONArray("byteRange") ?: continue
+            if (range.length() < 4) continue
+            val byteRange = LongArray(4) { range.optLong(it) }
+            val contents = runCatching {
+                android.util.Base64.decode(item.optString("contents"), android.util.Base64.DEFAULT)
+            }.getOrNull() ?: continue
+            if (contents.isEmpty()) continue
+            signatures.add(
+                PdfRawSignature(
+                    name = item.optString("name"),
+                    reason = item.optString("reason"),
+                    location = item.optString("location"),
+                    date = item.optString("date"),
+                    subFilter = item.optString("subFilter"),
+                    coversWhole = item.optBoolean("coversWhole"),
+                    modifications = item.optInt("modifications"),
+                    byteRange = byteRange,
+                    contents = contents
+                )
+            )
+        }
+        val uri = documentUri ?: return
+        if (signatures.isEmpty()) return
+        ioExecutor.execute {
+            val reports = signatures.mapNotNull { signature ->
+                runCatching {
+                    PdfSignatureVerifier.verify(applicationContext, uri, signature)
+                }.getOrNull()
+            }
+            if (reports.isEmpty()) return@execute
+            runOnUiThread {
+                if (!closing) showSignatureBadge(reports)
+            }
+        }
+    }
+
+    private fun showSignatureBadge(reports: List<PdfSignatureReport>) {
+        signatureReports = reports
+        val latest = reports.last()
+        val glyph: String
+        val foreground: Int
+        val background: Int
+        val description: String
+        when {
+            !latest.valid -> {
+                glyph = "✕"
+                foreground = 0xffb3261e.toInt()
+                background = 0xffffe9e6.toInt()
+                description = "Invalid digital signature"
+            }
+            !latest.wholeDocument -> {
+                glyph = "!"
+                foreground = 0xff8a5300.toInt()
+                background = 0xfffff1dc.toInt()
+                description = "Document was changed after it was signed"
+            }
+            latest.trusted -> {
+                glyph = "✓"
+                foreground = 0xff0b6b3a.toInt()
+                background = 0xffe3f6ea.toInt()
+                description = "Digitally signed, trusted certificate"
+            }
+            else -> {
+                glyph = "✓"
+                foreground = 0xff0b4a8f.toInt()
+                background = 0xffe6f0ff.toInt()
+                description = "Digitally signed, certificate not trusted"
+            }
+        }
+        val button = signatureBadge
+            ?: dashboard?.addToolbarAction(glyph, description) { showSignatureDetails() }
+                ?.also { signatureBadge = it }
+            ?: return
+        button.text = glyph
+        button.setTextColor(foreground)
+        button.contentDescription = description
+        val density = resources.displayMetrics.density
+        button.background = GradientDrawable().apply {
+            setColor(background)
+            cornerRadius = 11 * density
+        }
+    }
+
+    private fun showSignatureDetails() {
+        val reports = signatureReports
+        if (reports.isEmpty()) return
+        val message = buildString {
+            reports.forEachIndexed { index, report ->
+                if (index > 0) append("\n\n")
+                append(
+                    when {
+                        !report.valid -> "Invalid signature"
+                        report.trusted -> "Verified signature"
+                        else -> "Valid signature (unknown issuer)"
+                    }
+                )
+                append("\nSigned by: ").append(report.signer ?: "Unknown")
+                report.issuer?.takeIf { it.isNotBlank() }
+                    ?.let { append("\nIssuer: ").append(it) }
+                report.signedAt?.let { append("\nSigned: ").append(it) }
+                report.reason?.let { append("\nReason: ").append(it) }
+                report.location?.let { append("\nLocation: ").append(it) }
+                report.algorithm?.let { append("\nAlgorithm: ").append(it) }
+                append("\nCoverage: ").append(
+                    if (report.wholeDocument) "Whole document" else "Document changed after signing"
+                )
+                report.note?.let { append("\n").append(it) }
+            }
+            if (reports.size > 1) append("\n\nSignatures: ").append(reports.size)
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Digital signature")
+            .setMessage(message)
+            .setPositiveButton("Close", null)
+            .show()
     }
 
     private fun postCommand(command: String) {
