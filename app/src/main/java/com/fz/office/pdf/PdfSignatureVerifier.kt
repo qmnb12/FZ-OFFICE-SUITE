@@ -45,7 +45,8 @@ data class PdfSignatureReport(
     val reason: String?,
     val location: String?,
     val algorithm: String?,
-    val note: String?
+    val note: String?,
+    val diagnostic: String? = null
 )
 
 /**
@@ -135,12 +136,12 @@ object PdfSignatureVerifier {
             false
         }
 
-        val trusted = valid && isTrusted(
-            context,
-            signer,
-            parsed.certificates,
-            signedAtMillis?.let { Date(it) }
-        )
+        val trust = if (valid) {
+            evaluateTrust(context, signer, parsed.certificates, signedAtMillis?.let { Date(it) })
+        } else {
+            TrustResult(false, null)
+        }
+        val trusted = trust.trusted
         val whole = raw.coversWhole && raw.modifications <= 0
 
         return PdfSignatureReport(
@@ -158,7 +159,8 @@ object PdfSignatureVerifier {
                 !whole -> "The document was changed after it was signed."
                 trusted -> "Certificate chain is trusted on this device."
                 else -> "Signature is intact, but the issuer is not in the device trust store."
-            }
+            },
+            diagnostic = trust.diagnostic
         )
     }
 
@@ -302,12 +304,14 @@ object PdfSignatureVerifier {
         return certificates.singleOrNull()
     }
 
-    private fun isTrusted(
+    private data class TrustResult(val trusted: Boolean, val diagnostic: String?)
+
+    private fun evaluateTrust(
         context: Context,
         signer: X509Certificate,
         certificates: List<X509Certificate>,
         at: Date?
-    ): Boolean {
+    ): TrustResult {
         val bundled = runCatching { loadBundledTrust(context) }.getOrNull()
         val systemAnchors = runCatching {
             val factory = TrustManagerFactory.getInstance("X509")
@@ -316,10 +320,20 @@ object PdfSignatureVerifier {
                 .filterIsInstance<X509TrustManager>()
                 .flatMap { it.acceptedIssuers.toList() }
         }.getOrDefault(emptyList())
-        val anchors = systemAnchors + (bundled?.first ?: emptyList())
-        val pool = certificates + (bundled?.second ?: emptyList())
+        val bundledRoots = bundled?.first ?: emptyList()
+        val bundledIntermediates = bundled?.second ?: emptyList()
+        val anchors = systemAnchors + bundledRoots
+        val pool = certificates + bundledIntermediates
         val moment = (at ?: Date()).time
-        return chainToAnchor(signer, pool, anchors, moment, 0, 0)
+        val trusted = chainToAnchor(signer, pool, anchors, moment, 0, 0)
+        if (trusted) return TrustResult(true, null)
+        val detail = buildString {
+            append("Trust check: roots=").append(bundledRoots.size)
+            append(", intermediates=").append(bundledIntermediates.size)
+            append(", system=").append(systemAnchors.size)
+            append(", chain=").append(signer.subjectX500Principal.name.take(40))
+        }
+        return TrustResult(false, detail)
     }
 
     /**
@@ -349,10 +363,10 @@ object PdfSignatureVerifier {
         val candidates = anchors + pool
         for (candidate in candidates) {
             if (candidate.encoded.contentEquals(certificate.encoded)) continue
-            if (candidate.basicConstraints < 0) continue
+            if (!isCertificateAuthority(candidate)) continue
             if (moment < candidate.notBefore.time || moment > candidate.notAfter.time) continue
             val limit = candidate.basicConstraints
-            if (limit != Int.MAX_VALUE && caDepth > limit) continue
+            if (limit in 0 until Int.MAX_VALUE && caDepth > limit) continue
             if (!verifyWith(certificate, candidate)) continue
             if (anchors.any { it.encoded.contentEquals(candidate.encoded) }) return true
             if (chainToAnchor(candidate, pool, anchors, moment, depth + 1, caDepth + 1)) {
@@ -360,6 +374,11 @@ object PdfSignatureVerifier {
             }
         }
         return false
+    }
+
+    private fun isCertificateAuthority(certificate: X509Certificate): Boolean {
+        if (certificate.basicConstraints >= 0) return true
+        return runCatching { certificate.keyUsage?.getOrNull(5) == true }.getOrDefault(false)
     }
 
     private fun verifyWith(certificate: X509Certificate, issuer: X509Certificate): Boolean =

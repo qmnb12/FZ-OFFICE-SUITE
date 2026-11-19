@@ -95,6 +95,11 @@ class PdfJsViewerActivity : Activity() {
     private val pendingCommands = ArrayList<String>()
     private var signatureBadge: TextView? = null
     private var signatureReports: List<PdfSignatureReport> = emptyList()
+    private val appVersion: String by lazy {
+        runCatching { packageManager.getPackageInfo(packageName, 0).versionName }
+            .getOrNull()
+            .orEmpty()
+    }
     private var signatureRequested = false
     @Volatile private var signatureManualCheck = false
     @Volatile private var signatureManualPending = false
@@ -852,8 +857,10 @@ class PdfJsViewerActivity : Activity() {
                     if (report.wholeDocument) "Whole document" else "Document changed after signing"
                 )
                 report.note?.let { append("\n").append(it) }
+                report.diagnostic?.let { append("\n").append(it) }
             }
             if (reports.size > 1) append("\n\nSignatures: ").append(reports.size)
+            if (appVersion.isNotBlank()) append("\n\nApp: ").append(appVersion)
         }
         android.app.AlertDialog.Builder(this)
             .setTitle("Digital signature")
