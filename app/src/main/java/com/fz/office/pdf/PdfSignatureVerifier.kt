@@ -323,9 +323,11 @@ object PdfSignatureVerifier {
     }
 
     /**
-     * Android's PKIX provider does not offer a CertPathBuilder on every WebView/OS
-     * combination, so walk the chain by hand. Every hop must match names, verify with
-     * the parent key, be valid at the signing time, and the parent must be a CA.
+     * Walk the chain by hand: Android's PKIX provider does not offer a
+     * CertPathBuilder on every version, and some CAs encode the same DN with
+     * different string types. A hop is accepted when the candidate's key
+     * verifies the child's signature, so the cryptographic binding decides,
+     * not a textual name comparison.
      */
     private fun chainToAnchor(
         certificate: X509Certificate,
@@ -343,22 +345,17 @@ object PdfSignatureVerifier {
             if (certificate.encoded.contentEquals(anchor.encoded)) {
                 return moment in anchor.notBefore.time..anchor.notAfter.time
             }
-            if (certificate.issuerX500Principal != anchor.subjectX500Principal) continue
-            if (moment < anchor.notBefore.time || moment > anchor.notAfter.time) continue
-            val limit = anchor.basicConstraints
-            if (limit < 0) continue
-            if (limit >= 0 && caDepth > limit) continue
-            if (verifyWith(certificate, anchor)) return true
         }
-        for (parent in pool) {
-            if (parent.encoded.contentEquals(certificate.encoded)) continue
-            if (parent.issuerX500Principal == parent.subjectX500Principal) continue
-            if (parent.subjectX500Principal != certificate.issuerX500Principal) continue
-            if (parent.basicConstraints < 0) continue
-            val limit = parent.basicConstraints
-            if (limit >= 0 && caDepth > limit) continue
-            if (!verifyWith(certificate, parent)) continue
-            if (chainToAnchor(parent, pool, anchors, moment, depth + 1, caDepth + 1)) {
+        val candidates = anchors + pool
+        for (candidate in candidates) {
+            if (candidate.encoded.contentEquals(certificate.encoded)) continue
+            if (candidate.basicConstraints < 0) continue
+            if (moment < candidate.notBefore.time || moment > candidate.notAfter.time) continue
+            val limit = candidate.basicConstraints
+            if (limit != Int.MAX_VALUE && caDepth > limit) continue
+            if (!verifyWith(certificate, candidate)) continue
+            if (anchors.any { it.encoded.contentEquals(candidate.encoded) }) return true
+            if (chainToAnchor(candidate, pool, anchors, moment, depth + 1, caDepth + 1)) {
                 return true
             }
         }
