@@ -614,6 +614,7 @@ async function requestFzSignatures() {
       if (!payload || !payload.pkcs7) continue;
       out.push({
         name: sig.signerName || "",
+        fieldName: sig.fieldName || "",
         reason: sig.reason || "",
         location: sig.location || "",
         date: sig.signingTime || "",
@@ -630,9 +631,137 @@ async function requestFzSignatures() {
   try { searchPort.postMessage("fzsig " + JSON.stringify(out)); } catch (err) {}
 }
 
+/*
+ * Draw the verdict over the signature widget, the way a desktop reader replaces
+ * the signer's "not verified" stamp with its own status panel. The layer is an
+ * SVG in page units, so it scales with the page at every zoom instead of being
+ * a fixed-size badge that drifts off the field.
+ */
+var fzVerdicts = null;
+var fzSigRects = null;
+var FZ_SVG_NS = "http://www.w3.org/2000/svg";
+
+async function fzCollectSignatureRects() {
+  if (fzSigRects) return fzSigRects;
+  var out = [];
+  for (var n = 1; n <= doc.numPages; n++) {
+    var page = await doc.getPage(n);
+    var annotations = await page.getAnnotations({ intent: "display" });
+    if (!annotations || !annotations.length) continue;
+    var viewport = page.getViewport({ scale: 1 });
+    for (var i = 0; i < annotations.length; i++) {
+      var annotation = annotations[i];
+      if (annotation.fieldType !== "Sig" || !annotation.rect) continue;
+      var box = viewport.convertToViewportRectangle(annotation.rect);
+      out.push({
+        page: n,
+        fieldName: annotation.fieldName || "",
+        viewWidth: viewport.width,
+        viewHeight: viewport.height,
+        x: Math.min(box[0], box[2]),
+        y: Math.min(box[1], box[3]),
+        width: Math.abs(box[2] - box[0]),
+        height: Math.abs(box[3] - box[1])
+      });
+    }
+  }
+  fzSigRects = out;
+  return out;
+}
+
+function fzVerdictFor(fieldName) {
+  if (!fzVerdicts) return null;
+  for (var i = 0; i < fzVerdicts.length; i++) {
+    if ((fzVerdicts[i].fieldName || "") === (fieldName || "")) return fzVerdicts[i];
+  }
+  return fzVerdicts.length === 1 ? fzVerdicts[0] : null;
+}
+
+function fzSvgText(layer, x, y, size, colour, weight, text) {
+  var node = document.createElementNS(FZ_SVG_NS, "text");
+  node.setAttribute("x", x);
+  node.setAttribute("y", y);
+  node.setAttribute("font-size", size);
+  node.setAttribute("font-family", "sans-serif");
+  node.setAttribute("font-weight", weight);
+  node.setAttribute("fill", colour);
+  node.textContent = text;
+  layer.appendChild(node);
+}
+
+function fzPaintSignatureVerdicts() {
+  if (!fzVerdicts || !fzSigRects) return;
+  for (var i = 0; i < fzSigRects.length; i++) {
+    var rect = fzSigRects[i];
+    var slot = slots[rect.page - 1];
+    if (!slot) continue;
+    var verdict = fzVerdictFor(rect.fieldName);
+    var layer = slot.box.querySelector(".vw-sig-layer");
+    if (!verdict) {
+      if (layer) layer.remove();
+      continue;
+    }
+    if (!layer) {
+      layer = document.createElementNS(FZ_SVG_NS, "svg");
+      layer.setAttribute("class", "vw-sig-layer");
+      layer.setAttribute("viewBox", "0 0 " + rect.viewWidth + " " + rect.viewHeight);
+      layer.style.cssText =
+        "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:hidden";
+      slot.box.appendChild(layer);
+    }
+    layer.replaceChildren();
+    var colour = verdict.state === "trusted" ? "#0b6b3a" :
+      verdict.state === "valid" ? "#0b4a8f" :
+      verdict.state === "changed" ? "#8a5300" : "#b3261e";
+    var label = verdict.state === "trusted" ? "Signature valid" :
+      verdict.state === "valid" ? "Signature valid, certificate unknown" :
+      verdict.state === "changed" ? "Changed after signing" : "Signature invalid";
+    var mark = verdict.state === "invalid" || verdict.state === "changed" ? "!" : "✓";
+    var stroke = Math.max(1, rect.width * 0.006);
+    var panel = document.createElementNS(FZ_SVG_NS, "rect");
+    panel.setAttribute("x", rect.x);
+    panel.setAttribute("y", rect.y);
+    panel.setAttribute("width", rect.width);
+    panel.setAttribute("height", rect.height);
+    panel.setAttribute("fill", "#ffffff");
+    panel.setAttribute("stroke", colour);
+    panel.setAttribute("stroke-width", stroke);
+    layer.appendChild(panel);
+    var head = Math.min(rect.height, Math.max(rect.height * 0.3, rect.width * 0.1));
+    var bar = document.createElementNS(FZ_SVG_NS, "rect");
+    bar.setAttribute("x", rect.x);
+    bar.setAttribute("y", rect.y);
+    bar.setAttribute("width", rect.width);
+    bar.setAttribute("height", head);
+    bar.setAttribute("fill", colour);
+    layer.appendChild(bar);
+    var pad = Math.max(2, rect.width * 0.025);
+    var headSize = Math.min(head * 0.6, rect.width * 0.085);
+    fzSvgText(layer, rect.x + pad, rect.y + head * 0.5 + headSize * 0.36,
+      headSize, "#ffffff", "600", mark + " " + label);
+    var lineSize = Math.min(headSize * 0.85, (rect.height - head) * 0.34);
+    var lineY = rect.y + head + lineSize * 1.1;
+    if (verdict.signer) {
+      fzSvgText(layer, rect.x + pad, lineY, lineSize, "#1a1a1a", "500", verdict.signer);
+      lineY += lineSize * 1.15;
+    }
+    if (verdict.date) {
+      fzSvgText(layer, rect.x + pad, lineY, lineSize, "#444444", "400", verdict.date);
+    }
+  }
+}
+
+async function fzShowSignatureVerdict(json) {
+  try { fzVerdicts = JSON.parse(json); } catch (err) { return; }
+  if (!doc) return;
+  try { await fzCollectSignatureRects(); } catch (err) { return; }
+  fzPaintSignatureVerdicts();
+}
+
 function onCommand(msg) {
   /* The title bar's height and whereabouts, which app.js keeps for every page */
   if (vwBarSaid(msg)) return;
+  if (msg.indexOf("fzverdict ") === 0) { fzShowSignatureVerdict(msg.slice(10)); return; }
   if (msg === "fzsig") { requestFzSignatures(); return; }"""
                 if (!script.contains(oldSignatureHook)) {
                     throw GradleException("Unexpected pinned Gander PDF command entry point.")
@@ -804,8 +933,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 59
-        versionName = "1.0.19"
+        versionCode = 60
+        versionName = "1.0.20"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.

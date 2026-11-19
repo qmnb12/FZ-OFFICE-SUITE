@@ -32,7 +32,8 @@ data class PdfRawSignature(
     val coversWhole: Boolean,
     val modifications: Int,
     val byteRange: LongArray,
-    val contents: ByteArray
+    val contents: ByteArray,
+    val fieldName: String = ""
 )
 
 data class PdfSignatureReport(
@@ -46,7 +47,8 @@ data class PdfSignatureReport(
     val location: String?,
     val algorithm: String?,
     val note: String?,
-    val diagnostic: String? = null
+    val diagnostic: String? = null,
+    val fieldName: String? = null
 )
 
 /**

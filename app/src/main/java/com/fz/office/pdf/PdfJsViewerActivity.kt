@@ -988,7 +988,8 @@ class PdfJsViewerActivity : Activity() {
                     coversWhole = item.optBoolean("coversWhole"),
                     modifications = item.optInt("modifications"),
                     byteRange = byteRange,
-                    contents = contents
+                    contents = contents,
+                    fieldName = item.optString("fieldName")
                 )
             )
         }
@@ -1000,6 +1001,7 @@ class PdfJsViewerActivity : Activity() {
             val reports = signatures.mapNotNull { signature ->
                 runCatching {
                     PdfSignatureVerifier.verify(applicationContext, uri, signature)
+                        .copy(fieldName = signature.fieldName)
                 }.getOrNull()
             }
             if (reports.isEmpty()) return@execute
@@ -1007,6 +1009,7 @@ class PdfJsViewerActivity : Activity() {
                 if (closing) return@runOnUiThread
                 signatureManualPending = false
                 showSignatureBadge(reports)
+                postSignatureVerdict(reports)
                 if (manual) showSignatureDetails()
             }
         }
@@ -1057,6 +1060,32 @@ class PdfJsViewerActivity : Activity() {
             setColor(background)
             cornerRadius = 11 * density
         }
+    }
+
+    /**
+     * Send the verdict back to the page so the signature widget shows the same
+     * status the toolbar does, the way a desktop reader replaces the signer's own
+     * "not verified" appearance with its validation result.
+     */
+    private fun postSignatureVerdict(reports: List<PdfSignatureReport>) {
+        val array = org.json.JSONArray()
+        reports.forEach { report ->
+            array.put(org.json.JSONObject().apply {
+                put("fieldName", report.fieldName.orEmpty())
+                put(
+                    "state",
+                    when {
+                        !report.valid -> "invalid"
+                        !report.wholeDocument -> "changed"
+                        report.trusted -> "trusted"
+                        else -> "valid"
+                    }
+                )
+                put("signer", report.signer.orEmpty())
+                put("date", report.signedAt.orEmpty())
+            })
+        }
+        postCommand("fzverdict " + array.toString())
     }
 
     private fun showSignatureDetails() {
