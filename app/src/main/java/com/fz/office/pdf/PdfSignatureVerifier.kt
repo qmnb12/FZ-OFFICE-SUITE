@@ -99,9 +99,12 @@ object PdfSignatureVerifier {
 
         val signedAttributes = parsed.signedAttributes
         val expectedDigest = parsed.messageDigest
+        val embeddedContent = parsed.embeddedContent
         val valid: Boolean = try {
             if (signedAttributes != null && expectedDigest != null) {
-                val actual = hashRanges(context, uri, ranges, digestName)
+                // The signed attribute covers either the embedded content
+                // (adbe.pkcs7.sha1) or the byte ranges (detached signatures).
+                val actual = embeddedContent ?: hashRanges(context, uri, ranges, digestName)
                 if (!MessageDigest.isEqual(actual, expectedDigest)) {
                     false
                 } else {
@@ -110,6 +113,20 @@ object PdfSignatureVerifier {
                     val verifier = Signature.getInstance(jcaName)
                     verifier.initVerify(signer.publicKey)
                     verifier.update(signedBytesForVerification)
+                    verifier.verify(parsed.signature)
+                }
+            } else if (embeddedContent != null) {
+                // adbe.pkcs7.sha1: the CMS content is the digest of the byte
+                // ranges, so bind it to the file and sign that digest.
+                val expected = hashRanges(context, uri, ranges, digestName)
+                if (embeddedContent.size != expected.size ||
+                    !MessageDigest.isEqual(embeddedContent, expected)
+                ) {
+                    false
+                } else {
+                    val verifier = Signature.getInstance(jcaName)
+                    verifier.initVerify(signer.publicKey)
+                    verifier.update(embeddedContent)
                     verifier.verify(parsed.signature)
                 }
             } else {
@@ -169,6 +186,7 @@ object PdfSignatureVerifier {
         val signature: ByteArray,
         val signedAttributes: ByteArray?,
         val messageDigest: ByteArray?,
+        val embeddedContent: ByteArray?,
         val signingTimeMillis: Long?,
         val signerCertificate: X509Certificate?,
         val certificates: List<X509Certificate>
@@ -234,6 +252,17 @@ object PdfSignatureVerifier {
             }
         }
 
+        var embeddedContent: ByteArray? = null
+        val encapContentInfo = signedDataChildren.firstOrNull { it.tag == 0x30 }
+        if (encapContentInfo != null) {
+            val encapFields = der.children(encapContentInfo)
+            val wrapper = encapFields.getOrNull(1)
+            if (wrapper != null && wrapper.tag == 0xA0) {
+                val inner = der.children(wrapper).firstOrNull()
+                if (inner != null) embeddedContent = der.octets(inner)
+            }
+        }
+
         val signerCertificate = findSignerCertificate(der, sid, certificates)
         return ParsedSignature(
             digestOid = digestOid,
@@ -241,6 +270,7 @@ object PdfSignatureVerifier {
             signature = signature,
             signedAttributes = signedAttributes?.let { der.raw(it) },
             messageDigest = messageDigest,
+            embeddedContent = embeddedContent,
             signingTimeMillis = signingTimeMillis,
             signerCertificate = signerCertificate,
             certificates = certificates
