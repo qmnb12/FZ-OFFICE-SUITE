@@ -47,6 +47,7 @@ data class PdfSignatureReport(
     val location: String?,
     val algorithm: String?,
     val note: String?,
+    val signedAtAdobe: String? = null,
     val diagnostic: String? = null,
     val fieldName: String? = null
 )
@@ -93,6 +94,7 @@ object PdfSignatureVerifier {
 
         val signedAtMillis = parsed.signingTimeMillis ?: parsePdfDate(raw.date)
         val signedAt = formatDate(signedAtMillis) ?: raw.date.takeIf { it.isNotBlank() }
+        val signedAtAdobe = formatAdobeDate(raw.date, signedAtMillis)
 
         val signedAttributes = parsed.signedAttributes
         val expectedDigest = parsed.messageDigest
@@ -153,6 +155,7 @@ object PdfSignatureVerifier {
             signer = commonName(signer.subjectX500Principal),
             issuer = commonName(signer.issuerX500Principal),
             signedAt = signedAt,
+            signedAtAdobe = signedAtAdobe,
             reason = raw.reason.takeIf { it.isNotBlank() },
             location = raw.location.takeIf { it.isNotBlank() },
             algorithm = "$digestName · ${if (jcaName.endsWith("ECDSA")) "ECDSA" else "RSA"}",
@@ -574,6 +577,40 @@ object PdfSignatureVerifier {
         if (millis == null || millis <= 0L) return null
         return runCatching {
             SimpleDateFormat("d MMM yyyy, h:mm a", Locale.getDefault()).format(Date(millis))
+        }.getOrNull()
+    }
+
+    /* The wording Adobe prints in its signature stamp: the PDF date as written,
+       timezone included, rather than the device-local short form. */
+    private fun formatAdobeDate(raw: String?, millis: Long?): String? {
+        val match = Regex(
+            "D:(\\d{4})(\\d{2})?(\\d{2})?(\\d{2})?(\\d{2})?(\\d{2})?(?:([+-])(\\d{2})'?(\\d{2})'?|(Z))?"
+        ).find(raw?.trim().orEmpty())
+        if (match != null) {
+            val fields = match.groupValues
+            val offset = if (fields[7].isNotEmpty()) {
+                "${fields[7]}${fields[8].padStart(2, '0')}:${fields[9].padStart(2, '0')}"
+            } else {
+                "+00:00"
+            }
+            return String.format(Locale.US, "%s.%s.%s %s:%s:%s %s",
+                fields[1].padStart(4, '0'),
+                fields[2].ifEmpty { "01" }.padStart(2, '0'),
+                fields[3].ifEmpty { "01" }.padStart(2, '0'),
+                fields[4].ifEmpty { "00" }.padStart(2, '0'),
+                fields[5].ifEmpty { "00" }.padStart(2, '0'),
+                fields[6].ifEmpty { "00" }.padStart(2, '0'),
+                offset
+            )
+        }
+        if (millis == null || millis <= 0L) return null
+        return runCatching {
+            val text = SimpleDateFormat("yyyy.MM.dd HH:mm:ss", Locale.US).format(Date(millis))
+            val total = TimeZone.getDefault().getOffset(millis)
+            val sign = if (total >= 0) "+" else "-"
+            val absolute = kotlin.math.abs(total)
+            val offset = String.format(Locale.US, "%s%02d:%02d", sign, absolute / 3_600_000, (absolute / 60_000) % 60)
+            "$text $offset"
         }.getOrNull()
     }
 

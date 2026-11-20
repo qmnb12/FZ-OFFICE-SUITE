@@ -700,6 +700,24 @@ function fzFitText(text, size, maxWidth) {
   return text.length > max ? text.slice(0, max - 1) + "…" : text;
 }
 
+/* Adobe wraps the signer line rather than cutting it off, so the stamp reads
+   as much as it fits instead of ending in an ellipsis. */
+function fzWrap(text, size, maxWidth) {
+  var per = Math.max(0.5, size * 0.52);
+  var max = Math.max(6, Math.floor(maxWidth / per));
+  var words = String(text).split(" ");
+  var out = [];
+  var line = "";
+  for (var i = 0; i < words.length; i++) {
+    var word = words[i];
+    if (!line) { line = word; continue; }
+    if ((line + " " + word).length <= max) line += " " + word;
+    else { out.push(line); line = word; }
+  }
+  if (line) out.push(line);
+  return out;
+}
+
 /* The big tick Adobe draws under the wording: a dark soft edge with the green
    stroke on top of it, rather than a flat glyph. */
 function fzBigTick(layer, x, y, size, colour) {
@@ -783,26 +801,31 @@ function fzPaintSignatureVerdicts() {
     paper.setAttribute("height", rect.height);
     paper.setAttribute("fill", "#ffffff");
     layer.appendChild(paper);
-    var glyph = Math.min(rect.width, rect.height) * 0.72;
-    var gx = rect.x + rect.width - glyph - pad * 0.5;
-    var gy = rect.y + rect.height - glyph - pad * 0.5;
+    var glyph = Math.min(rect.width, rect.height) * 0.62;
+    var gx = rect.x + rect.width - glyph * 1.02 - pad;
+    var gy = rect.y + rect.height - glyph * 0.92 - pad;
     if (valid) fzBigTick(layer, gx, gy, glyph, colour);
     else fzBigCross(layer, gx, gy, glyph, colour);
-    var title = Math.min(rect.height * 0.14, rect.width * 0.09);
-    fzSvgText(layer, rect.x + pad, rect.y + pad + title, title, "#111111", "700", label);
-    var lines = [];
-    if (verdict.signer) lines.push("Digitally signed by " + verdict.signer);
-    if (verdict.date) lines.push("Date: " + verdict.date);
-    if (verdict.reason) lines.push("Reason: " + verdict.reason);
-    if (verdict.location) lines.push("Location: " + verdict.location);
+    var title = Math.min(rect.height * 0.15, rect.width * 0.1);
+    fzSvgText(layer, rect.x + pad, rect.y + pad + title, title, "#111111", "600",
+      fzFitText(label, title, rect.width - pad * 2));
+    var sources = [];
+    if (verdict.signer) sources.push("Digitally signed by " + verdict.signer);
+    if (verdict.date) sources.push("Date: " + verdict.date);
+    if (verdict.reason) sources.push("Reason: " + verdict.reason);
+    if (verdict.location) sources.push("Location: " + verdict.location);
     var top = rect.y + pad + title * 1.5;
     var avail = rect.y + rect.height - pad - top;
-    var lineSize = Math.min(title * 0.56, avail / Math.max(1, lines.length * 1.3));
-    if (lineSize < 2.6) lineSize = 2.6;
-    for (var k = 0; k < lines.length; k++) {
-      fzSvgText(layer, rect.x + pad, top + lineSize * (1 + k * 1.3), lineSize,
-        "#111111", k === 0 ? "600" : "400",
-        fzFitText(lines[k], lineSize, rect.width - pad * 2));
+    var nominal = title * 0.72;
+    var wrapped = [];
+    for (var s = 0; s < sources.length; s++) {
+      wrapped = wrapped.concat(fzWrap(sources[s], nominal, rect.width - pad * 2));
+    }
+    var lineSize = Math.min(nominal, avail / Math.max(1, wrapped.length * 1.25));
+    if (lineSize < 3) lineSize = 3;
+    for (var k = 0; k < wrapped.length; k++) {
+      fzSvgText(layer, rect.x + pad, top + lineSize * (1 + k * 1.25), lineSize,
+        "#111111", "400", wrapped[k]);
     }
   }
 }
@@ -1012,8 +1035,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 64
-        versionName = "1.0.24"
+        versionCode = 65
+        versionName = "1.0.25"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
