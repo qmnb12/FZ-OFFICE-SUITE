@@ -652,16 +652,19 @@ async function fzCollectSignatureRects() {
     for (var i = 0; i < annotations.length; i++) {
       var annotation = annotations[i];
       if (annotation.fieldType !== "Sig" || !annotation.rect) continue;
-      var box = viewport.convertToViewportRectangle(annotation.rect);
+      /* 6.3.289 dropped convertToViewportRectangle; a widget rect is axis aligned
+         under the page transform, so two opposite corners are enough. */
+      var first = viewport.convertToViewportPoint(annotation.rect[0], annotation.rect[1]);
+      var second = viewport.convertToViewportPoint(annotation.rect[2], annotation.rect[3]);
       out.push({
         page: n,
         fieldName: annotation.fieldName || "",
         viewWidth: viewport.width,
         viewHeight: viewport.height,
-        x: Math.min(box[0], box[2]),
-        y: Math.min(box[1], box[3]),
-        width: Math.abs(box[2] - box[0]),
-        height: Math.abs(box[3] - box[1])
+        x: Math.min(first[0], second[0]),
+        y: Math.min(first[1], second[1]),
+        width: Math.abs(second[0] - first[0]),
+        height: Math.abs(second[1] - first[1])
       });
     }
   }
@@ -961,8 +964,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 62
-        versionName = "1.0.22"
+        versionCode = 63
+        versionName = "1.0.23"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
