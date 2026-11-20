@@ -720,6 +720,28 @@ function fzWrap(text, size, maxWidth) {
 
 /* The big tick Adobe draws under the wording: a dark soft edge with the green
    stroke on top of it, rather than a flat glyph. */
+var fzFilterSeq = 0;
+
+/* Adobe's tick is green with a soft dark shadow, not a hard sticker rim. The
+   blur is in page units, so it stays proportional at every zoom. */
+function fzShadowFilter(layer, size) {
+  fzFilterSeq += 1;
+  var id = "fz-sig-shadow" + fzFilterSeq;
+  var defs = document.createElementNS(FZ_SVG_NS, "defs");
+  var filter = document.createElementNS(FZ_SVG_NS, "filter");
+  filter.setAttribute("id", id);
+  filter.setAttribute("x", "-30%");
+  filter.setAttribute("y", "-30%");
+  filter.setAttribute("width", "170%");
+  filter.setAttribute("height", "170%");
+  var blur = document.createElementNS(FZ_SVG_NS, "feGaussianBlur");
+  blur.setAttribute("stdDeviation", Math.max(0.6, size * 0.022));
+  filter.appendChild(blur);
+  defs.appendChild(filter);
+  layer.appendChild(defs);
+  return id;
+}
+
 function fzBigTick(layer, x, y, size, colour) {
   var d = "M" + (x + size * 0.05) + " " + (y + size * 0.55) +
     " L" + (x + size * 0.36) + " " + (y + size * 0.92) +
@@ -727,20 +749,21 @@ function fzBigTick(layer, x, y, size, colour) {
   var edge = document.createElementNS(FZ_SVG_NS, "path");
   edge.setAttribute("d", d);
   edge.setAttribute("fill", "none");
-  edge.setAttribute("stroke", "#1a1a1a");
-  edge.setAttribute("stroke-width", size * 0.32);
+  edge.setAttribute("stroke", "#111111");
+  edge.setAttribute("stroke-width", size * 0.3);
   edge.setAttribute("stroke-linecap", "round");
   edge.setAttribute("stroke-linejoin", "round");
-  edge.setAttribute("opacity", "0.92");
+  edge.setAttribute("opacity", "0.38");
+  edge.setAttribute("transform", "translate(" + (size * 0.03) + " " + (size * 0.045) + ")");
+  edge.setAttribute("filter", "url(#" + fzShadowFilter(layer, size) + ")");
   layer.appendChild(edge);
   var inner = document.createElementNS(FZ_SVG_NS, "path");
   inner.setAttribute("d", d);
   inner.setAttribute("fill", "none");
   inner.setAttribute("stroke", colour);
-  inner.setAttribute("stroke-width", size * 0.21);
+  inner.setAttribute("stroke-width", size * 0.26);
   inner.setAttribute("stroke-linecap", "round");
   inner.setAttribute("stroke-linejoin", "round");
-  inner.setAttribute("opacity", "1");
   layer.appendChild(inner);
 }
 
@@ -1035,8 +1058,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 66
-        versionName = "1.0.26"
+        versionCode = 67
+        versionName = "1.0.27"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
