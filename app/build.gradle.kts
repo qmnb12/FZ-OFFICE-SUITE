@@ -743,14 +743,14 @@ function fzShadowFilter(layer, size) {
 }
 
 function fzBigTick(layer, x, y, size, colour) {
-  var d = "M" + (x + size * 0.05) + " " + (y + size * 0.55) +
-    " L" + (x + size * 0.36) + " " + (y + size * 0.92) +
-    " L" + (x + size * 1.02) + " " + (y + size * 0.08);
+  var d = "M" + (x + size * 0.08) + " " + (y + size * 0.54) +
+    " L" + (x + size * 0.32) + " " + (y + size * 0.88) +
+    " L" + (x + size * 0.66) + " " + (y + size * 0.08);
   var edge = document.createElementNS(FZ_SVG_NS, "path");
   edge.setAttribute("d", d);
   edge.setAttribute("fill", "none");
   edge.setAttribute("stroke", "#111111");
-  edge.setAttribute("stroke-width", size * 0.3);
+  edge.setAttribute("stroke-width", size * 0.26);
   edge.setAttribute("stroke-linecap", "round");
   edge.setAttribute("stroke-linejoin", "round");
   edge.setAttribute("opacity", "0.38");
@@ -761,7 +761,7 @@ function fzBigTick(layer, x, y, size, colour) {
   inner.setAttribute("d", d);
   inner.setAttribute("fill", "none");
   inner.setAttribute("stroke", colour);
-  inner.setAttribute("stroke-width", size * 0.26);
+  inner.setAttribute("stroke-width", size * 0.22);
   inner.setAttribute("stroke-linecap", "round");
   inner.setAttribute("stroke-linejoin", "round");
   layer.appendChild(inner);
@@ -824,12 +824,13 @@ function fzPaintSignatureVerdicts() {
     paper.setAttribute("height", rect.height);
     paper.setAttribute("fill", "#ffffff");
     layer.appendChild(paper);
-    var glyph = Math.min(rect.width, rect.height) * 0.62;
-    var gx = rect.x + rect.width - glyph * 1.02 - pad;
-    var gy = rect.y + rect.height * 0.16;
+    var glyph = Math.min(rect.height * 0.68, rect.width * 0.58);
+    var gx = rect.x + rect.width - glyph * 0.66 - pad;
+    var gy = rect.y + rect.height * 0.14;
+    var textWidth = rect.width * 0.66;
     if (valid) fzBigTick(layer, gx, gy, glyph, colour);
     else fzBigCross(layer, gx, gy, glyph, colour);
-    var title = Math.min(rect.height * 0.17, rect.width * 0.11);
+    var title = Math.min(rect.height * 0.16, rect.width * 0.105);
     fzSvgText(layer, rect.x + pad, rect.y + pad + title, title, "#111111", "600",
       fzFitText(label, title, rect.width - pad * 2));
     var sources = [];
@@ -839,15 +840,15 @@ function fzPaintSignatureVerdicts() {
     if (verdict.location) sources.push("Location: " + verdict.location);
     var top = rect.y + pad + title * 1.5;
     var avail = rect.y + rect.height - pad - top;
-    var nominal = title * 0.66;
+    var nominal = title * 0.62;
     var wrapped = [];
     for (var s = 0; s < sources.length; s++) {
-      wrapped = wrapped.concat(fzWrap(sources[s], nominal, rect.width - pad * 2));
+      wrapped = wrapped.concat(fzWrap(sources[s], nominal, textWidth));
     }
-    var lineSize = Math.min(nominal, avail / Math.max(1, wrapped.length * 1.25));
+    var lineSize = Math.min(nominal, avail / Math.max(1, wrapped.length * 1.22));
     if (lineSize < 3) lineSize = 3;
     for (var k = 0; k < wrapped.length; k++) {
-      fzSvgText(layer, rect.x + pad, top + lineSize * (1 + k * 1.25), lineSize,
+      fzSvgText(layer, rect.x + pad, top + lineSize * (1 + k * 1.22), lineSize,
         "#111111", "400", wrapped[k]);
     }
   }
@@ -1058,8 +1059,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 67
-        versionName = "1.0.27"
+        versionCode = 68
+        versionName = "1.0.28"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
