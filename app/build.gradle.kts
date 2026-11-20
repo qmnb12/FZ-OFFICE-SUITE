@@ -682,112 +682,164 @@ function fzVerdictFor(fieldName) {
   return fzVerdicts.length === 1 ? fzVerdicts[0] : null;
 }
 
+/* Adobe renders the stamp in Arial/Helvetica. Arimo is metrically identical to
+   Arial, so the words break at the same place Adobe breaks them. */
+var fzStampFontReady = false;
+var fzStampFontLoading = false;
+
+function fzStampFamily() {
+  return "FZStamp, Arial, Helvetica, sans-serif";
+}
+
+function fzEnsureStampFont() {
+  if (fzStampFontReady || fzStampFontLoading) return;
+  fzStampFontLoading = true;
+  try {
+    var face = new FontFace("FZStamp",
+      "url('" + vwAssetUrl("./fonts/Arimo.ttf") + "')", { weight: "100 900" });
+    document.fonts.add(face);
+    face.load().then(function () {
+      fzStampFontReady = true;
+      fzStampFontLoading = false;
+      fzPaintSignatureVerdicts();
+    }, function () {
+      fzStampFontLoading = false;
+    });
+  } catch (err) {
+    fzStampFontLoading = false;
+  }
+}
+
 function fzSvgText(layer, x, y, size, colour, weight, text) {
   var node = document.createElementNS(FZ_SVG_NS, "text");
   node.setAttribute("x", x);
   node.setAttribute("y", y);
   node.setAttribute("font-size", size);
-  node.setAttribute("font-family", "sans-serif");
+  node.setAttribute("font-family", fzStampFamily());
   node.setAttribute("font-weight", weight);
   node.setAttribute("fill", colour);
   node.textContent = text;
   layer.appendChild(node);
 }
 
-function fzFitText(text, size, maxWidth) {
-  var per = size * 0.52;
-  var max = Math.max(4, Math.floor(maxWidth / per));
-  return text.length > max ? text.slice(0, max - 1) + "…" : text;
+function fzMeasure(layer, text, size, weight) {
+  var node = document.createElementNS(FZ_SVG_NS, "text");
+  node.setAttribute("x", "-10000");
+  node.setAttribute("font-size", size);
+  node.setAttribute("font-family", fzStampFamily());
+  node.setAttribute("font-weight", weight || "400");
+  node.textContent = text;
+  layer.appendChild(node);
+  var width = 0;
+  try {
+    width = node.getComputedTextLength();
+  } catch (err) {
+    width = String(text).length * size * 0.5;
+  }
+  layer.removeChild(node);
+  return width;
 }
 
-/* Adobe wraps the signer line rather than cutting it off, so the stamp reads
-   as much as it fits instead of ending in an ellipsis. */
-function fzWrap(text, size, maxWidth) {
-  var per = Math.max(0.5, size * 0.52);
-  var max = Math.max(6, Math.floor(maxWidth / per));
+function fzWrap(layer, text, size, maxWidth) {
   var words = String(text).split(" ");
   var out = [];
   var line = "";
   for (var i = 0; i < words.length; i++) {
     var word = words[i];
     if (!line) { line = word; continue; }
-    if ((line + " " + word).length <= max) line += " " + word;
+    var probe = line + " " + word;
+    if (fzMeasure(layer, probe, size, "400") <= maxWidth) line = probe;
     else { out.push(line); line = word; }
   }
   if (line) out.push(line);
   return out;
 }
 
-/* The big tick Adobe draws under the wording: a dark soft edge with the green
-   stroke on top of it, rather than a flat glyph. */
+/* The tick Adobe draws behind the wording: wide green stroke, a thin dark rim
+   and a hard-ish shadow dropped to the right, all in page units. */
 var fzFilterSeq = 0;
 
-/* Adobe's tick is green with a soft dark shadow, not a hard sticker rim. The
-   blur is in page units, so it stays proportional at every zoom. */
 function fzShadowFilter(layer, size) {
   fzFilterSeq += 1;
   var id = "fz-sig-shadow" + fzFilterSeq;
   var defs = document.createElementNS(FZ_SVG_NS, "defs");
   var filter = document.createElementNS(FZ_SVG_NS, "filter");
   filter.setAttribute("id", id);
-  filter.setAttribute("x", "-30%");
-  filter.setAttribute("y", "-30%");
-  filter.setAttribute("width", "170%");
-  filter.setAttribute("height", "170%");
+  filter.setAttribute("x", "-25%");
+  filter.setAttribute("y", "-25%");
+  filter.setAttribute("width", "160%");
+  filter.setAttribute("height", "160%");
   var blur = document.createElementNS(FZ_SVG_NS, "feGaussianBlur");
-  blur.setAttribute("stdDeviation", Math.max(0.6, size * 0.022));
+  blur.setAttribute("stdDeviation", Math.max(0.35, size * 0.012));
   filter.appendChild(blur);
   defs.appendChild(filter);
   layer.appendChild(defs);
   return id;
 }
 
-function fzBigTick(layer, x, y, size, colour) {
-  var d = "M" + (x + size * 0.06) + " " + (y + size * 0.55) +
-    " L" + (x + size * 0.36) + " " + (y + size * 0.9) +
-    " L" + (x + size * 0.78) + " " + (y + size * 0.1);
-  var edge = document.createElementNS(FZ_SVG_NS, "path");
-  edge.setAttribute("d", d);
-  edge.setAttribute("fill", "none");
-  edge.setAttribute("stroke", "#111111");
-  edge.setAttribute("stroke-width", size * 0.22);
-  edge.setAttribute("stroke-linecap", "round");
-  edge.setAttribute("stroke-linejoin", "round");
-  edge.setAttribute("opacity", "0.38");
-  edge.setAttribute("transform", "translate(" + (size * 0.03) + " " + (size * 0.045) + ")");
-  edge.setAttribute("filter", "url(#" + fzShadowFilter(layer, size) + ")");
-  layer.appendChild(edge);
+/* Geometry measured off Adobe's own stamp: width is 0.911 of the height, the
+   stroke 0.195 of the width, the elbow at 42% across and 90% down. */
+function fzStampPath(x, y, w, h) {
+  return "M" + (x + w * 0.1) + " " + (y + h * 0.49) +
+    " L" + (x + w * 0.42) + " " + (y + h * 0.9) +
+    " L" + (x + w * 0.86) + " " + (y + h * 0.1);
+}
+
+function fzBigTick(layer, x, y, h, colour) {
+  var w = h * 0.911;
+  var stroke = w * 0.195;
+  var d = fzStampPath(x, y, w, h);
+  var shadow = document.createElementNS(FZ_SVG_NS, "path");
+  shadow.setAttribute("d", d);
+  shadow.setAttribute("fill", "none");
+  shadow.setAttribute("stroke", "#000000");
+  shadow.setAttribute("stroke-width", stroke + w * 0.05);
+  shadow.setAttribute("stroke-linecap", "round");
+  shadow.setAttribute("stroke-linejoin", "round");
+  shadow.setAttribute("opacity", "0.5");
+  shadow.setAttribute("transform", "translate(" + (w * 0.05) + " " + (h * 0.055) + ")");
+  shadow.setAttribute("filter", "url(#" + fzShadowFilter(layer, w) + ")");
+  layer.appendChild(shadow);
+  var rim = document.createElementNS(FZ_SVG_NS, "path");
+  rim.setAttribute("d", d);
+  rim.setAttribute("fill", "none");
+  rim.setAttribute("stroke", "#3a3a3a");
+  rim.setAttribute("stroke-width", stroke + w * 0.055);
+  rim.setAttribute("stroke-linecap", "round");
+  rim.setAttribute("stroke-linejoin", "round");
+  layer.appendChild(rim);
   var inner = document.createElementNS(FZ_SVG_NS, "path");
   inner.setAttribute("d", d);
   inner.setAttribute("fill", "none");
   inner.setAttribute("stroke", colour);
-  inner.setAttribute("stroke-width", size * 0.18);
+  inner.setAttribute("stroke-width", stroke);
   inner.setAttribute("stroke-linecap", "round");
   inner.setAttribute("stroke-linejoin", "round");
   layer.appendChild(inner);
 }
 
-function fzBigCross(layer, x, y, size, colour) {
-  var d = "M" + (x + size * 0.1) + " " + (y + size * 0.1) +
-    " L" + (x + size * 0.9) + " " + (y + size * 0.9) +
-    " M" + (x + size * 0.9) + " " + (y + size * 0.1) +
-    " L" + (x + size * 0.1) + " " + (y + size * 0.9);
+function fzBigCross(layer, x, y, h, colour) {
+  var w = h * 0.911;
+  var d = "M" + (x + w * 0.1) + " " + (y + h * 0.1) +
+    " L" + (x + w * 0.9) + " " + (y + h * 0.9) +
+    " M" + (x + w * 0.9) + " " + (y + h * 0.1) +
+    " L" + (x + w * 0.1) + " " + (y + h * 0.9);
   var path = document.createElementNS(FZ_SVG_NS, "path");
   path.setAttribute("d", d);
   path.setAttribute("fill", "none");
   path.setAttribute("stroke", colour);
-  path.setAttribute("stroke-width", size * 0.2);
+  path.setAttribute("stroke-width", w * 0.195);
   path.setAttribute("stroke-linecap", "round");
   path.setAttribute("opacity", "0.85");
   layer.appendChild(path);
 }
 
-/* Adobe's own stamp, layout and wording: white paper, a large green tick
-   behind the text, "Signature valid", then the signer, date, reason and
-   location. Everything shrinks to the widget rectangle so no line runs past
-   its edge. */
+/* Adobe's stamp, measured off its own rendering: the tick sits behind a text
+   block that is 12.2 em wide, its centre on the block's centre, the title
+   1.94 em tall, the six body lines one em apart. */
 function fzPaintSignatureVerdicts() {
   if (!fzVerdicts || !fzSigRects) return;
+  fzEnsureStampFont();
   for (var i = 0; i < fzSigRects.length; i++) {
     var rect = fzSigRects[i];
     var slot = slots[rect.page - 1];
@@ -812,11 +864,10 @@ function fzPaintSignatureVerdicts() {
     layer.replaceChildren();
     var trusted = verdict.state === "trusted";
     var valid = trusted || verdict.state === "valid";
-    var colour = trusted ? "#1ea64a" : verdict.state === "valid" ? "#1f6fb2" :
+    var colour = trusted ? "#2ab157" : verdict.state === "valid" ? "#1f6fb2" :
       verdict.state === "changed" ? "#b26a00" : "#c62828";
     var label = valid ? "Signature valid" :
       verdict.state === "changed" ? "Changed after signing" : "Signature invalid";
-    var pad = Math.max(1.5, rect.width * 0.03);
     var paper = document.createElementNS(FZ_SVG_NS, "rect");
     paper.setAttribute("x", rect.x);
     paper.setAttribute("y", rect.y);
@@ -824,61 +875,70 @@ function fzPaintSignatureVerdicts() {
     paper.setAttribute("height", rect.height);
     paper.setAttribute("fill", "#ffffff");
     layer.appendChild(paper);
-    var glyph = Math.min(rect.height * 0.66, rect.width * 0.55);
-    var gx = rect.x + rect.width - glyph * 0.96 - pad;
-    var gy = rect.y + rect.height * 0.14;
-    var textWidth = rect.width * 0.66;
-    if (valid) fzBigTick(layer, gx, gy, glyph, colour);
-    else fzBigCross(layer, gx, gy, glyph, colour);
-    var title = Math.min(rect.height * 0.17, rect.width * 0.115);
-    fzSvgText(layer, rect.x + pad, rect.y + pad + title, title, "#111111", "600",
-      fzFitText(label, title, rect.width - pad * 2));
+
+    var em = Math.min(rect.width * 0.08, rect.height * 0.086);
+    if (em < 2) em = 2;
+    var pad = Math.max(1, rect.width * 0.02);
+    var left = rect.x + pad;
+    var textWidth = em * 12.0;
+    var titleSize = em * 1.94;
+    var linePitch = em * 0.96;
+
     var sources = [];
     if (verdict.signer) sources.push("Digitally signed by " + verdict.signer);
     if (verdict.date) sources.push("Date: " + verdict.date);
     if (verdict.reason) sources.push("Reason: " + verdict.reason);
     if (verdict.location) sources.push("Location: " + verdict.location);
-    var top = rect.y + pad + title * 1.5;
-    var avail = rect.y + rect.height - pad - top;
-    var nominal = title * 0.62;
-    var wrapped = [];
+    var lines = [];
     for (var s = 0; s < sources.length; s++) {
-      wrapped = wrapped.concat(fzWrap(sources[s], nominal, textWidth));
+      lines = lines.concat(fzWrap(layer, sources[s], em, textWidth));
     }
-    var lineSize = Math.min(nominal, avail / Math.max(1, wrapped.length * 1.22));
-    if (lineSize < 3) lineSize = 3;
-    for (var k = 0; k < wrapped.length; k++) {
-      fzSvgText(layer, rect.x + pad, top + lineSize * (1 + k * 1.22), lineSize,
-        "#111111", "400", wrapped[k]);
+
+    var fit = fzMeasure(layer, label, titleSize, "400");
+    if (fit > textWidth) titleSize = titleSize * textWidth / fit;
+
+    var blockW = fzMeasure(layer, label, titleSize, "400");
+    for (var n = 0; n < lines.length; n++) {
+      var lw = fzMeasure(layer, lines[n], em, "400");
+      if (lw > blockW) blockW = lw;
+    }
+    if (blockW > textWidth) blockW = textWidth;
+
+    var blockH = em * 3.48 + Math.max(0, lines.length - 1) * linePitch + em * 0.22;
+    var titleTop = rect.y + (rect.height - blockH) / 2;
+    if (titleTop < rect.y + pad) titleTop = rect.y + pad;
+
+    var tickH = em * 7.53;
+    var tickW = tickH * 0.911;
+    var tickX = left + blockW / 2 - tickW / 2 - em * 0.2;
+    var tickY = titleTop + em * 1.0;
+    if (valid) fzBigTick(layer, tickX, tickY, tickH, colour);
+    else fzBigCross(layer, tickX, tickY, tickH, colour);
+
+    fzSvgText(layer, left, titleTop + titleSize * 0.716, titleSize,
+      "#333333", "400", label);
+    for (var k = 0; k < lines.length; k++) {
+      fzSvgText(layer, left, titleTop + em * (3.48 + k * 0.96), em,
+        "#333333", "400", lines[k]);
     }
   }
 }
 
-function fzReport(message) {
-  if (!searchPort) return;
-  try { searchPort.postMessage("fzdbg " + message); } catch (err) {}
-}
-
 async function fzShowSignatureVerdict(json, attempt) {
   try { fzVerdicts = JSON.parse(json); } catch (err) {
-    fzReport("bad-json");
     return;
   }
   attempt = attempt || 0;
   if (!doc) {
     if (attempt < 20) setTimeout(function () { fzShowSignatureVerdict(json, attempt + 1); }, 250);
-    else fzReport("no-doc verdicts=" + fzVerdicts.length);
     return;
   }
   fzSigRects = null;
   try { await fzCollectSignatureRects(); } catch (err) {
-    fzReport("collect-failed " + String(err));
     return;
   }
   fzPaintSignatureVerdicts();
   var layers = document.querySelectorAll(".vw-sig-layer").length;
-  fzReport("verdicts=" + fzVerdicts.length + " rects=" +
-    (fzSigRects ? fzSigRects.length : 0) + " layers=" + layers);
   if (!layers && attempt < 6) {
     setTimeout(function () { fzShowSignatureVerdict(json, attempt + 1); }, 400);
   }
@@ -1059,8 +1119,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 69
-        versionName = "1.0.29"
+        versionCode = 70
+        versionName = "1.0.30"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
