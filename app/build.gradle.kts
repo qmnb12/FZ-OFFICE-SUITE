@@ -770,7 +770,7 @@ function fzShadowFilter(layer, size) {
   filter.setAttribute("width", "160%");
   filter.setAttribute("height", "160%");
   var blur = document.createElementNS(FZ_SVG_NS, "feGaussianBlur");
-  blur.setAttribute("stdDeviation", Math.max(0.35, size * 0.012));
+  blur.setAttribute("stdDeviation", Math.max(0.3, size * 0.008));
   filter.appendChild(blur);
   defs.appendChild(filter);
   layer.appendChild(defs);
@@ -780,9 +780,9 @@ function fzShadowFilter(layer, size) {
 /* Geometry measured off Adobe's own stamp: width is 0.911 of the height, the
    stroke 0.195 of the width, the elbow at 42% across and 90% down. */
 function fzStampPath(x, y, w, h) {
-  return "M" + (x + w * 0.1) + " " + (y + h * 0.49) +
-    " L" + (x + w * 0.42) + " " + (y + h * 0.9) +
-    " L" + (x + w * 0.86) + " " + (y + h * 0.1);
+  return "M" + (x + w * 0.07) + " " + (y + h * 0.53) +
+    " L" + (x + w * 0.36) + " " + (y + h * 0.86) +
+    " L" + (x + w * 0.95) + " " + (y + h * 0.08);
 }
 
 function fzBigTick(layer, x, y, h, colour) {
@@ -793,28 +793,28 @@ function fzBigTick(layer, x, y, h, colour) {
   shadow.setAttribute("d", d);
   shadow.setAttribute("fill", "none");
   shadow.setAttribute("stroke", "#000000");
-  shadow.setAttribute("stroke-width", stroke + w * 0.05);
-  shadow.setAttribute("stroke-linecap", "round");
-  shadow.setAttribute("stroke-linejoin", "round");
-  shadow.setAttribute("opacity", "0.5");
-  shadow.setAttribute("transform", "translate(" + (w * 0.05) + " " + (h * 0.055) + ")");
+  shadow.setAttribute("stroke-width", stroke + w * 0.06);
+  shadow.setAttribute("stroke-linecap", "butt");
+  shadow.setAttribute("stroke-linejoin", "miter");
+  shadow.setAttribute("opacity", "0.8");
+  shadow.setAttribute("transform", "translate(" + (w * 0.06) + " " + (h * 0.06) + ")");
   shadow.setAttribute("filter", "url(#" + fzShadowFilter(layer, w) + ")");
   layer.appendChild(shadow);
   var rim = document.createElementNS(FZ_SVG_NS, "path");
   rim.setAttribute("d", d);
   rim.setAttribute("fill", "none");
-  rim.setAttribute("stroke", "#3a3a3a");
-  rim.setAttribute("stroke-width", stroke + w * 0.055);
-  rim.setAttribute("stroke-linecap", "round");
-  rim.setAttribute("stroke-linejoin", "round");
+  rim.setAttribute("stroke", "#000000");
+  rim.setAttribute("stroke-width", stroke + w * 0.05);
+  rim.setAttribute("stroke-linecap", "butt");
+  rim.setAttribute("stroke-linejoin", "miter");
   layer.appendChild(rim);
   var inner = document.createElementNS(FZ_SVG_NS, "path");
   inner.setAttribute("d", d);
   inner.setAttribute("fill", "none");
   inner.setAttribute("stroke", colour);
   inner.setAttribute("stroke-width", stroke);
-  inner.setAttribute("stroke-linecap", "round");
-  inner.setAttribute("stroke-linejoin", "round");
+  inner.setAttribute("stroke-linecap", "butt");
+  inner.setAttribute("stroke-linejoin", "miter");
   layer.appendChild(inner);
 }
 
@@ -829,7 +829,7 @@ function fzBigCross(layer, x, y, h, colour) {
   path.setAttribute("fill", "none");
   path.setAttribute("stroke", colour);
   path.setAttribute("stroke-width", w * 0.195);
-  path.setAttribute("stroke-linecap", "round");
+  path.setAttribute("stroke-linecap", "butt");
   path.setAttribute("opacity", "0.85");
   layer.appendChild(path);
 }
@@ -1119,8 +1119,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 70
-        versionName = "1.0.30"
+        versionCode = 71
+        versionName = "1.0.31"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
