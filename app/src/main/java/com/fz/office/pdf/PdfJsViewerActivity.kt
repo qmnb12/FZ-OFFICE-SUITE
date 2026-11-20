@@ -290,24 +290,27 @@ class PdfJsViewerActivity : Activity() {
     private fun prepareDocument() {
         val uri = documentUri ?: return
         ioExecutor.execute {
-            // Ask for the size without opening the document. A provider that answers
-            // with -1 is usually an email or cloud pipe that allows only a single
-            // open, so it is staged to the cache instead of being probed and then
-            // opened again for the viewer; that second open was the one returning
-            // an HTTP 404 to PDF.js.
+            // Stage the document into the cache before the viewer asks for it. The
+            // provider is then opened exactly once, the length and the bytes always
+            // agree, and every range request PDF.js makes is answered from a local
+            // file instead of a second, third and fourth open of a provider that may
+            // be a pipe, a cloud download or a single-open content URI. Those later
+            // opens are what surfaced to PDF.js as an HTTP 404 on the first open and
+            // as "Failed to fetch" on a range load.
             val reported = queryDocumentLength(uri)
-            val probe = if (reported > 0L) probeDocument(uri) else PdfProbe(-1L, false, opened = false)
-            val staged = if (!probe.opened || probe.length <= 0L) stageDocument(uri) else null
-            // Range loading is enabled only when the provider was read completely and no
-            // /Encrypt marker was found. A short or failed probe (typical while an email
-            // or cloud attachment is still downloading) falls back to one full stream,
-            // because range reads against that same half-written file are what fail with
-            // an HTTP 404 on the first open while a second open succeeds.
+            val staged = if (reported <= 0L || reported <= MAX_STAGE_BYTES) {
+                stageDocument(uri)
+            } else {
+                null
+            }
+            val probe = if (staged == null) probeDocument(uri) else null
+            // Range loading is enabled only when the file was read completely and no
+            // /Encrypt marker was found.
             val ranged = staged?.let {
                 it.length() >= RANGE_THRESHOLD_BYTES &&
                     scanFileEncryption(it) != EncryptionScan.FOUND
-            } ?: probe.ranged
-            val length = staged?.length() ?: probe.length
+            } ?: probe!!.ranged
+            val length = staged?.length() ?: probe!!.length
             runOnUiThread {
                 if (closing || isFinishing || isDestroyed) return@runOnUiThread
                 documentLength = length
@@ -446,18 +449,21 @@ class PdfJsViewerActivity : Activity() {
     }
 
     private fun intercept(url: Uri, range: String?): WebResourceResponse {
-        if (url.scheme != "https" || url.host != ASSET_HOST) return notFound()
-        val path = url.path.orEmpty()
-        if (path.isEmpty() || path.contains("..")) return notFound()
-        if (path == DOCUMENT_PATH) return documentResponse(range)
-        if (!path.startsWith("/assets/")) return notFound()
-
-        val versionedPath = path.removePrefix("/assets/")
-        val revisionPrefix = "$assetRevision/"
-        if (!versionedPath.startsWith(revisionPrefix)) return notFound()
-        val relative = versionedPath.removePrefix(revisionPrefix)
-        if (!relative.startsWith("viewer/")) return notFound()
+        // A response must never escape shouldInterceptRequest: WebView turns a
+        // thrown exception into a failed request, which reaches PDF.js as the
+        // opaque "Failed to fetch" instead of a status the page can explain.
         return try {
+            if (url.scheme != "https" || url.host != ASSET_HOST) return notFound()
+            val path = url.path.orEmpty()
+            if (path.isEmpty() || path.contains("..")) return notFound()
+            if (path == DOCUMENT_PATH) return documentResponse(range)
+            if (!path.startsWith("/assets/")) return notFound()
+
+            val versionedPath = path.removePrefix("/assets/")
+            val revisionPrefix = "$assetRevision/"
+            if (!versionedPath.startsWith(revisionPrefix)) return notFound()
+            val relative = versionedPath.removePrefix(revisionPrefix)
+            if (!relative.startsWith("viewer/")) return notFound()
             val input = assets.open(relative)
             WebResourceResponse(
                 assetMime(relative),
@@ -467,15 +473,15 @@ class PdfJsViewerActivity : Activity() {
                 assetHeaders(),
                 input
             )
-        } catch (_: IOException) {
+        } catch (_: Exception) {
             notFound()
         }
     }
 
     private fun documentResponse(range: String?): WebResourceResponse {
         val uri = documentUri ?: return notFound()
-        stagedFile?.let { return fileResponse(it, range) }
         return try {
+            stagedFile?.let { return fileResponse(it, range) }
             if (!useRanges || documentLength <= 0L || range.isNullOrBlank()) {
                 // A provider can fail openInputStream/openAssetFileDescriptor while
                 // still serving openFileDescriptor, and a pipe can refuse every
@@ -772,11 +778,18 @@ class PdfJsViewerActivity : Activity() {
 
     private fun parseRange(value: String, total: Long): Pair<Long, Long>? {
         if (total <= 0L) return null
-        val match = Regex("^bytes=(\\d+)-(\\d*)$", RegexOption.IGNORE_CASE)
+        val match = Regex("^bytes=(\\d*)-(\\d*)$", RegexOption.IGNORE_CASE)
             .find(value.trim()) ?: return null
-        val start = match.groupValues[1].toLongOrNull() ?: return null
-        val requestedEnd = match.groupValues[2].takeIf { it.isNotEmpty() }?.toLongOrNull()
-            ?: (total - 1L)
+        val startText = match.groupValues[1]
+        val endText = match.groupValues[2]
+        if (startText.isEmpty()) {
+            // "bytes=-N": the last N bytes. PDF.js asks for the trailer this way.
+            val suffix = endText.toLongOrNull() ?: return null
+            if (suffix <= 0L) return null
+            return (total - suffix).coerceAtLeast(0L) to (total - 1L)
+        }
+        val start = startText.toLongOrNull() ?: return null
+        val requestedEnd = endText.takeIf { it.isNotEmpty() }?.toLongOrNull() ?: (total - 1L)
         if (start < 0L || start >= total || requestedEnd < start) return null
         return start to requestedEnd.coerceAtMost(total - 1L)
     }
