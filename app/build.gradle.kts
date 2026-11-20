@@ -770,7 +770,7 @@ function fzShadowFilter(layer, size) {
   filter.setAttribute("width", "160%");
   filter.setAttribute("height", "160%");
   var blur = document.createElementNS(FZ_SVG_NS, "feGaussianBlur");
-  blur.setAttribute("stdDeviation", Math.max(0.3, size * 0.008));
+  blur.setAttribute("stdDeviation", Math.max(0.15, size * 0.002));
   filter.appendChild(blur);
   defs.appendChild(filter);
   layer.appendChild(defs);
@@ -792,19 +792,19 @@ function fzBigTick(layer, x, y, h, colour) {
   var shadow = document.createElementNS(FZ_SVG_NS, "path");
   shadow.setAttribute("d", d);
   shadow.setAttribute("fill", "none");
-  shadow.setAttribute("stroke", "#000000");
-  shadow.setAttribute("stroke-width", stroke + w * 0.06);
+  shadow.setAttribute("stroke", "#3a3a3a");
+  shadow.setAttribute("stroke-width", stroke + w * 0.045);
   shadow.setAttribute("stroke-linecap", "butt");
   shadow.setAttribute("stroke-linejoin", "miter");
-  shadow.setAttribute("opacity", "0.8");
-  shadow.setAttribute("transform", "translate(" + (w * 0.06) + " " + (h * 0.06) + ")");
+  shadow.setAttribute("opacity", "1");
+  shadow.setAttribute("transform", "translate(" + (w * 0.05) + " " + (h * 0.05) + ")");
   shadow.setAttribute("filter", "url(#" + fzShadowFilter(layer, w) + ")");
   layer.appendChild(shadow);
   var rim = document.createElementNS(FZ_SVG_NS, "path");
   rim.setAttribute("d", d);
   rim.setAttribute("fill", "none");
-  rim.setAttribute("stroke", "#000000");
-  rim.setAttribute("stroke-width", stroke + w * 0.05);
+  rim.setAttribute("stroke", "#3a3a3a");
+  rim.setAttribute("stroke-width", stroke + w * 0.036);
   rim.setAttribute("stroke-linecap", "butt");
   rim.setAttribute("stroke-linejoin", "miter");
   layer.appendChild(rim);
@@ -894,31 +894,31 @@ function fzPaintSignatureVerdicts() {
       lines = lines.concat(fzWrap(layer, sources[s], em, textWidth));
     }
 
-    var fit = fzMeasure(layer, label, titleSize, "400");
+    var fit = fzMeasure(layer, label, titleSize, "500");
     if (fit > textWidth) titleSize = titleSize * textWidth / fit;
 
-    var blockW = fzMeasure(layer, label, titleSize, "400");
+    var blockW = fzMeasure(layer, label, titleSize, "500");
     for (var n = 0; n < lines.length; n++) {
       var lw = fzMeasure(layer, lines[n], em, "400");
       if (lw > blockW) blockW = lw;
     }
     if (blockW > textWidth) blockW = textWidth;
 
-    var blockH = em * 3.48 + Math.max(0, lines.length - 1) * linePitch + em * 0.22;
+    var blockH = em * 3.7 + Math.max(0, lines.length - 1) * linePitch + em * 0.22;
     var titleTop = rect.y + (rect.height - blockH) / 2;
     if (titleTop < rect.y + pad) titleTop = rect.y + pad;
 
-    var tickH = em * 7.53;
+    var tickH = em * 7.28;
     var tickW = tickH * 0.911;
     var tickX = left + blockW / 2 - tickW / 2 - em * 0.2;
-    var tickY = titleTop + em * 1.0;
+    var tickY = titleTop + em * 0.65;
     if (valid) fzBigTick(layer, tickX, tickY, tickH, colour);
     else fzBigCross(layer, tickX, tickY, tickH, colour);
 
     fzSvgText(layer, left, titleTop + titleSize * 0.716, titleSize,
-      "#333333", "400", label);
+      "#333333", "500", label);
     for (var k = 0; k < lines.length; k++) {
-      fzSvgText(layer, left, titleTop + em * (3.48 + k * 0.96), em,
+      fzSvgText(layer, left, titleTop + em * (3.7 + k * 0.96), em,
         "#333333", "400", lines[k]);
     }
   }
@@ -1119,8 +1119,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 71
-        versionName = "1.0.31"
+        versionCode = 72
+        versionName = "1.0.32"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
