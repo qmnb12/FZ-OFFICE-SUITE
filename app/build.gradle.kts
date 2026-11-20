@@ -665,7 +665,9 @@ async function fzCollectSignatureRects() {
       });
     }
   }
-  fzSigRects = out;
+  /* Only a non-empty answer is worth caching: annotations can still be loading
+     when the verdict arrives, and an empty cache would never be retried. */
+  if (out.length) fzSigRects = out;
   return out;
 }
 
@@ -705,8 +707,11 @@ function fzPaintSignatureVerdicts() {
       layer = document.createElementNS(FZ_SVG_NS, "svg");
       layer.setAttribute("class", "vw-sig-layer");
       layer.setAttribute("viewBox", "0 0 " + rect.viewWidth + " " + rect.viewHeight);
+      /* left/top as well as inset: inset is recent enough that a WebView without
+         it falls back to the static position, which is the foot of the page. */
       layer.style.cssText =
-        "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:hidden";
+        "position:absolute;left:0;top:0;right:0;bottom:0;width:100%;height:100%;" +
+        "pointer-events:none;overflow:hidden;z-index:2";
       slot.box.appendChild(layer);
     }
     layer.replaceChildren();
@@ -751,11 +756,34 @@ function fzPaintSignatureVerdicts() {
   }
 }
 
-async function fzShowSignatureVerdict(json) {
-  try { fzVerdicts = JSON.parse(json); } catch (err) { return; }
-  if (!doc) return;
-  try { await fzCollectSignatureRects(); } catch (err) { return; }
+function fzReport(message) {
+  if (!searchPort) return;
+  try { searchPort.postMessage("fzdbg " + message); } catch (err) {}
+}
+
+async function fzShowSignatureVerdict(json, attempt) {
+  try { fzVerdicts = JSON.parse(json); } catch (err) {
+    fzReport("bad-json");
+    return;
+  }
+  attempt = attempt || 0;
+  if (!doc) {
+    if (attempt < 20) setTimeout(function () { fzShowSignatureVerdict(json, attempt + 1); }, 250);
+    else fzReport("no-doc verdicts=" + fzVerdicts.length);
+    return;
+  }
+  fzSigRects = null;
+  try { await fzCollectSignatureRects(); } catch (err) {
+    fzReport("collect-failed " + String(err));
+    return;
+  }
   fzPaintSignatureVerdicts();
+  var layers = document.querySelectorAll(".vw-sig-layer").length;
+  fzReport("verdicts=" + fzVerdicts.length + " rects=" +
+    (fzSigRects ? fzSigRects.length : 0) + " layers=" + layers);
+  if (!layers && attempt < 6) {
+    setTimeout(function () { fzShowSignatureVerdict(json, attempt + 1); }, 400);
+  }
 }
 
 function onCommand(msg) {
@@ -933,8 +961,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 61
-        versionName = "1.0.21"
+        versionCode = 62
+        versionName = "1.0.22"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.

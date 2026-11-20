@@ -900,6 +900,15 @@ class PdfJsViewerActivity : Activity() {
             handleSignaturePayload(message.substring("fzsig ".length))
             return
         }
+        if (message.startsWith("fzdbg ")) {
+            val detail = message.substring("fzdbg ".length)
+            runOnUiThread {
+                if (!closing) {
+                    android.widget.Toast.makeText(this, detail, android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+            return
+        }
         if (message.startsWith("shrunk ")) {
             // The pages always stay at the 70% column now. The reader's double-tap
             // zooms the WebView natively instead of handing the gesture to PDF.js.
