@@ -694,6 +694,57 @@ function fzSvgText(layer, x, y, size, colour, weight, text) {
   layer.appendChild(node);
 }
 
+function fzFitText(text, size, maxWidth) {
+  var per = size * 0.52;
+  var max = Math.max(4, Math.floor(maxWidth / per));
+  return text.length > max ? text.slice(0, max - 1) + "…" : text;
+}
+
+/* The big tick Adobe draws under the wording: a dark soft edge with the green
+   stroke on top of it, rather than a flat glyph. */
+function fzBigTick(layer, x, y, size, colour) {
+  var d = "M" + (x + size * 0.05) + " " + (y + size * 0.55) +
+    " L" + (x + size * 0.36) + " " + (y + size * 0.92) +
+    " L" + (x + size * 1.02) + " " + (y + size * 0.08);
+  var edge = document.createElementNS(FZ_SVG_NS, "path");
+  edge.setAttribute("d", d);
+  edge.setAttribute("fill", "none");
+  edge.setAttribute("stroke", "#10321f");
+  edge.setAttribute("stroke-width", size * 0.32);
+  edge.setAttribute("stroke-linecap", "round");
+  edge.setAttribute("stroke-linejoin", "round");
+  edge.setAttribute("opacity", "0.55");
+  layer.appendChild(edge);
+  var inner = document.createElementNS(FZ_SVG_NS, "path");
+  inner.setAttribute("d", d);
+  inner.setAttribute("fill", "none");
+  inner.setAttribute("stroke", colour);
+  inner.setAttribute("stroke-width", size * 0.21);
+  inner.setAttribute("stroke-linecap", "round");
+  inner.setAttribute("stroke-linejoin", "round");
+  inner.setAttribute("opacity", "0.9");
+  layer.appendChild(inner);
+}
+
+function fzBigCross(layer, x, y, size, colour) {
+  var d = "M" + (x + size * 0.1) + " " + (y + size * 0.1) +
+    " L" + (x + size * 0.9) + " " + (y + size * 0.9) +
+    " M" + (x + size * 0.9) + " " + (y + size * 0.1) +
+    " L" + (x + size * 0.1) + " " + (y + size * 0.9);
+  var path = document.createElementNS(FZ_SVG_NS, "path");
+  path.setAttribute("d", d);
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", colour);
+  path.setAttribute("stroke-width", size * 0.2);
+  path.setAttribute("stroke-linecap", "round");
+  path.setAttribute("opacity", "0.85");
+  layer.appendChild(path);
+}
+
+/* Adobe's own stamp, layout and wording: white paper, a large green tick
+   behind the text, "Signature valid", then the signer, date, reason and
+   location. Everything shrinks to the widget rectangle so no line runs past
+   its edge. */
 function fzPaintSignatureVerdicts() {
   if (!fzVerdicts || !fzSigRects) return;
   for (var i = 0; i < fzSigRects.length; i++) {
@@ -718,43 +769,40 @@ function fzPaintSignatureVerdicts() {
       slot.box.appendChild(layer);
     }
     layer.replaceChildren();
-    var colour = verdict.state === "trusted" ? "#0b6b3a" :
-      verdict.state === "valid" ? "#0b4a8f" :
-      verdict.state === "changed" ? "#8a5300" : "#b3261e";
-    var label = verdict.state === "trusted" ? "Signature valid" :
-      verdict.state === "valid" ? "Signature valid, certificate unknown" :
+    var trusted = verdict.state === "trusted";
+    var valid = trusted || verdict.state === "valid";
+    var colour = trusted ? "#1f9d47" : verdict.state === "valid" ? "#1f6fb2" :
+      verdict.state === "changed" ? "#b26a00" : "#c62828";
+    var label = valid ? "Signature valid" :
       verdict.state === "changed" ? "Changed after signing" : "Signature invalid";
-    var mark = verdict.state === "invalid" || verdict.state === "changed" ? "!" : "✓";
-    var stroke = Math.max(1, rect.width * 0.006);
-    var panel = document.createElementNS(FZ_SVG_NS, "rect");
-    panel.setAttribute("x", rect.x);
-    panel.setAttribute("y", rect.y);
-    panel.setAttribute("width", rect.width);
-    panel.setAttribute("height", rect.height);
-    panel.setAttribute("fill", "#ffffff");
-    panel.setAttribute("stroke", colour);
-    panel.setAttribute("stroke-width", stroke);
-    layer.appendChild(panel);
-    var head = Math.min(rect.height, Math.max(rect.height * 0.3, rect.width * 0.1));
-    var bar = document.createElementNS(FZ_SVG_NS, "rect");
-    bar.setAttribute("x", rect.x);
-    bar.setAttribute("y", rect.y);
-    bar.setAttribute("width", rect.width);
-    bar.setAttribute("height", head);
-    bar.setAttribute("fill", colour);
-    layer.appendChild(bar);
-    var pad = Math.max(2, rect.width * 0.025);
-    var headSize = Math.min(head * 0.6, rect.width * 0.085);
-    fzSvgText(layer, rect.x + pad, rect.y + head * 0.5 + headSize * 0.36,
-      headSize, "#ffffff", "600", mark + " " + label);
-    var lineSize = Math.min(headSize * 0.85, (rect.height - head) * 0.34);
-    var lineY = rect.y + head + lineSize * 1.1;
-    if (verdict.signer) {
-      fzSvgText(layer, rect.x + pad, lineY, lineSize, "#1a1a1a", "500", verdict.signer);
-      lineY += lineSize * 1.15;
-    }
-    if (verdict.date) {
-      fzSvgText(layer, rect.x + pad, lineY, lineSize, "#444444", "400", verdict.date);
+    var pad = Math.max(1.5, rect.width * 0.03);
+    var paper = document.createElementNS(FZ_SVG_NS, "rect");
+    paper.setAttribute("x", rect.x);
+    paper.setAttribute("y", rect.y);
+    paper.setAttribute("width", rect.width);
+    paper.setAttribute("height", rect.height);
+    paper.setAttribute("fill", "#ffffff");
+    layer.appendChild(paper);
+    var glyph = Math.min(rect.width, rect.height) * 0.72;
+    var gx = rect.x + rect.width - glyph - pad * 0.5;
+    var gy = rect.y + rect.height - glyph - pad * 0.5;
+    if (valid) fzBigTick(layer, gx, gy, glyph, colour);
+    else fzBigCross(layer, gx, gy, glyph, colour);
+    var title = Math.min(rect.height * 0.14, rect.width * 0.09);
+    fzSvgText(layer, rect.x + pad, rect.y + pad + title, title, "#111111", "700", label);
+    var lines = [];
+    if (verdict.signer) lines.push("Digitally signed by " + verdict.signer);
+    if (verdict.date) lines.push("Date: " + verdict.date);
+    if (verdict.reason) lines.push("Reason: " + verdict.reason);
+    if (verdict.location) lines.push("Location: " + verdict.location);
+    var top = rect.y + pad + title * 1.5;
+    var avail = rect.y + rect.height - pad - top;
+    var lineSize = Math.min(title * 0.56, avail / Math.max(1, lines.length * 1.3));
+    if (lineSize < 2.6) lineSize = 2.6;
+    for (var k = 0; k < lines.length; k++) {
+      fzSvgText(layer, rect.x + pad, top + lineSize * (1 + k * 1.3), lineSize,
+        "#111111", k === 0 ? "600" : "400",
+        fzFitText(lines[k], lineSize, rect.width - pad * 2));
     }
   }
 }
@@ -964,8 +1012,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 63
-        versionName = "1.0.23"
+        versionCode = 64
+        versionName = "1.0.24"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.

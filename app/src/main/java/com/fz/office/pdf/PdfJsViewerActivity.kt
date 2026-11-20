@@ -1105,6 +1105,8 @@ class PdfJsViewerActivity : Activity() {
                 )
                 put("signer", report.signer.orEmpty())
                 put("date", report.signedAt.orEmpty())
+                put("reason", report.reason.orEmpty())
+                put("location", report.location.orEmpty())
             })
         }
         postCommand("fzverdict " + array.toString())

@@ -233,7 +233,7 @@ assert(appGradle.includes("offline-pdf-viewer-1.manifest") &&
   ).every(Boolean) &&
   appGradle.includes('opts.cMapUrl = vwAssetUrl("./lib/cmaps/");') &&
   !appGradle.includes('script = script.replace(cMapConfig, "")') &&
-  appGradle.includes('versionName = "1.0.23"') && appGradle.includes("versionCode = 63"),
+  appGradle.includes('versionName = "1.0.24"') && appGradle.includes("versionCode = 64"),
   "PDF.js assets and all CMaps must be checksum-verified and included in the new app version");
 assert(!appGradle.includes("third_party:mj_pdf") && !settings.includes("mj_pdf") &&
   !settings.includes("PdfiumAndroid"),
