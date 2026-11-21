@@ -759,48 +759,29 @@ function fzWrap(layer, text, size, maxWidth) {
   return out;
 }
 
-/* Adobe draws the tick as a filled silhouette, so the dark border also runs
-   across both end caps. The outline comes from the centre line A-B-C offset
-   by half the stroke, with the elbow mitered. */
-function fzUnit(x0, y0, x1, y1) {
-  var dx = x1 - x0, dy = y1 - y0;
-  var len = Math.sqrt(dx * dx + dy * dy) || 1;
-  return { x: dx / len, y: dy / len };
-}
+/* Adobe's tick is a tapered brush stroke, not an even one. This outline is
+   traced from Adobe's own stamp raster (green pixels, gaps under the text
+   closed) in fractions of the tick's bounding box. */
+var FZ_TICK_OUTLINE = [
+  [0.2946,0.9621],[0.3259,0.9621],[0.3482,0.9844],[0.3795,0.9844],[0.3839,0.971],[0.4263,0.9598],[0.4263,0.9375],[0.4621,0.8973],[0.471,0.8571],
+  [0.4978,0.8527],[0.4978,0.8304],[0.5246,0.808],[0.5246,0.7946],[0.5692,0.7455],[0.5781,0.7143],[0.596,0.7098],[0.6049,0.6786],[0.6228,0.6741],
+  [0.6228,0.6518],[0.6496,0.6295],[0.6496,0.5982],[0.6652,0.596],[0.6942,0.5446],[0.7299,0.5223],[0.7299,0.5],[0.7656,0.4598],[0.7746,0.4286],
+  [0.7879,0.4241],[0.7946,0.3996],[0.8103,0.3973],[0.8192,0.3571],[0.8549,0.3348],[0.8549,0.3036],[0.8817,0.2902],[0.9174,0.2232],[0.9531,0.192],
+  [0.9621,0.1607],[0.9844,0.1384],[0.9844,0.0893],[0.9643,0.0871],[0.9063,0.0335],[0.8661,0.0335],[0.8616,0.0112],[0.846,0.0134],[0.8438,0.0335],
+  [0.8192,0.0357],[0.8192,0.058],[0.7656,0.125],[0.7478,0.1741],[0.7299,0.1786],[0.7299,0.2054],[0.6763,0.2857],[0.6763,0.317],[0.6496,0.3304],
+  [0.6496,0.3527],[0.6228,0.3661],[0.6205,0.3906],[0.6049,0.3929],[0.6049,0.4241],[0.5871,0.4286],[0.5513,0.5134],[0.5156,0.5536],[0.5156,0.5938],
+  [0.4799,0.6071],[0.4799,0.6295],[0.4621,0.6429],[0.4621,0.6652],[0.4442,0.6696],[0.4442,0.692],[0.4174,0.7143],[0.4174,0.7366],[0.3996,0.75],
+  [0.3884,0.7924],[0.3571,0.7924],[0.3348,0.7656],[0.3192,0.7634],[0.3192,0.7411],[0.2656,0.692],[0.2656,0.6696],[0.25,0.6674],[0.221,0.6384],
+  [0.221,0.625],[0.1853,0.6027],[0.1853,0.5804],[0.1674,0.5759],[0.1674,0.5446],[0.1429,0.5424],[0.1406,0.5268],[0.1027,0.4888],[0.0513,0.5446],
+  [0.0513,0.558],[0.0156,0.5804],[0.0156,0.6563],[0.0402,0.6763],[0.058,0.6763],[0.0603,0.7009],[0.1049,0.7321],[0.1138,0.7634],[0.1563,0.7835],
+  [0.1763,0.817],[0.2277,0.8638],[0.2455,0.8638],[0.2679,0.9085],[0.2924,0.9107],[0.2924,0.9598]
+];
 
-function fzMeet(p1, u1, p2, u2) {
-  var den = u1.x * u2.y - u1.y * u2.x;
-  if (!den) return { x: p2.x, y: p2.y };
-  var t = ((p2.x - p1.x) * u2.y - (p2.y - p1.y) * u2.x) / den;
-  return { x: p1.x + u1.x * t, y: p1.y + u1.y * t };
-}
-
-/* Centre line measured off Adobe's own stamp, in fractions of the green tick's
-   bounding box; the stroke is 0.146 of its width and the elbow is rounded. */
-function fzTickPoints(w, h, stroke) {
-  var half = stroke / 2;
-  var ax = w * 0.065, ay = h * 0.550;
-  var bx = w * 0.360, by = h * 0.916;
-  var cx = w * 0.922, cy = h * 0.055;
-  var u1 = fzUnit(ax, ay, bx, by);
-  var u2 = fzUnit(bx, by, cx, cy);
-  var n1 = { x: -u1.y * half, y: u1.x * half };
-  var n2 = { x: -u2.y * half, y: u2.x * half };
-  var a1 = Math.atan2(n1.y, n1.x);
-  var a2 = Math.atan2(n2.y, n2.x);
-  var sweep = a2 - a1;
-  while (sweep > Math.PI) sweep -= Math.PI * 2;
-  while (sweep < -Math.PI) sweep += Math.PI * 2;
-  var pts = [{ x: ax + n1.x, y: ay + n1.y }];
-  for (var s = 0; s <= 8; s++) {
-    var ang = a1 + sweep * s / 8;
-    pts.push({ x: bx + Math.cos(ang) * half, y: by + Math.sin(ang) * half });
+function fzTickPoints(w, h) {
+  var pts = [];
+  for (var i = 0; i < FZ_TICK_OUTLINE.length; i++) {
+    pts.push({ x: FZ_TICK_OUTLINE[i][0] * w, y: FZ_TICK_OUTLINE[i][1] * h });
   }
-  pts.push({ x: cx + n2.x, y: cy + n2.y });
-  pts.push({ x: cx - n2.x, y: cy - n2.y });
-  pts.push(fzMeet({ x: ax - n1.x, y: ay - n1.y }, u1,
-    { x: bx - n2.x, y: by - n2.y }, u2));
-  pts.push({ x: ax - n1.x, y: ay - n1.y });
   return pts;
 }
 
@@ -827,7 +808,7 @@ function fzTickPath(pts, fit, x, y) {
 }
 
 function fzBigTick(layer, x, y, w, h, colour) {
-  var base = fzTickPoints(w, h, w * 0.146);
+  var base = fzTickPoints(w, h);
   var fit = fzTickFit(base, w, h);
   var green = fzTickPath(base, fit, x, y);
   var rim = w * 0.02;
@@ -1147,8 +1128,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 74
-        versionName = "1.0.34"
+        versionCode = 75
+        versionName = "1.0.35"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
