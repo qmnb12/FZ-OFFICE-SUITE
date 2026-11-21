@@ -776,26 +776,32 @@ function fzMeet(p1, u1, p2, u2) {
 }
 
 /* Centre line measured off Adobe's own stamp, in fractions of the green tick's
-   bounding box; the stroke is 0.163 of its width. */
+   bounding box; the stroke is 0.146 of its width and the elbow is rounded. */
 function fzTickPoints(w, h, stroke) {
   var half = stroke / 2;
-  var ax = w * 0.066, ay = h * 0.530;
-  var bx = w * 0.360, by = h * 0.860;
-  var cx = w * 0.929, cy = h * 0.052;
+  var ax = w * 0.065, ay = h * 0.550;
+  var bx = w * 0.360, by = h * 0.916;
+  var cx = w * 0.922, cy = h * 0.055;
   var u1 = fzUnit(ax, ay, bx, by);
   var u2 = fzUnit(bx, by, cx, cy);
   var n1 = { x: -u1.y * half, y: u1.x * half };
   var n2 = { x: -u2.y * half, y: u2.x * half };
-  return [
-    { x: ax + n1.x, y: ay + n1.y },
-    fzMeet({ x: ax + n1.x, y: ay + n1.y }, u1,
-      { x: bx + n2.x, y: by + n2.y }, u2),
-    { x: cx + n2.x, y: cy + n2.y },
-    { x: cx - n2.x, y: cy - n2.y },
-    fzMeet({ x: ax - n1.x, y: ay - n1.y }, u1,
-      { x: bx - n2.x, y: by - n2.y }, u2),
-    { x: ax - n1.x, y: ay - n1.y }
-  ];
+  var a1 = Math.atan2(n1.y, n1.x);
+  var a2 = Math.atan2(n2.y, n2.x);
+  var sweep = a2 - a1;
+  while (sweep > Math.PI) sweep -= Math.PI * 2;
+  while (sweep < -Math.PI) sweep += Math.PI * 2;
+  var pts = [{ x: ax + n1.x, y: ay + n1.y }];
+  for (var s = 0; s <= 8; s++) {
+    var ang = a1 + sweep * s / 8;
+    pts.push({ x: bx + Math.cos(ang) * half, y: by + Math.sin(ang) * half });
+  }
+  pts.push({ x: cx + n2.x, y: cy + n2.y });
+  pts.push({ x: cx - n2.x, y: cy - n2.y });
+  pts.push(fzMeet({ x: ax - n1.x, y: ay - n1.y }, u1,
+    { x: bx - n2.x, y: by - n2.y }, u2));
+  pts.push({ x: ax - n1.x, y: ay - n1.y });
+  return pts;
 }
 
 function fzTickFit(pts, w, h) {
@@ -821,21 +827,25 @@ function fzTickPath(pts, fit, x, y) {
 }
 
 function fzBigTick(layer, x, y, w, h, colour) {
-  var stroke = w * 0.163;
-  var rim = w * 0.02;
-  var base = fzTickPoints(w, h, stroke);
+  var base = fzTickPoints(w, h, w * 0.146);
   var fit = fzTickFit(base, w, h);
   var green = fzTickPath(base, fit, x, y);
-  var border = fzTickPath(fzTickPoints(w, h, stroke + rim * 2), fit, x, y);
+  var rim = w * 0.02;
   var shadow = document.createElementNS(FZ_SVG_NS, "path");
-  shadow.setAttribute("d", border);
+  shadow.setAttribute("d", green);
   shadow.setAttribute("fill", "#343434");
+  shadow.setAttribute("stroke", "#343434");
+  shadow.setAttribute("stroke-width", rim * 2);
+  shadow.setAttribute("stroke-linejoin", "round");
   shadow.setAttribute("transform",
     "translate(" + (w * 0.057) + " " + (h * 0.057) + ")");
   layer.appendChild(shadow);
   var rimNode = document.createElementNS(FZ_SVG_NS, "path");
-  rimNode.setAttribute("d", border);
+  rimNode.setAttribute("d", green);
   rimNode.setAttribute("fill", "#343434");
+  rimNode.setAttribute("stroke", "#343434");
+  rimNode.setAttribute("stroke-width", rim * 2);
+  rimNode.setAttribute("stroke-linejoin", "round");
   layer.appendChild(rimNode);
   var inner = document.createElementNS(FZ_SVG_NS, "path");
   inner.setAttribute("d", green);
@@ -852,7 +862,7 @@ function fzBigCross(layer, x, y, w, h, colour) {
   path.setAttribute("d", d);
   path.setAttribute("fill", "none");
   path.setAttribute("stroke", colour);
-  path.setAttribute("stroke-width", w * 0.163);
+  path.setAttribute("stroke-width", w * 0.146);
   path.setAttribute("stroke-linecap", "butt");
   path.setAttribute("opacity", "0.85");
   layer.appendChild(path);
@@ -1137,8 +1147,8 @@ android {
         applicationId = "com.fz.office"
         minSdk = 24
         targetSdk = 35
-        versionCode = 73
-        versionName = "1.0.33"
+        versionCode = 74
+        versionName = "1.0.34"
     }
 
     // Keep the same testing certificate across main and feature-branch APKs.
